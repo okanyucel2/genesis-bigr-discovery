@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from bigr.models import Asset, BigrCategory, ConfidenceLevel, ScanMethod, ScanResult
+from bigr.models import Asset, BigrCategory, ConfidenceLevel, ScanMethod, ScanResult, is_randomized_mac, normalize_mac
 
 
 class TestBigrCategory:
@@ -101,3 +101,55 @@ class TestScanResult:
         assert d["target"] == "192.168.1.0/24"
         assert d["total_assets"] == 0
         assert d["duration_seconds"] == 60.0
+
+
+class TestNormalizeMac:
+    def test_pads_single_digit_octets(self):
+        assert normalize_mac("cc:8:fa:6d:fc:59") == "cc:08:fa:6d:fc:59"
+        assert normalize_mac("6:11:e5:ea:68:5c") == "06:11:e5:ea:68:5c"
+
+    def test_lowercases(self):
+        assert normalize_mac("AA:BB:CC:DD:EE:FF") == "aa:bb:cc:dd:ee:ff"
+
+    def test_converts_dashes(self):
+        assert normalize_mac("AA-BB-CC-DD-EE-FF") == "aa:bb:cc:dd:ee:ff"
+
+    def test_already_normalized(self):
+        assert normalize_mac("aa:bb:cc:dd:ee:ff") == "aa:bb:cc:dd:ee:ff"
+
+    def test_none_returns_none(self):
+        assert normalize_mac(None) is None
+
+    def test_empty_returns_none(self):
+        assert normalize_mac("") is None
+
+    def test_invalid_format_returns_as_is(self):
+        assert normalize_mac("not-a-mac") == "not:a:mac"
+        assert normalize_mac("aabb.ccdd.eeff") == "aabb.ccdd.eeff"
+
+
+class TestIsRandomizedMac:
+    def test_randomized_mac(self):
+        # 0x3e = 0011 1110, bit 1 (0x02) is set → randomized
+        assert is_randomized_mac("3e:aa:bb:cc:dd:ee") is True
+        # 0xba = 1011 1010, bit 1 is set → randomized
+        assert is_randomized_mac("ba:11:22:33:44:55") is True
+        # 0x06 = 0000 0110, bit 1 is set → randomized
+        assert is_randomized_mac("06:aa:bb:cc:dd:ee") is True
+
+    def test_non_randomized_mac(self):
+        # 0xaa = 1010 1010, bit 1 is set → actually randomized
+        # 0x00 = 0000 0000, bit 1 not set → NOT randomized
+        assert is_randomized_mac("00:1a:1e:aa:bb:cc") is False
+        # 0xac = 1010 1100, bit 1 not set → NOT randomized
+        assert is_randomized_mac("ac:de:48:aa:bb:cc") is False
+
+    def test_none_returns_false(self):
+        assert is_randomized_mac(None) is False
+
+    def test_empty_returns_false(self):
+        assert is_randomized_mac("") is False
+
+    def test_handles_unnormalized_input(self):
+        # Single-digit octet should still work via normalize_mac
+        assert is_randomized_mac("6:11:e5:ea:68:5c") is True  # 0x06 & 0x02 = 0x02

@@ -8,6 +8,7 @@ from functools import lru_cache
 
 from bigr.classifier.fingerprint import fingerprint_asset
 from bigr.classifier.mac_lookup import get_vendor_category_hint, lookup_vendor
+from bigr.models import is_randomized_mac
 from bigr.classifier.rules_engine import (
     RuleSet,
     apply_hostname_rules,
@@ -159,6 +160,7 @@ def classify_asset(asset: Asset, do_fingerprint: bool = True) -> Asset:
     score_by_vendor(asset.vendor, scores)
     score_by_hostname(asset.hostname, scores)
     score_by_os(asset.os_hint, scores)
+    _score_by_mac_randomization(asset.mac, asset.open_ports, scores)
 
     # Assign
     if scores.confidence >= 0.3:
@@ -175,6 +177,34 @@ def classify_asset(asset: Asset, do_fingerprint: bool = True) -> Asset:
 def classify_assets(assets: list[Asset], do_fingerprint: bool = True) -> list[Asset]:
     """Classify all assets in a scan result."""
     return [classify_asset(asset, do_fingerprint=do_fingerprint) for asset in assets]
+
+
+# =============================================================================
+# Heuristic Rules (always applied)
+# =============================================================================
+
+def _score_by_mac_randomization(mac: str | None, open_ports: list[int], scores: ClassificationScores) -> None:
+    """Score based on MAC randomization detection.
+
+    Locally administered MACs (Apple/Android privacy) are a strong
+    signal that the device is a mobile phone, tablet, or laptop.
+    Combined with no open ports → very likely a consumer device.
+    """
+    if not is_randomized_mac(mac):
+        return
+
+    evidence: list[str] = []
+
+    # Randomized MAC alone → mobile device signal
+    scores.tasinabilir += 0.4
+    evidence.append(f"Randomized MAC ({mac}) → Taşınabilir")
+
+    # No open ports + randomized MAC → even stronger signal
+    if not open_ports:
+        scores.tasinabilir += 0.2
+        evidence.append("No open ports + randomized MAC → likely phone/tablet")
+
+    scores.evidence["mac_heuristic"] = evidence
 
 
 # =============================================================================

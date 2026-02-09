@@ -6,7 +6,7 @@ import os
 import socket
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from bigr.models import Asset, ScanMethod
+from bigr.models import Asset, ScanMethod, normalize_mac
 
 # Default critical ports for BİGR classification
 DEFAULT_PORTS = [
@@ -28,6 +28,15 @@ DEFAULT_PORTS = [
     1883,  # MQTT (IoT)
     8443,  # HTTPS Alt
     5000,  # Various services
+    # Home / IoT extended ports
+    548,   # AFP (Apple File Sharing)
+    631,   # CUPS / IPP (printers)
+    1900,  # UPnP / SSDP
+    5353,  # mDNS / AirPlay
+    8008,  # Chromecast HTTP
+    62078, # Apple iDevice (lockdownd)
+    8888,  # Common IoT web UI
+    49152, # UPnP dynamic
 ]
 
 
@@ -93,7 +102,7 @@ def arp_sweep(target: str) -> list[Asset]:
 
         for _, received in answered:
             ip_addr = received.psrc
-            mac_addr = received.hwsrc.lower()
+            mac_addr = normalize_mac(received.hwsrc)
 
             assets.append(Asset(
                 ip=ip_addr,

@@ -72,6 +72,14 @@ VENDOR_CATEGORY_HINTS: dict[str, str] = {
     "sonicwall": "ag_ve_sistemler",
     "meraki": "ag_ve_sistemler",
     "vmware": "ag_ve_sistemler",
+    "zte": "ag_ve_sistemler",
+    "huawei": "ag_ve_sistemler",
+    "tp-link": "ag_ve_sistemler",
+    "netgear": "ag_ve_sistemler",
+    "asus": "ag_ve_sistemler",
+    "d-link": "ag_ve_sistemler",
+    "ubiquiti": "ag_ve_sistemler",
+    "synology": "ag_ve_sistemler",
     "hikvision": "iot",
     "dahua": "iot",
     "axis": "iot",
@@ -113,8 +121,10 @@ def lookup_vendor(mac: str | None) -> str | None:
     if not mac:
         return None
 
-    # Normalize MAC
-    mac_clean = mac.lower().replace("-", ":")
+    from bigr.models import normalize_mac
+
+    # Normalize MAC (handles single-digit octets like cc:8:fa → cc:08:fa)
+    mac_clean = normalize_mac(mac) or mac.lower().replace("-", ":")
     prefix = mac_clean[:8]  # "aa:bb:cc"
 
     # Try known vendors first (fast path)

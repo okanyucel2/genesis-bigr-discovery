@@ -7,6 +7,42 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 
+def normalize_mac(mac: str | None) -> str | None:
+    """Normalize MAC address to consistent aa:bb:cc:dd:ee:ff format.
+
+    Handles inconsistent formats like:
+      cc:8:fa:6d:fc:59  → cc:08:fa:6d:fc:59
+      6:11:e5:ea:68:5c  → 06:11:e5:ea:68:5c
+      AA-BB-CC-DD-EE-FF → aa:bb:cc:dd:ee:ff
+    """
+    if not mac:
+        return None
+    mac = mac.lower().replace("-", ":")
+    octets = mac.split(":")
+    if len(octets) != 6:
+        return mac  # Can't normalize, return as-is
+    return ":".join(o.zfill(2) for o in octets)
+
+
+def is_randomized_mac(mac: str | None) -> bool:
+    """Check if MAC is locally administered (randomized by Apple/Android).
+
+    The second least significant bit of the first octet indicates
+    locally administered (LA) address. If set, the MAC is likely
+    randomized for privacy.
+
+    Examples of randomized: 3e:xx, ba:xx, 06:xx (where first octet & 0x02 != 0)
+    """
+    if not mac:
+        return False
+    mac = normalize_mac(mac) or mac
+    try:
+        first_octet = int(mac.split(":")[0], 16)
+        return bool(first_octet & 0x02)
+    except (ValueError, IndexError):
+        return False
+
+
 class BigrCategory(str, enum.Enum):
     AG_VE_SISTEMLER = "ag_ve_sistemler"
     UYGULAMALAR = "uygulamalar"

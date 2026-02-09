@@ -57,3 +57,47 @@
   scores:
     ag_ve_sistemler: 0.2
   description: "Database ports indicate a server role"
+
+# Home / IoT extended rules
+- name: "IPP/CUPS Printer"
+  match:
+    ports_include_any: [631]
+  scores:
+    iot: 0.4
+  description: "Port 631 is IPP/CUPS, indicates a printer"
+
+- name: "UPnP Device"
+  match:
+    ports_include_any: [1900, 49152]
+  scores:
+    iot: 0.3
+  description: "UPnP/SSDP ports indicate IoT or media device"
+
+- name: "mDNS/AirPlay"
+  match:
+    ports_include_any: [5353]
+  scores:
+    tasinabilir: 0.2
+  description: "mDNS/AirPlay suggests Apple device or smart speaker"
+
+- name: "Chromecast"
+  match:
+    ports_include_any: [8008]
+  scores:
+    iot: 0.4
+  description: "Port 8008 is Chromecast control port"
+
+- name: "Apple iDevice"
+  match:
+    ports_include_any: [62078]
+  scores:
+    tasinabilir: 0.5
+  description: "Port 62078 is Apple lockdownd, confirms iPhone/iPad"
+
+- name: "DNS Router"
+  match:
+    ports_include_any: [53]
+    ports_exclude: [22]
+  scores:
+    ag_ve_sistemler: 0.3
+  description: "DNS port without SSH suggests home router"

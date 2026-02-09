@@ -8,7 +8,7 @@ import socket
 import subprocess
 from pathlib import Path
 
-from bigr.models import Asset, ScanMethod
+from bigr.models import Asset, ScanMethod, normalize_mac
 
 
 def scan_arp_table() -> list[Asset]:
@@ -38,9 +38,9 @@ def scan_arp_table() -> list[Asset]:
                 continue
 
             ip_addr = match.group(1)
-            mac_addr = match.group(2).lower()
+            mac_addr = normalize_mac(match.group(2))
 
-            if mac_addr in ("(incomplete)", "ff:ff:ff:ff:ff:ff"):
+            if mac_addr in (None, "(incomplete)", "ff:ff:ff:ff:ff:ff"):
                 continue
 
             # Try to extract hostname
@@ -78,9 +78,9 @@ def scan_proc_net_arp() -> list[Asset]:
                 continue
 
             ip_addr = parts[0]
-            mac_addr = parts[3].lower()
+            mac_addr = normalize_mac(parts[3])
 
-            if mac_addr in ("00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff"):
+            if mac_addr in (None, "00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff"):
                 continue
 
             assets.append(Asset(
