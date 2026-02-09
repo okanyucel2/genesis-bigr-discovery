@@ -85,6 +85,14 @@ class AssetVulnSummary:
     max_cvss: float = 0.0
     matches: list[VulnerabilityMatch] = field(default_factory=list)
 
+    @property
+    def top_cve(self) -> str | None:
+        """Return CVE ID with the highest CVSS score."""
+        if not self.matches:
+            return None
+        best = max(self.matches, key=lambda m: m.cve.cvss_score)
+        return best.cve.cve_id
+
     def to_dict(self) -> dict:
         """Serialize to dictionary."""
         return {

@@ -661,26 +661,29 @@ app.add_typer(certs_app, name="certs")
 
 @certs_app.command("scan")
 def certs_scan(
+    host: Optional[str] = typer.Argument(None, help="Specific host IP to scan (default: all known assets)"),
     db_path_opt: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="Database path (for testing)"),
 ) -> None:
-    """Scan all known assets for TLS certificates."""
+    """Scan assets for TLS certificates. Optionally specify a single host."""
     from bigr.db import get_all_assets, save_certificate
-    from bigr.scanner.tls import TLS_PORTS, scan_host_certificates
+    from bigr.scanner.tls import scan_host_certificates
 
     resolved_db = Path(db_path_opt) if db_path_opt else None
-    all_assets = get_all_assets(db_path=resolved_db)
 
-    if not all_assets:
-        console.print("[yellow]No assets found.[/yellow] Run 'bigr scan' first.")
-        return
+    # Build IP list: single host or all known assets
+    if host:
+        ip_list = [host]
+    else:
+        all_assets = get_all_assets(db_path=resolved_db)
+        if not all_assets:
+            console.print("[yellow]No assets found.[/yellow] Run 'bigr scan' first.")
+            return
+        ip_list = [a.get("ip", "") for a in all_assets if a.get("ip")]
 
-    console.print(f"[bold]Scanning {len(all_assets)} asset(s) for TLS certificates...[/bold]")
+    console.print(f"[bold]Scanning {len(ip_list)} host(s) for TLS certificates...[/bold]")
 
     total_found = 0
-    for asset in all_assets:
-        ip = asset.get("ip", "")
-        if not ip:
-            continue
+    for ip in ip_list:
         with console.status(f"[bold green]Checking {ip}..."):
             certs = scan_host_certificates(ip)
         for cert in certs:
@@ -983,7 +986,23 @@ def risk(
             "first_seen": a.get("first_seen"),
         })
 
-    report = assess_network_risk(asset_dicts)
+    # Integrate CVE vulnerability data into risk assessment
+    vuln_summaries = None
+    try:
+        from bigr.vuln.cve_db import init_cve_db
+        from bigr.vuln.matcher import scan_all_vulnerabilities
+
+        init_cve_db()
+        vuln_results = scan_all_vulnerabilities(asset_dicts)
+        if vuln_results:
+            vuln_summaries = [
+                {"ip": s.ip, "max_cvss": s.max_cvss, "top_cve": s.top_cve}
+                for s in vuln_results
+            ]
+    except Exception:
+        pass  # CVE DB not seeded yet, proceed without
+
+    report = assess_network_risk(asset_dicts, vuln_summaries=vuln_summaries)
 
     if fmt == "json":
         console.print(json.dumps(report.to_dict(), indent=2))
