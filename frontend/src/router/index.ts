@@ -49,6 +49,16 @@ const router = createRouter({
       component: () => import('@/views/CertificatesView.vue'),
     },
     {
+      path: '/shield',
+      name: 'shield',
+      component: () => import('@/views/ShieldView.vue'),
+    },
+    {
+      path: '/shield/scan/:id',
+      name: 'shield-scan',
+      component: () => import('@/views/ShieldView.vue'),
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),

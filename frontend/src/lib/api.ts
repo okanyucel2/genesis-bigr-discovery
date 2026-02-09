@@ -15,6 +15,7 @@ import type {
   CertificatesResponse,
   HealthResponse,
 } from '@/types/api'
+import type { ShieldScanResponse, ShieldFindingsResponse, ShieldModulesResponse } from '@/types/shield'
 import {
   mockAssets,
   mockAssetDetail,
@@ -30,6 +31,9 @@ import {
   mockVulnerabilities,
   mockCertificates,
   mockHealth,
+  mockShieldScan,
+  mockShieldFindings,
+  mockShieldModules,
 } from '@/lib/mock-data'
 
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
@@ -125,4 +129,25 @@ export const bigrApi = {
     DEMO_MODE
       ? mockResponse(mockHealth())
       : client.get<HealthResponse>('/api/health'),
+
+  // Shield
+  startShieldScan: (target: string, depth?: string, modules?: string[]) =>
+    DEMO_MODE
+      ? mockResponse<ShieldScanResponse>(mockShieldScan())
+      : client.post<ShieldScanResponse>('/api/shield/scan', null, { params: { target, depth: depth || 'quick', modules: modules?.join(',') } }),
+
+  getShieldScan: (scanId: string) =>
+    DEMO_MODE
+      ? mockResponse<ShieldScanResponse>(mockShieldScan(scanId))
+      : client.get<ShieldScanResponse>(`/api/shield/scan/${scanId}`),
+
+  getShieldFindings: (scanId: string) =>
+    DEMO_MODE
+      ? mockResponse<ShieldFindingsResponse>(mockShieldFindings(scanId))
+      : client.get<ShieldFindingsResponse>(`/api/shield/scan/${scanId}/findings`),
+
+  getShieldModules: () =>
+    DEMO_MODE
+      ? mockResponse<ShieldModulesResponse>(mockShieldModules())
+      : client.get<ShieldModulesResponse>('/api/shield/modules'),
 }

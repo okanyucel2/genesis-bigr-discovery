@@ -1462,3 +1462,134 @@ export function mockHealth(): HealthResponse {
     exists: true,
   }
 }
+
+// ---------------------------------------------------------------------------
+// Shield Mock Data
+// ---------------------------------------------------------------------------
+
+import type { ShieldFinding, ModuleScore, ShieldScanResponse, ShieldFindingsResponse, ShieldModulesResponse } from '@/types/shield'
+
+const mockShieldFindings_data: ShieldFinding[] = [
+  {
+    id: 'sf_001',
+    scan_id: 'sh_demo001',
+    module: 'tls',
+    severity: 'high',
+    title: 'TLS 1.0 Protocol Enabled',
+    description: 'The server supports TLS 1.0 which has known vulnerabilities including BEAST and POODLE attacks.',
+    remediation: 'Disable TLS 1.0 and 1.1 in your web server configuration. For Nginx: ssl_protocols TLSv1.2 TLSv1.3;',
+    target_ip: '93.184.216.34',
+    target_port: 443,
+    evidence: { protocol: 'TLSv1.0', cipher: 'AES256-SHA' },
+    attack_technique: 'T1557',
+    attack_tactic: 'Credential Access',
+    cve_id: null,
+    cvss_score: null,
+    epss_score: null,
+    cisa_kev: false,
+  },
+  {
+    id: 'sf_002',
+    scan_id: 'sh_demo001',
+    module: 'tls',
+    severity: 'medium',
+    title: 'Missing HSTS Header',
+    description: 'The server does not send the Strict-Transport-Security header, allowing potential downgrade attacks.',
+    remediation: 'Add HSTS header: Strict-Transport-Security: max-age=31536000; includeSubDomains',
+    target_ip: '93.184.216.34',
+    target_port: 443,
+    evidence: { header_present: false },
+    attack_technique: 'T1557.002',
+    attack_tactic: 'Credential Access',
+    cve_id: null,
+    cvss_score: null,
+    epss_score: null,
+    cisa_kev: false,
+  },
+  {
+    id: 'sf_003',
+    scan_id: 'sh_demo001',
+    module: 'tls',
+    severity: 'low',
+    title: 'Certificate Expires in 28 Days',
+    description: 'The TLS certificate will expire within 30 days. Renew before expiry to avoid service disruption.',
+    remediation: 'Renew your TLS certificate. Consider using Let\'s Encrypt for automatic renewal.',
+    target_ip: '93.184.216.34',
+    target_port: 443,
+    evidence: { expires: '2026-03-09T00:00:00Z', days_remaining: 28 },
+    attack_technique: null,
+    attack_tactic: null,
+    cve_id: null,
+    cvss_score: null,
+    epss_score: null,
+    cisa_kev: false,
+  },
+  {
+    id: 'sf_004',
+    scan_id: 'sh_demo001',
+    module: 'tls',
+    severity: 'info',
+    title: 'TLS 1.3 Supported',
+    description: 'The server supports TLS 1.3, the latest and most secure version of TLS.',
+    remediation: 'No action needed. This is a positive finding.',
+    target_ip: '93.184.216.34',
+    target_port: 443,
+    evidence: { protocol: 'TLSv1.3', cipher: 'TLS_AES_256_GCM_SHA384' },
+    attack_technique: null,
+    attack_tactic: null,
+    cve_id: null,
+    cvss_score: null,
+    epss_score: null,
+    cisa_kev: false,
+  },
+]
+
+const mockModuleScores: Record<string, ModuleScore> = {
+  tls: { module: 'tls', score: 72, total_checks: 8, passed_checks: 6, findings_count: 3 },
+}
+
+export function mockShieldScan(scanId?: string): ShieldScanResponse {
+  return {
+    scan: {
+      id: scanId || 'sh_demo001',
+      target: 'example.com',
+      target_type: 'domain',
+      status: 'completed',
+      created_at: daysAgo(0),
+      started_at: daysAgo(0),
+      completed_at: daysAgo(0),
+      shield_score: 72,
+      grade: 'B',
+      scan_depth: 'quick',
+      modules_enabled: ['tls'],
+      total_checks: 8,
+      passed_checks: 6,
+      failed_checks: 1,
+      warning_checks: 1,
+      findings: mockShieldFindings_data,
+      module_scores: mockModuleScores,
+      duration_seconds: 4.2,
+    },
+  }
+}
+
+export function mockShieldFindings(_scanId?: string): ShieldFindingsResponse {
+  return {
+    findings: mockShieldFindings_data,
+    total: mockShieldFindings_data.length,
+  }
+}
+
+export function mockShieldModules(): ShieldModulesResponse {
+  return {
+    modules: [
+      { name: 'tls', description: 'TLS/SSL certificate and protocol validation', weight: 20, available: true },
+      { name: 'ports', description: 'Port scanning and service detection', weight: 20, available: false },
+      { name: 'cve', description: 'CVE vulnerability matching', weight: 25, available: false },
+      { name: 'headers', description: 'HTTP security headers check', weight: 10, available: false },
+      { name: 'dns', description: 'DNS security (SPF/DKIM/DMARC)', weight: 10, available: false },
+      { name: 'creds', description: 'Default credential testing', weight: 10, available: false },
+      { name: 'owasp', description: 'OWASP basic web probes', weight: 5, available: false },
+    ],
+  }
+}

@@ -10,6 +10,7 @@ import {
   Bug,
   AlertTriangle,
   Lock,
+  Shield,
   Settings,
   ChevronsLeft,
   ChevronsRight,
@@ -25,7 +26,7 @@ defineEmits<{
 
 const route = useRoute()
 
-const navItems = [
+const navItems: Array<{ name: string; label: string; icon: typeof LayoutDashboard; path: string; separator?: boolean }> = [
   { name: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/' },
   { name: 'assets', label: 'Assets', icon: Server, path: '/assets' },
   { name: 'topology', label: 'Topology', icon: Network, path: '/topology' },
@@ -34,6 +35,7 @@ const navItems = [
   { name: 'vulnerabilities', label: 'Vulnerabilities', icon: Bug, path: '/vulnerabilities' },
   { name: 'risk', label: 'Risk', icon: AlertTriangle, path: '/risk' },
   { name: 'certificates', label: 'Certificates', icon: Lock, path: '/certificates' },
+  { name: 'shield', label: 'Shield', icon: Shield, path: '/shield', separator: true },
   { name: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ]
 
@@ -63,9 +65,9 @@ const isActive = (item: (typeof navItems)[0]) => {
 
     <!-- Navigation -->
     <nav class="flex-1 overflow-y-auto px-2 py-3 space-y-1">
+      <template v-for="item in navItems" :key="item.name">
+        <div v-if="item.separator" class="my-2 border-t border-[var(--border-glass)]" />
       <RouterLink
-        v-for="item in navItems"
-        :key="item.name"
         :to="item.path"
         class="group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200"
         :class="[
@@ -98,6 +100,7 @@ const isActive = (item: (typeof navItems)[0]) => {
           {{ item.label }}
         </div>
       </RouterLink>
+      </template>
     </nav>
 
     <!-- Collapse Toggle -->

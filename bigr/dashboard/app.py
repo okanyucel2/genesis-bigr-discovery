@@ -19,6 +19,7 @@ from bigr.db import (
 )
 from bigr.diff import get_changes_from_db
 from bigr.scanner.switch_map import get_switches
+from bigr.shield.api.routes import router as shield_router
 from bigr.topology import build_subnet_topology, build_topology
 
 
@@ -37,6 +38,7 @@ def _ip_in_subnet(ip: str, network, subnet_cidr: str | None = None) -> bool:
 def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> FastAPI:
     """Create dashboard FastAPI app."""
     app = FastAPI(title="BİGR Discovery Dashboard")
+    app.include_router(shield_router)
     _data_path = Path(data_path)
     _db_path = db_path
 
