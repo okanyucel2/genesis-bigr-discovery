@@ -19,6 +19,9 @@ import HeadersChecklist from '@/components/shield/HeadersChecklist.vue'
 import DnsSecurityCard from '@/components/shield/DnsSecurityCard.vue'
 import ShieldTimeline from '@/components/shield/ShieldTimeline.vue'
 import CveFindings from '@/components/shield/CveFindings.vue'
+import CredentialFindings from '@/components/shield/CredentialFindings.vue'
+import OwaspResults from '@/components/shield/OwaspResults.vue'
+import RemediationPlan from '@/components/shield/RemediationPlan.vue'
 import AttackSurfaceMap from '@/components/shield/AttackSurfaceMap.vue'
 import PriorityMatrix from '@/components/shield/PriorityMatrix.vue'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -91,6 +94,19 @@ const hasDnsModule = computed(() =>
 )
 const hasCveModule = computed(() =>
   currentScan.value?.modules_enabled.includes('cve') ?? false,
+)
+const credFindings = computed(() =>
+  currentScan.value?.findings.filter((f) => f.module === 'creds') ?? [],
+)
+const owaspFindings = computed(() =>
+  currentScan.value?.findings.filter((f) => f.module === 'owasp') ?? [],
+)
+
+const hasCredModule = computed(() =>
+  currentScan.value?.modules_enabled.includes('creds') ?? false,
+)
+const hasOwaspModule = computed(() =>
+  currentScan.value?.modules_enabled.includes('owasp') ?? false,
 )
 </script>
 
@@ -281,6 +297,32 @@ const hasCveModule = computed(() =>
               {{ cveFindings.length }}
             </span>
           </TabsTrigger>
+          <TabsTrigger
+            v-if="hasCredModule"
+            value="creds"
+            class="data-[state=active]:bg-white/10 data-[state=active]:text-cyan-400 text-slate-400"
+          >
+            Credentials
+            <span v-if="credFindings.length > 0" class="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500/20 px-1 text-[10px] font-semibold text-rose-400">
+              {{ credFindings.length }}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger
+            v-if="hasOwaspModule"
+            value="owasp"
+            class="data-[state=active]:bg-white/10 data-[state=active]:text-cyan-400 text-slate-400"
+          >
+            OWASP
+            <span v-if="owaspFindings.length > 0" class="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold text-amber-400">
+              {{ owaspFindings.length }}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="remediation"
+            class="data-[state=active]:bg-white/10 data-[state=active]:text-cyan-400 text-slate-400"
+          >
+            Remediation
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="findings">
@@ -307,6 +349,18 @@ const hasCveModule = computed(() =>
               <PriorityMatrix :findings="cveFindings" />
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent v-if="hasCredModule" value="creds">
+          <CredentialFindings :findings="credFindings" />
+        </TabsContent>
+
+        <TabsContent v-if="hasOwaspModule" value="owasp">
+          <OwaspResults :findings="owaspFindings" />
+        </TabsContent>
+
+        <TabsContent value="remediation">
+          <RemediationPlan :findings="findings" />
         </TabsContent>
       </Tabs>
     </template>

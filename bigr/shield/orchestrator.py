@@ -14,9 +14,11 @@ from bigr.shield.models import (
     ShieldScan,
 )
 from bigr.shield.modules.base import ScanModule
+from bigr.shield.modules.credential_check import CredentialCheckModule
 from bigr.shield.modules.cve_matcher import CveMatcherModule
 from bigr.shield.modules.dns_security import DnsSecurityModule
 from bigr.shield.modules.http_headers import HttpHeadersModule
+from bigr.shield.modules.owasp_probes import OwaspProbesModule
 from bigr.shield.modules.port_scan import PortScanModule
 from bigr.shield.modules.tls_check import TLSCheckModule
 from bigr.shield.scorer import calculate_shield_score
@@ -42,6 +44,8 @@ class ShieldOrchestrator:
             "cve": CveMatcherModule(),
             "headers": HttpHeadersModule(),
             "dns": DnsSecurityModule(),
+            "creds": CredentialCheckModule(),
+            "owasp": OwaspProbesModule(),
         }
         self._queue: asyncio.Queue[str] = asyncio.Queue()
 
