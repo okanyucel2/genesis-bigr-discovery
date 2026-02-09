@@ -3,9 +3,9 @@ import { useCompliance } from '@/composables/useCompliance'
 import type { ComplianceResponse } from '@/types/api'
 
 const mockComplianceResponse: ComplianceResponse = {
+  compliance_score: 78,
+  grade: 'B',
   breakdown: {
-    compliance_score: 78,
-    grade: 'B',
     total_assets: 50,
     fully_classified: 30,
     partially_classified: 12,
@@ -13,11 +13,8 @@ const mockComplianceResponse: ComplianceResponse = {
     manual_overrides: 3,
   },
   distribution: {
-    ag_ve_sistemler: 15,
-    uygulamalar: 10,
-    iot: 8,
-    tasinabilir: 7,
-    unclassified: 5,
+    counts: { ag_ve_sistemler: 15, uygulamalar: 10, iot: 8, tasinabilir: 7, unclassified: 5 },
+    percentages: { ag_ve_sistemler: 33, uygulamalar: 22, iot: 18, tasinabilir: 16, unclassified: 11 },
     total: 45,
   },
   subnet_compliance: [
@@ -83,8 +80,8 @@ describe('useCompliance', () => {
     await fetchCompliance()
 
     expect(data.value).not.toBeNull()
-    expect(data.value!.breakdown.compliance_score).toBe(78)
-    expect(data.value!.breakdown.grade).toBe('B')
+    expect(data.value!.compliance_score).toBe(78)
+    expect(data.value!.grade).toBe('B')
     expect(data.value!.subnet_compliance).toHaveLength(2)
     expect(data.value!.subnet_compliance[0]!.cidr).toBe('192.168.1.0/24')
     expect(data.value!.action_items).toHaveLength(2)

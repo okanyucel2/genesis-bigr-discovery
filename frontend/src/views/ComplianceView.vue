@@ -42,8 +42,8 @@ onMounted(() => {
           </CardHeader>
           <CardContent class="flex justify-center">
             <ComplianceGauge
-              :score="data.breakdown.compliance_score"
-              :grade="data.breakdown.grade"
+              :score="data.compliance_score"
+              :grade="data.grade"
             />
           </CardContent>
         </Card>

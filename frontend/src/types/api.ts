@@ -136,9 +136,9 @@ export interface TopologyResponse {
 
 // GET /api/compliance
 export interface ComplianceResponse {
+  compliance_score: number
+  grade: string
   breakdown: {
-    compliance_score: number
-    grade: string
     total_assets: number
     fully_classified: number
     partially_classified: number
@@ -146,11 +146,8 @@ export interface ComplianceResponse {
     manual_overrides: number
   }
   distribution: {
-    ag_ve_sistemler: number
-    uygulamalar: number
-    iot: number
-    tasinabilir: number
-    unclassified: number
+    counts: Record<string, number>
+    percentages: Record<string, number>
     total: number
   }
   subnet_compliance: SubnetCompliance[]

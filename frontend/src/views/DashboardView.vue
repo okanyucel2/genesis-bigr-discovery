@@ -40,7 +40,7 @@ const networkSystemsCount = computed(() => categorySummary.value['ag_ve_sistemle
 
 const recentChangesCount = computed(() => changesData.value?.changes.length ?? 0)
 
-const complianceGrade = computed(() => complianceData.value?.breakdown.grade ?? '-')
+const complianceGrade = computed(() => complianceData.value?.grade ?? '-')
 
 const categoryCountsForCards = computed(() => {
   return BIGR_CATEGORY_LIST.map((cat: BigrCategory) => ({
@@ -214,7 +214,7 @@ onMounted(() => {
         <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div class="text-center">
             <p class="text-3xl font-bold text-neon-cyan tabular-nums">
-              {{ complianceData.breakdown.compliance_score }}%
+              {{ complianceData.compliance_score }}%
             </p>
             <p class="mt-1 text-xs text-slate-400">Compliance Score</p>
           </div>

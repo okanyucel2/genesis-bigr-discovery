@@ -28,7 +28,7 @@ const chartData = computed(() => ({
   labels: categoryKeys.map((k) => BIGR_CATEGORIES[k].label),
   datasets: [
     {
-      data: categoryKeys.map((k) => props.distribution[k] || 0),
+      data: categoryKeys.map((k) => props.distribution.counts[k] || 0),
       backgroundColor: categoryKeys.map(
         (k) => BIGR_CATEGORIES[k].color + '80',
       ),
