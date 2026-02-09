@@ -18,6 +18,9 @@ import PortScanResults from '@/components/shield/PortScanResults.vue'
 import HeadersChecklist from '@/components/shield/HeadersChecklist.vue'
 import DnsSecurityCard from '@/components/shield/DnsSecurityCard.vue'
 import ShieldTimeline from '@/components/shield/ShieldTimeline.vue'
+import CveFindings from '@/components/shield/CveFindings.vue'
+import AttackSurfaceMap from '@/components/shield/AttackSurfaceMap.vue'
+import PriorityMatrix from '@/components/shield/PriorityMatrix.vue'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
 const {
@@ -73,6 +76,9 @@ const headerFindings = computed(() =>
 const dnsFindings = computed(() =>
   currentScan.value?.findings.filter((f) => f.module === 'dns') ?? [],
 )
+const cveFindings = computed(() =>
+  currentScan.value?.findings.filter((f) => f.module === 'cve') ?? [],
+)
 
 const hasPortModule = computed(() =>
   currentScan.value?.modules_enabled.includes('ports') ?? false,
@@ -82,6 +88,9 @@ const hasHeaderModule = computed(() =>
 )
 const hasDnsModule = computed(() =>
   currentScan.value?.modules_enabled.includes('dns') ?? false,
+)
+const hasCveModule = computed(() =>
+  currentScan.value?.modules_enabled.includes('cve') ?? false,
 )
 </script>
 
@@ -262,6 +271,16 @@ const hasDnsModule = computed(() =>
               {{ dnsFindings.length }}
             </span>
           </TabsTrigger>
+          <TabsTrigger
+            v-if="hasCveModule"
+            value="cve"
+            class="data-[state=active]:bg-white/10 data-[state=active]:text-cyan-400 text-slate-400"
+          >
+            CVE
+            <span v-if="cveFindings.length > 0" class="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500/20 px-1 text-[10px] font-semibold text-rose-400">
+              {{ cveFindings.length }}
+            </span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="findings">
@@ -278,6 +297,16 @@ const hasDnsModule = computed(() =>
 
         <TabsContent v-if="hasDnsModule" value="dns">
           <DnsSecurityCard :findings="dnsFindings" />
+        </TabsContent>
+
+        <TabsContent v-if="hasCveModule" value="cve">
+          <div class="space-y-6">
+            <CveFindings :findings="cveFindings" />
+            <div class="grid gap-6 lg:grid-cols-2">
+              <AttackSurfaceMap :findings="findings" />
+              <PriorityMatrix :findings="cveFindings" />
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </template>

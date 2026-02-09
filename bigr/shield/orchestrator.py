@@ -14,6 +14,7 @@ from bigr.shield.models import (
     ShieldScan,
 )
 from bigr.shield.modules.base import ScanModule
+from bigr.shield.modules.cve_matcher import CveMatcherModule
 from bigr.shield.modules.dns_security import DnsSecurityModule
 from bigr.shield.modules.http_headers import HttpHeadersModule
 from bigr.shield.modules.port_scan import PortScanModule
@@ -38,6 +39,7 @@ class ShieldOrchestrator:
         self._modules: dict[str, ScanModule] = {
             "tls": TLSCheckModule(),
             "ports": PortScanModule(),
+            "cve": CveMatcherModule(),
             "headers": HttpHeadersModule(),
             "dns": DnsSecurityModule(),
         }
