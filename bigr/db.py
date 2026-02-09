@@ -86,6 +86,14 @@ def init_db(db_path: Path | None = None) -> None:
                 FOREIGN KEY (asset_id) REFERENCES assets(id),
                 FOREIGN KEY (scan_id) REFERENCES scans(id)
             );
+
+            CREATE TABLE IF NOT EXISTS subnets (
+                cidr          TEXT PRIMARY KEY,
+                label         TEXT DEFAULT '',
+                vlan_id       INTEGER,
+                last_scanned  TEXT,
+                asset_count   INTEGER DEFAULT 0
+            );
         """)
         conn.commit()
     finally:
@@ -372,6 +380,68 @@ def get_tags(db_path: Path | None = None) -> list[dict]:
             "SELECT ip, mac, hostname, manual_category, manual_note FROM assets WHERE manual_category IS NOT NULL"
         ).fetchall()
         return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Subnet management
+# ---------------------------------------------------------------------------
+
+
+def add_subnet(
+    cidr: str, label: str = "", vlan_id: int | None = None, db_path: Path | None = None
+) -> None:
+    """Register a subnet. If CIDR already exists, update label/vlan."""
+    init_db(db_path)
+    conn = _connect(db_path)
+    try:
+        conn.execute(
+            """INSERT INTO subnets (cidr, label, vlan_id)
+               VALUES (?, ?, ?)
+               ON CONFLICT(cidr) DO UPDATE SET label = excluded.label, vlan_id = excluded.vlan_id""",
+            (cidr, label, vlan_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def remove_subnet(cidr: str, db_path: Path | None = None) -> None:
+    """Remove a registered subnet. No-op if it doesn't exist."""
+    init_db(db_path)
+    conn = _connect(db_path)
+    try:
+        conn.execute("DELETE FROM subnets WHERE cidr = ?", (cidr,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_subnets(db_path: Path | None = None) -> list[dict]:
+    """Return all registered subnets."""
+    init_db(db_path)
+    conn = _connect(db_path)
+    try:
+        rows = conn.execute("SELECT * FROM subnets ORDER BY cidr").fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def update_subnet_stats(
+    cidr: str, asset_count: int, db_path: Path | None = None
+) -> None:
+    """Update a subnet's scan statistics (last_scanned timestamp and asset_count)."""
+    init_db(db_path)
+    conn = _connect(db_path)
+    try:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "UPDATE subnets SET last_scanned = ?, asset_count = ? WHERE cidr = ?",
+            (now_iso, asset_count, cidr),
+        )
+        conn.commit()
     finally:
         conn.close()
 

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
 from pathlib import Path
 from typing import Optional
 
@@ -11,12 +13,26 @@ from rich.console import Console
 from rich.table import Table
 
 from bigr.classifier.bigr_mapper import classify_assets
-from bigr.db import get_latest_scan, get_scan_list, get_tags, save_scan, tag_asset, untag_asset
+from bigr.config import load_config, parse_interval
+from bigr.db import (
+    add_subnet,
+    get_latest_scan,
+    get_scan_list,
+    get_subnets,
+    get_tags,
+    init_db,
+    remove_subnet,
+    save_scan,
+    tag_asset,
+    untag_asset,
+    update_subnet_stats,
+)
 from bigr.diff import diff_scans, get_changes_from_db
 from bigr.models import BigrCategory, ScanResult
 from bigr.output import write_csv, write_json
 from bigr.scanner.active import is_root
 from bigr.scanner.hybrid import run_hybrid_scan
+from bigr.watcher import WatcherDaemon, get_watcher_status
 
 app = typer.Typer(
     name="bigr",
@@ -28,15 +44,33 @@ console = Console()
 
 @app.command()
 def scan(
-    target: str = typer.Argument(..., help="Target subnet in CIDR notation (e.g., 192.168.1.0/24)"),
+    targets: list[str] = typer.Argument(None, help="Target subnet(s) in CIDR notation (e.g., 192.168.1.0/24)"),
+    scan_all: bool = typer.Option(False, "--all", help="Scan all registered subnets from DB"),
     mode: str = typer.Option("hybrid", "--mode", "-m", help="Scan mode: passive, active, or hybrid"),
     ports: Optional[str] = typer.Option(None, "--ports", "-p", help="Comma-separated port list"),
     timeout: float = typer.Option(2.0, "--timeout", "-t", help="Per-port scan timeout in seconds"),
     output: str = typer.Option("assets.json", "--output", "-o", help="Output file path"),
     fmt: str = typer.Option("json", "--format", "-f", help="Output format: json or csv"),
     diff: bool = typer.Option(True, "--diff/--no-diff", help="Show diff against previous scan"),
+    db_path: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="Database path (for testing)"),
 ) -> None:
     """Scan network for assets and classify them per BİGR guidelines."""
+    resolved_db = Path(db_path) if db_path else None
+
+    # Build target list
+    target_list: list[str] = []
+    if scan_all:
+        registered = get_subnets(db_path=resolved_db)
+        if not registered:
+            console.print("[yellow]No registered subnets.[/yellow] Use 'bigr subnets add' first.")
+            raise typer.Exit(1)
+        target_list = [s["cidr"] for s in registered]
+    elif targets:
+        target_list = list(targets)
+    else:
+        console.print("[red]Error:[/red] Provide target subnet(s) or use --all.")
+        raise typer.Exit(1)
+
     # Parse ports if provided
     port_list = None
     if ports:
@@ -50,52 +84,66 @@ def scan(
             "Running in passive mode with port scanning.",
         )
 
-    # Load previous scan for diffing (before we save the new one)
-    previous_scan = None
-    if diff:
+    total_assets = 0
+    last_result: ScanResult | None = None
+
+    for target in target_list:
+        # Load previous scan for diffing (before we save the new one)
+        previous_scan = None
+        if diff:
+            try:
+                previous_scan = get_latest_scan(target=target, db_path=resolved_db)
+            except Exception:
+                pass
+
+        # Run scan
+        with console.status(f"[bold green]Scanning {target}..."):
+            result = run_hybrid_scan(target, mode=mode, ports=port_list, timeout=timeout)
+
+        # Classify
+        with console.status("[bold blue]Classifying assets..."):
+            classify_assets(result.assets, do_fingerprint=True)
+
+        # Persist to database
         try:
-            previous_scan = get_latest_scan(target=target)
+            scan_id = save_scan(result, db_path=resolved_db)
+            console.print(f"[dim]Saved to database (scan {scan_id[:8]}...)[/dim]")
+        except Exception as exc:
+            console.print(f"[yellow]Warning:[/yellow] Could not save to database: {exc}")
+
+        # Update subnet stats if registered
+        try:
+            update_subnet_stats(target, asset_count=len(result.assets), db_path=resolved_db)
         except Exception:
             pass
 
-    # Run scan
-    with console.status("[bold green]Scanning network..."):
-        result = run_hybrid_scan(target, mode=mode, ports=port_list, timeout=timeout)
+        total_assets += len(result.assets)
+        last_result = result
 
-    # Classify
-    with console.status("[bold blue]Classifying assets..."):
-        classify_assets(result.assets, do_fingerprint=True)
+        # Show diff against previous scan
+        if diff and previous_scan and previous_scan.get("assets"):
+            current_assets = [a.to_dict() for a in result.assets]
+            diff_result = diff_scans(current_assets, previous_scan["assets"])
+            if diff_result.has_changes:
+                _print_diff(diff_result)
+            else:
+                console.print(f"\n[dim]No changes since last scan for {target}.[/dim]")
 
-    # Persist to database
-    try:
-        scan_id = save_scan(result)
-        console.print(f"[dim]Saved to database (scan {scan_id[:8]}...)[/dim]")
-    except Exception as exc:
-        console.print(f"[yellow]Warning:[/yellow] Could not save to database: {exc}")
-
-    # Output
-    if fmt == "csv":
-        out_path = write_csv(result, path=output.replace(".json", ".csv") if output == "assets.json" else output)
-    else:
-        out_path = write_json(result, path=output)
-
-    console.print(f"\n[green]Scan complete![/green] Found [bold]{len(result.assets)}[/bold] assets.")
-    console.print(f"Results saved to: [bold]{out_path}[/bold]")
-
-    if result.duration_seconds is not None:
-        console.print(f"Duration: {result.duration_seconds:.1f}s | Root: {'Yes' if result.is_root else 'No'}")
-
-    # Show summary table
-    _print_summary(result)
-
-    # Show diff against previous scan
-    if diff and previous_scan and previous_scan.get("assets"):
-        current_assets = [a.to_dict() for a in result.assets]
-        diff_result = diff_scans(current_assets, previous_scan["assets"])
-        if diff_result.has_changes:
-            _print_diff(diff_result)
+    # Output last result (or combined if needed)
+    if last_result is not None:
+        if fmt == "csv":
+            out_path = write_csv(last_result, path=output.replace(".json", ".csv") if output == "assets.json" else output)
         else:
-            console.print("\n[dim]No changes since last scan.[/dim]")
+            out_path = write_json(last_result, path=output)
+
+        console.print(f"\n[green]Scan complete![/green] Found [bold]{total_assets}[/bold] assets.")
+        console.print(f"Results saved to: [bold]{out_path}[/bold]")
+
+        if last_result.duration_seconds is not None:
+            console.print(f"Duration: {last_result.duration_seconds:.1f}s | Root: {'Yes' if last_result.is_root else 'No'}")
+
+        # Show summary table for the last result
+        _print_summary(last_result)
 
 
 @app.command()
@@ -301,6 +349,150 @@ def changes(
             field_name,
             old_val,
             new_val,
+        )
+
+    console.print(table)
+
+
+@app.command()
+def watch(
+    target: Optional[str] = typer.Argument(None, help="Target subnet in CIDR notation (e.g., 192.168.1.0/24)"),
+    interval: str = typer.Option("5m", "--interval", "-i", help="Scan interval (e.g., 5m, 2h, 30s)"),
+    config: bool = typer.Option(False, "--config", help="Watch all targets from config file"),
+    stop: bool = typer.Option(False, "--stop", help="Stop running watcher"),
+    status: bool = typer.Option(False, "--status", help="Check watcher status"),
+) -> None:
+    """Watch network targets with periodic scans."""
+    # --status: check if watcher is running
+    if status:
+        watcher_status = get_watcher_status()
+        if watcher_status.is_running:
+            console.print(
+                f"[green]Watcher is running[/green] (PID {watcher_status.pid})."
+            )
+        else:
+            console.print("[yellow]Watcher is not running.[/yellow]")
+        return
+
+    # --stop: stop running watcher
+    if stop:
+        watcher_status = get_watcher_status()
+        if not watcher_status.is_running:
+            console.print("[yellow]No watcher is currently running.[/yellow]")
+            return
+
+        try:
+            os.kill(watcher_status.pid, signal.SIGTERM)
+            console.print(
+                f"[green]Stopped watcher[/green] (PID {watcher_status.pid})."
+            )
+        except OSError as exc:
+            console.print(f"[red]Error stopping watcher:[/red] {exc}")
+        return
+
+    # Build target list
+    targets: list[dict] = []
+
+    if config:
+        # Load from config file
+        cfg = load_config()
+        if not cfg.targets:
+            console.print("[yellow]No targets in config.[/yellow] Add targets to ~/.bigr/config.yaml")
+            return
+        for t in cfg.targets:
+            targets.append({
+                "subnet": t.subnet,
+                "interval_seconds": parse_interval(t.interval),
+            })
+    elif target:
+        # Single target from argument
+        targets.append({
+            "subnet": target,
+            "interval_seconds": parse_interval(interval),
+        })
+    else:
+        console.print("[red]Error:[/red] Provide a target subnet or use --config.")
+        raise typer.Exit(1)
+
+    # Start watcher
+    console.print(f"[green]Starting watcher[/green] for {len(targets)} target(s)...")
+    for t in targets:
+        console.print(f"  - {t['subnet']} (every {t['interval_seconds']}s)")
+
+    watcher = WatcherDaemon(targets=targets)
+    try:
+        watcher.start()
+    except RuntimeError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Watcher stopped.[/yellow]")
+
+
+# ---------------------------------------------------------------------------
+# Subnets sub-app
+# ---------------------------------------------------------------------------
+
+subnets_app = typer.Typer(help="Manage network subnets")
+app.add_typer(subnets_app, name="subnets")
+
+
+@subnets_app.command("add")
+def subnets_add(
+    cidr: str = typer.Argument(..., help="Subnet in CIDR notation (e.g., 10.0.0.0/24)"),
+    label: str = typer.Option("", "--label", "-l", help="Friendly label for the subnet"),
+    vlan: Optional[int] = typer.Option(None, "--vlan", "-v", help="VLAN ID"),
+    db_path_opt: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="Database path (for testing)"),
+) -> None:
+    """Register a network subnet."""
+    resolved_db = Path(db_path_opt) if db_path_opt else None
+    add_subnet(cidr, label=label, vlan_id=vlan, db_path=resolved_db)
+    vlan_str = f" (VLAN {vlan})" if vlan else ""
+    console.print(f"[green]Added[/green] subnet {cidr}{vlan_str}")
+    if label:
+        console.print(f"  Label: {label}")
+
+
+@subnets_app.command("remove")
+def subnets_remove(
+    cidr: str = typer.Argument(..., help="Subnet CIDR to remove"),
+    db_path_opt: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="Database path (for testing)"),
+) -> None:
+    """Remove a registered subnet."""
+    resolved_db = Path(db_path_opt) if db_path_opt else None
+    remove_subnet(cidr, db_path=resolved_db)
+    console.print(f"[green]Removed[/green] subnet {cidr}")
+
+
+@subnets_app.command("list")
+def subnets_list(
+    db_path_opt: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="Database path (for testing)"),
+) -> None:
+    """List all registered subnets."""
+    resolved_db = Path(db_path_opt) if db_path_opt else None
+    subnet_list = get_subnets(db_path=resolved_db)
+    if not subnet_list:
+        console.print("[yellow]No subnets registered.[/yellow] Use 'bigr subnets add' to register one.")
+        return
+
+    table = Table(title="\nRegistered Subnets")
+    table.add_column("CIDR", style="cyan")
+    table.add_column("Label")
+    table.add_column("VLAN", justify="right")
+    table.add_column("Assets", justify="right")
+    table.add_column("Last Scanned")
+
+    for s in subnet_list:
+        vlan_str = str(s["vlan_id"]) if s.get("vlan_id") is not None else "-"
+        last_scanned = s.get("last_scanned") or "-"
+        if last_scanned != "-":
+            last_scanned = last_scanned[:19].replace("T", " ")
+        table.add_row(
+            s["cidr"],
+            s.get("label") or "-",
+            vlan_str,
+            str(s.get("asset_count", 0)),
+            last_scanned,
         )
 
     console.print(table)

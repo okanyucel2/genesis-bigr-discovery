@@ -83,3 +83,55 @@ class TestScan:
         assert result.exit_code == 0
         assert "Scan complete" in result.output
         mock_scan.assert_called_once()
+
+
+class TestWatch:
+    @patch("bigr.cli.get_watcher_status")
+    def test_watch_status_not_running(self, mock_status):
+        """bigr watch --status should show not running."""
+        from bigr.watcher import WatcherStatus
+        mock_status.return_value = WatcherStatus(
+            is_running=False, message="Not running (no PID file)."
+        )
+
+        result = runner.invoke(app, ["watch", "--status"])
+        assert result.exit_code == 0
+        assert "not running" in result.output.lower() or "Not running" in result.output
+
+    @patch("bigr.cli.get_watcher_status")
+    def test_watch_status_running(self, mock_status):
+        """bigr watch --status should show running with PID."""
+        from bigr.watcher import WatcherStatus
+        mock_status.return_value = WatcherStatus(
+            is_running=True, pid=12345, message="Running (PID 12345)."
+        )
+
+        result = runner.invoke(app, ["watch", "--status"])
+        assert result.exit_code == 0
+        assert "12345" in result.output
+
+    @patch("bigr.cli.get_watcher_status")
+    def test_watch_stop_not_running(self, mock_status):
+        """bigr watch --stop when not running should show message."""
+        from bigr.watcher import WatcherStatus
+        mock_status.return_value = WatcherStatus(
+            is_running=False, message="Not running."
+        )
+
+        result = runner.invoke(app, ["watch", "--stop"])
+        assert result.exit_code == 0
+        assert "not running" in result.output.lower() or "No watcher" in result.output
+
+    @patch("bigr.cli.get_watcher_status")
+    @patch("bigr.cli.os.kill")
+    def test_watch_stop_running(self, mock_kill, mock_status):
+        """bigr watch --stop should kill the running watcher."""
+        from bigr.watcher import WatcherStatus
+        mock_status.return_value = WatcherStatus(
+            is_running=True, pid=12345, message="Running (PID 12345)."
+        )
+
+        result = runner.invoke(app, ["watch", "--stop"])
+        assert result.exit_code == 0
+        mock_kill.assert_called_once()
+        assert "stop" in result.output.lower() or "12345" in result.output

@@ -1,0 +1,25 @@
+- name: "New device alert"
+  trigger: new_device
+  severity: warning
+  description: "A new device was detected on the network"
+
+- name: "Mass device change"
+  trigger: mass_change
+  severity: critical
+  threshold: 10
+  description: "Many new devices detected - possible network event"
+
+- name: "Port change alert"
+  trigger: port_change
+  severity: info
+  description: "Open ports changed on a known device"
+
+- name: "Category change alert"
+  trigger: category_change
+  severity: warning
+  description: "Device BİGR classification changed"
+
+- name: "Device missing"
+  trigger: device_missing
+  severity: info
+  description: "Previously known device not seen in recent scan"

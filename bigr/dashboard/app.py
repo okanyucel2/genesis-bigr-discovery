@@ -2,20 +2,41 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from bigr.db import get_all_assets, get_asset_history, get_latest_scan, get_scan_list, get_tags
+from bigr.db import (
+    get_all_assets,
+    get_asset_history,
+    get_latest_scan,
+    get_scan_list,
+    get_subnets,
+    get_tags,
+)
 from bigr.diff import get_changes_from_db
 
 
-def create_app(data_path: str = "assets.json") -> FastAPI:
+def _ip_in_subnet(ip: str, network, subnet_cidr: str | None = None) -> bool:
+    """Check if an IP belongs to a subnet, using subnet_cidr tag or IP range check."""
+    # If asset has a subnet_cidr tag, use exact match
+    if subnet_cidr:
+        return subnet_cidr == str(network)
+    # Otherwise check if IP is in the network range
+    try:
+        return ipaddress.ip_address(ip) in network
+    except ValueError:
+        return False
+
+
+def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> FastAPI:
     """Create dashboard FastAPI app."""
     app = FastAPI(title="BİGR Discovery Dashboard")
     _data_path = Path(data_path)
+    _db_path = db_path
 
     def _load_data() -> dict:
         """Load scan data from file, falling back to database."""
@@ -37,17 +58,36 @@ def create_app(data_path: str = "assets.json") -> FastAPI:
         return HTMLResponse(content=_render_dashboard(data))
 
     @app.get("/api/data", response_class=JSONResponse)
-    async def api_data():
+    async def api_data(subnet: str | None = None):
         data = _load_data()
         # Enrich assets with manual_override flag
         try:
-            tagged = get_tags()
+            tagged = get_tags(db_path=_db_path)
             tagged_ips = {t["ip"] for t in tagged}
         except Exception:
             tagged_ips = set()
         for asset in data.get("assets", []):
             asset["manual_override"] = asset.get("ip", "") in tagged_ips
+        # Filter by subnet if requested
+        if subnet:
+            try:
+                network = ipaddress.ip_network(subnet, strict=False)
+                data["assets"] = [
+                    a for a in data.get("assets", [])
+                    if _ip_in_subnet(a.get("ip", ""), network, a.get("subnet_cidr"))
+                ]
+            except ValueError:
+                pass
         return data
+
+    @app.get("/api/subnets", response_class=JSONResponse)
+    async def api_subnets():
+        """Return all registered subnets."""
+        try:
+            subnet_list = get_subnets(db_path=_db_path)
+            return {"subnets": subnet_list}
+        except Exception:
+            return {"subnets": []}
 
     @app.get("/api/scans", response_class=JSONResponse)
     async def api_scans():
@@ -291,6 +331,16 @@ def _render_dashboard(data: dict) -> str:
             font-size: 0.8rem;
             color: #64748b;
         }}
+        .subnet-select {{
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }}
+        .subnet-select:focus {{ outline: none; border-color: #60a5fa; }}
     </style>
 </head>
 <body>
@@ -310,6 +360,9 @@ def _render_dashboard(data: dict) -> str:
             <div class="toolbar-left">
                 <input type="text" class="search-input" placeholder="Search IP, hostname, vendor..."
                        oninput="searchAssets(this.value)">
+                <select id="subnet-filter" class="subnet-select" onchange="filterSubnet(this.value)">
+                    <option value="">All Subnets</option>
+                </select>
                 <button class="btn" onclick="filterCategory('all')">Show All</button>
             </div>
             <div>
@@ -520,8 +573,49 @@ def _render_dashboard(data: dict) -> str:
             }});
         }}
 
-        // Auto-load changes on page load
+        function filterSubnet(subnet) {{
+            // Reload data filtered by subnet
+            const url = subnet ? `/api/data?subnet=${{encodeURIComponent(subnet)}}` : '/api/data';
+            fetch(url).then(r => r.json()).then(data => {{
+                const tbody = document.getElementById('asset-table');
+                while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+                (data.assets || []).forEach(a => {{
+                    const tr = document.createElement('tr');
+                    const conf = a.confidence_score || 0;
+                    const confClass = conf >= 0.7 ? 'high' : conf >= 0.4 ? 'medium' : 'low';
+                    const ports = (a.open_ports || []).join(', ') || '-';
+                    const catKey = a.bigr_category || 'unclassified';
+                    tr.dataset.category = catKey;
+                    tr.innerHTML = `<td>${{a.ip || '-'}}</td>` +
+                        `<td><code>${{a.mac || '-'}}</code></td>` +
+                        `<td>${{a.hostname || '-'}}</td>` +
+                        `<td>${{a.vendor || '-'}}</td>` +
+                        `<td><code>${{ports}}</code></td>` +
+                        `<td><span class="badge">${{a.bigr_category_tr || '-'}}</span></td>` +
+                        `<td><span class="conf conf-${{confClass}}">${{conf.toFixed(2)}}</span></td>` +
+                        `<td>${{a.os_hint || '-'}}</td>`;
+                    tbody.appendChild(tr);
+                }});
+                document.getElementById('total-bar').textContent =
+                    `Showing ${{data.assets?.length || 0}} of {total} assets`;
+            }});
+        }}
+
+        function loadSubnets() {{
+            fetch('/api/subnets').then(r => r.json()).then(data => {{
+                const sel = document.getElementById('subnet-filter');
+                (data.subnets || []).forEach(s => {{
+                    const opt = document.createElement('option');
+                    opt.value = s.cidr;
+                    opt.textContent = s.label ? `${{s.cidr}} (${{s.label}})` : s.cidr;
+                    sel.appendChild(opt);
+                }});
+            }}).catch(() => {{}});
+        }}
+
+        // Auto-load changes and subnets on page load
         loadChanges();
+        loadSubnets();
     </script>
 </body>
 </html>"""
