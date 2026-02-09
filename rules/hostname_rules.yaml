@@ -1,0 +1,68 @@
+# BİGR Hostname Pattern Classification Rules
+# Regex patterns matched against hostname (case-insensitive)
+
+- name: "Network Switch"
+  match:
+    hostname_pattern: "sw[\\-_]|switch"
+  scores:
+    ag_ve_sistemler: 0.4
+
+- name: "Firewall"
+  match:
+    hostname_pattern: "fw[\\-_]|firewall"
+  scores:
+    ag_ve_sistemler: 0.4
+
+- name: "Router/Gateway"
+  match:
+    hostname_pattern: "router|gw[\\-_]|gateway"
+  scores:
+    ag_ve_sistemler: 0.4
+
+- name: "Access Point"
+  match:
+    hostname_pattern: "ap[\\-_\\d]|access.?point"
+  scores:
+    ag_ve_sistemler: 0.4
+
+- name: "Camera"
+  match:
+    hostname_pattern: "cam[\\-_]|camera"
+  scores:
+    iot: 0.4
+
+- name: "Printer"
+  match:
+    hostname_pattern: "printer|prn[\\-_]"
+  scores:
+    iot: 0.4
+
+- name: "Sensor"
+  match:
+    hostname_pattern: "sensor|thermostat"
+  scores:
+    iot: 0.4
+
+- name: "Laptop"
+  match:
+    hostname_pattern: "laptop|nb[\\-_]|notebook"
+  scores:
+    tasinabilir: 0.4
+
+- name: "Desktop/Workstation"
+  match:
+    hostname_pattern: "desktop|pc[\\-_]|workstation"
+  scores:
+    tasinabilir: 0.4
+
+- name: "Web Server"
+  match:
+    hostname_pattern: "web[\\-_]|www[\\-_]"
+  scores:
+    uygulamalar: 0.4
+
+- name: "Application Server"
+  match:
+    hostname_pattern: "app[\\-_]|api[\\-_]|srv[\\-_]|server"
+  scores:
+    uygulamalar: 0.4

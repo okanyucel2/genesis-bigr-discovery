@@ -1,0 +1,59 @@
+# BİGR Port-Based Classification Rules
+# Format: match condition → scoring weights
+
+- name: "Server multi-port"
+  match:
+    ports_include_all: [22, 80, 443]
+  scores:
+    ag_ve_sistemler: 0.4
+  description: "SSH + HTTP + HTTPS combo indicates a server"
+
+- name: "Web-only (no SSH)"
+  match:
+    ports_include_any: [80, 443, 8080, 8443]
+    ports_exclude: [22]
+  scores:
+    uygulamalar: 0.4
+  description: "Web ports without SSH suggests web application"
+
+- name: "Printer (JetDirect)"
+  match:
+    ports_include_any: [9100]
+  scores:
+    iot: 0.5
+  description: "Port 9100 is JetDirect printing protocol"
+
+- name: "RTSP Camera"
+  match:
+    ports_include_any: [554]
+  scores:
+    iot: 0.5
+  description: "Port 554 is RTSP, commonly used by IP cameras"
+
+- name: "MQTT IoT"
+  match:
+    ports_include_any: [1883]
+  scores:
+    iot: 0.4
+  description: "Port 1883 is MQTT, commonly used by IoT devices"
+
+- name: "RDP Desktop"
+  match:
+    ports_include_any: [3389]
+  scores:
+    tasinabilir: 0.3
+  description: "Port 3389 is RDP, suggests Windows desktop/laptop"
+
+- name: "SNMP Network Equipment"
+  match:
+    ports_include_any: [161]
+  scores:
+    ag_ve_sistemler: 0.3
+  description: "Port 161 is SNMP, common on network equipment"
+
+- name: "Database Server"
+  match:
+    ports_include_any: [3306, 5432, 1433, 27017]
+  scores:
+    ag_ve_sistemler: 0.2
+  description: "Database ports indicate a server role"

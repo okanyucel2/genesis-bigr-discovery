@@ -1,0 +1,50 @@
+# BİGR MAC Vendor Classification Rules
+# Maps vendor name keywords to BİGR categories
+
+- name: "Cisco"
+  match:
+    vendor_contains: ["Cisco", "Meraki"]
+  scores:
+    ag_ve_sistemler: 0.5
+
+- name: "Juniper"
+  match:
+    vendor_contains: ["Juniper"]
+  scores:
+    ag_ve_sistemler: 0.5
+
+- name: "Aruba"
+  match:
+    vendor_contains: ["Aruba"]
+  scores:
+    ag_ve_sistemler: 0.5
+
+- name: "MikroTik"
+  match:
+    vendor_contains: ["MikroTik"]
+  scores:
+    ag_ve_sistemler: 0.5
+
+- name: "Hikvision Camera"
+  match:
+    vendor_contains: ["Hikvision"]
+  scores:
+    iot: 0.6
+
+- name: "Dahua Camera"
+  match:
+    vendor_contains: ["Dahua"]
+  scores:
+    iot: 0.6
+
+- name: "Printer Vendors"
+  match:
+    vendor_contains: ["Epson", "Brother", "Canon", "HP Printing", "Xerox"]
+  scores:
+    iot: 0.5
+
+- name: "Consumer Devices"
+  match:
+    vendor_contains: ["Apple", "Dell", "Lenovo", "Samsung"]
+  scores:
+    tasinabilir: 0.4
