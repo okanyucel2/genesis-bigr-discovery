@@ -14,6 +14,11 @@ import ScanForm from '@/components/shield/ScanForm.vue'
 import ShieldScore from '@/components/shield/ShieldScore.vue'
 import ModuleScoreCards from '@/components/shield/ModuleScoreCards.vue'
 import FindingsList from '@/components/shield/FindingsList.vue'
+import PortScanResults from '@/components/shield/PortScanResults.vue'
+import HeadersChecklist from '@/components/shield/HeadersChecklist.vue'
+import DnsSecurityCard from '@/components/shield/DnsSecurityCard.vue'
+import ShieldTimeline from '@/components/shield/ShieldTimeline.vue'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
 const {
   currentScan,
@@ -57,6 +62,26 @@ const hasModuleScores = computed(
   () =>
     currentScan.value?.module_scores &&
     Object.keys(currentScan.value.module_scores).length > 0,
+)
+
+const portFindings = computed(() =>
+  currentScan.value?.findings.filter((f) => f.module === 'ports') ?? [],
+)
+const headerFindings = computed(() =>
+  currentScan.value?.findings.filter((f) => f.module === 'headers') ?? [],
+)
+const dnsFindings = computed(() =>
+  currentScan.value?.findings.filter((f) => f.module === 'dns') ?? [],
+)
+
+const hasPortModule = computed(() =>
+  currentScan.value?.modules_enabled.includes('ports') ?? false,
+)
+const hasHeaderModule = computed(() =>
+  currentScan.value?.modules_enabled.includes('headers') ?? false,
+)
+const hasDnsModule = computed(() =>
+  currentScan.value?.modules_enabled.includes('dns') ?? false,
 )
 </script>
 
@@ -139,7 +164,7 @@ const hasModuleScores = computed(
 
     <!-- Completed State -->
     <template v-if="isComplete && !scanning">
-      <!-- Score + Module Scores -->
+      <!-- Score + Module Scores + Timeline -->
       <div class="flex flex-col gap-6 lg:flex-row">
         <!-- Left: Shield Score -->
         <div class="glass-card flex items-center justify-center rounded-xl p-6 lg:w-72">
@@ -150,7 +175,7 @@ const hasModuleScores = computed(
           />
         </div>
 
-        <!-- Right: Module Score Cards -->
+        <!-- Center: Module Score Cards -->
         <div class="min-w-0 flex-1">
           <div class="mb-3 flex items-center justify-between">
             <h2 class="text-sm font-medium text-white">Module Scores</h2>
@@ -174,6 +199,11 @@ const hasModuleScores = computed(
             <p class="text-sm text-slate-500">No module breakdown available</p>
           </div>
         </div>
+
+        <!-- Right: Timeline -->
+        <div v-if="currentScan" class="lg:w-64">
+          <ShieldTimeline :scan="currentScan" />
+        </div>
       </div>
 
       <!-- Scan Info Bar -->
@@ -196,8 +226,60 @@ const hasModuleScores = computed(
         </span>
       </div>
 
-      <!-- Findings -->
-      <FindingsList :findings="findings" />
+      <!-- Tabbed Findings View -->
+      <Tabs default-value="findings">
+        <TabsList class="bg-white/5">
+          <TabsTrigger value="findings" class="data-[state=active]:bg-white/10 data-[state=active]:text-cyan-400 text-slate-400">
+            All Findings
+          </TabsTrigger>
+          <TabsTrigger
+            v-if="hasPortModule"
+            value="ports"
+            class="data-[state=active]:bg-white/10 data-[state=active]:text-cyan-400 text-slate-400"
+          >
+            Ports
+            <span v-if="portFindings.length > 0" class="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500/20 px-1 text-[10px] font-semibold text-rose-400">
+              {{ portFindings.length }}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger
+            v-if="hasHeaderModule"
+            value="headers"
+            class="data-[state=active]:bg-white/10 data-[state=active]:text-cyan-400 text-slate-400"
+          >
+            Headers
+            <span v-if="headerFindings.length > 0" class="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold text-amber-400">
+              {{ headerFindings.length }}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger
+            v-if="hasDnsModule"
+            value="dns"
+            class="data-[state=active]:bg-white/10 data-[state=active]:text-cyan-400 text-slate-400"
+          >
+            DNS
+            <span v-if="dnsFindings.length > 0" class="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold text-amber-400">
+              {{ dnsFindings.length }}
+            </span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="findings">
+          <FindingsList :findings="findings" />
+        </TabsContent>
+
+        <TabsContent v-if="hasPortModule" value="ports">
+          <PortScanResults :findings="portFindings" />
+        </TabsContent>
+
+        <TabsContent v-if="hasHeaderModule" value="headers">
+          <HeadersChecklist :findings="headerFindings" />
+        </TabsContent>
+
+        <TabsContent v-if="hasDnsModule" value="dns">
+          <DnsSecurityCard :findings="dnsFindings" />
+        </TabsContent>
+      </Tabs>
     </template>
   </div>
 </template>
