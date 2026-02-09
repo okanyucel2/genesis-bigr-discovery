@@ -1,0 +1,2 @@
+import{b as u}from"./index-DonMIFpr.js";import{r as a}from"./vendor-B81oEKTZ.js";function c(){const n=a([]),t=a(!1),s=a(null);async function r(){t.value=!0,s.value=null;try{const e=await u.getSubnets();n.value=e.data.subnets}catch(e){s.value=e instanceof Error?e.message:"Failed to load subnets"}finally{t.value=!1}}return{subnets:n,loading:t,error:s,fetchSubnets:r}}export{c as u};
+//# sourceMappingURL=useSubnets-BJTUIi_S.js.map
