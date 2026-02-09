@@ -18,6 +18,8 @@ from bigr.db import (
     get_tags,
 )
 from bigr.diff import get_changes_from_db
+from bigr.scanner.switch_map import get_switches
+from bigr.topology import build_subnet_topology, build_topology
 
 
 def _ip_in_subnet(ip: str, network, subnet_cidr: str | None = None) -> bool:
@@ -119,6 +121,36 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
             return {"changes": changes}
         except Exception:
             return {"changes": []}
+
+    @app.get("/api/switches", response_class=JSONResponse)
+    async def api_switches():
+        """Return all registered switches."""
+        try:
+            switch_list = get_switches(db_path=_db_path)
+            return {"switches": switch_list}
+        except Exception:
+            return {"switches": []}
+
+    @app.get("/api/topology", response_class=JSONResponse)
+    async def api_topology():
+        """Return network topology graph data."""
+        data = _load_data()
+        assets = data.get("assets", [])
+        graph = build_topology(assets)
+        return graph.to_dict()
+
+    @app.get("/api/topology/subnet/{cidr:path}", response_class=JSONResponse)
+    async def api_topology_subnet(cidr: str):
+        """Return topology for a specific subnet."""
+        data = _load_data()
+        assets = data.get("assets", [])
+        graph = build_subnet_topology(assets, cidr)
+        return graph.to_dict()
+
+    @app.get("/topology", response_class=HTMLResponse)
+    async def topology_page():
+        """Serve network topology visualization page."""
+        return HTMLResponse(content=_render_topology_page())
 
     @app.get("/api/health")
     async def health():
@@ -345,7 +377,10 @@ def _render_dashboard(data: dict) -> str:
 </head>
 <body>
     <div class="header">
-        <h1>BIGR Discovery Dashboard</h1>
+        <div style="display:flex;align-items:center;gap:1rem;">
+            <h1>BIGR Discovery Dashboard</h1>
+            <a href="/topology" class="btn btn-primary" style="text-decoration:none;font-size:0.8rem;">Topology Map</a>
+        </div>
         <div class="header-meta">
             <span>Target: <strong>{target}</strong></span>
             <span>Mode: <strong>{scan_method}</strong></span>
@@ -616,6 +651,348 @@ def _render_dashboard(data: dict) -> str:
         // Auto-load changes and subnets on page load
         loadChanges();
         loadSubnets();
+    </script>
+</body>
+</html>"""
+
+
+def _render_topology_page() -> str:
+    """Render the D3.js network topology visualization page."""
+    return """<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIGR Discovery - Network Topology</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        .header {
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            padding: 0.75rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            position: relative;
+        }
+        .header h1 { font-size: 1.1rem; font-weight: 600; color: #f1f5f9; }
+        .header-left { display: flex; align-items: center; gap: 1rem; }
+        .btn {
+            background: #334155;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: background 0.15s;
+            text-decoration: none;
+        }
+        .btn:hover { background: #475569; }
+        .btn-primary { background: #3b82f6; border-color: #3b82f6; }
+        .btn-primary:hover { background: #2563eb; }
+        #topology-container {
+            width: 100%;
+            height: calc(100vh - 52px);
+            position: relative;
+        }
+        svg { width: 100%; height: 100%; }
+        .node-label {
+            font-size: 10px;
+            fill: #94a3b8;
+            pointer-events: none;
+            text-anchor: middle;
+        }
+        .edge-line {
+            stroke: #334155;
+            stroke-opacity: 0.6;
+        }
+        .edge-line.gateway { stroke: #60a5fa; stroke-width: 2; }
+        .edge-line.switch { stroke: #a78bfa; stroke-width: 1.5; stroke-dasharray: 4; }
+        .edge-line.subnet { stroke: #475569; stroke-width: 1; }
+        .tooltip {
+            position: absolute;
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-size: 0.8rem;
+            color: #e2e8f0;
+            pointer-events: none;
+            z-index: 100;
+            max-width: 300px;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+        .tooltip .tip-row { margin: 0.2rem 0; }
+        .tooltip .tip-label { color: #94a3b8; margin-right: 0.3rem; }
+        .legend {
+            position: absolute;
+            bottom: 1.5rem;
+            left: 1.5rem;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            z-index: 10;
+        }
+        .legend h3 { font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .legend-item { display: flex; align-items: center; gap: 0.5rem; margin: 0.3rem 0; font-size: 0.75rem; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+        .stats-bar {
+            position: absolute;
+            top: 0.75rem;
+            right: 1.5rem;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            z-index: 10;
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+        .stats-bar span { margin-left: 1rem; color: #e2e8f0; font-weight: 600; }
+        .highlight-ring {
+            fill: none;
+            stroke: #fbbf24;
+            stroke-width: 3;
+            stroke-opacity: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>Network Topology</h1>
+            <a href="/" class="btn">Dashboard</a>
+        </div>
+        <div>
+            <button class="btn" onclick="resetZoom()">Reset View</button>
+            <button class="btn" onclick="toggleLabels()">Toggle Labels</button>
+        </div>
+    </div>
+    <div id="topology-container">
+        <svg id="topology-svg"></svg>
+        <div class="tooltip" id="tooltip"></div>
+        <div class="legend" id="legend">
+            <h3>BIGR Categories</h3>
+            <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> Ag ve Sistemler</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div> Uygulamalar</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> IoT</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Tasinabilir</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#6b7280"></div> Unclassified</div>
+            <h3 style="margin-top:0.75rem;">Node Types</h3>
+            <div class="legend-item"><div class="legend-dot" style="background:#60a5fa;width:18px;height:18px;"></div> Gateway</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#a78bfa;width:15px;height:15px;border-radius:3px;"></div> Switch</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#334155;width:14px;height:14px;border-radius:3px;"></div> Subnet</div>
+        </div>
+        <div class="stats-bar" id="stats-bar">Loading...</div>
+    </div>
+    <script>
+    (function() {
+        const width = window.innerWidth;
+        const height = window.innerHeight - 52;
+        let showLabels = true;
+
+        const svg = d3.select('#topology-svg');
+        const g = svg.append('g');
+
+        // Zoom
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 8])
+            .on('zoom', (event) => g.attr('transform', event.transform));
+        svg.call(zoom);
+
+        window.resetZoom = function() {
+            svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+        };
+
+        window.toggleLabels = function() {
+            showLabels = !showLabels;
+            g.selectAll('.node-label').style('display', showLabels ? 'block' : 'none');
+        };
+
+        const tooltip = d3.select('#tooltip');
+
+        fetch('/api/topology')
+            .then(r => r.json())
+            .then(data => {
+                // Update stats
+                const stats = data.stats || {};
+                document.getElementById('stats-bar').innerHTML =
+                    'Nodes: <span>' + stats.total_nodes + '</span>' +
+                    'Edges: <span>' + stats.total_edges + '</span>';
+
+                if (!data.nodes || data.nodes.length === 0) {
+                    document.getElementById('stats-bar').innerHTML = 'No topology data available.';
+                    return;
+                }
+
+                // Build simulation
+                const simulation = d3.forceSimulation(data.nodes)
+                    .force('link', d3.forceLink(data.edges).id(d => d.id).distance(d => {
+                        if (d.type === 'gateway') return 60;
+                        if (d.type === 'switch') return 80;
+                        return 100;
+                    }))
+                    .force('charge', d3.forceManyBody().strength(-200))
+                    .force('center', d3.forceCenter(width / 2, height / 2))
+                    .force('collision', d3.forceCollide().radius(d => (d.size || 10) + 5));
+
+                // Draw edges
+                const link = g.append('g')
+                    .selectAll('line')
+                    .data(data.edges)
+                    .join('line')
+                    .attr('class', d => 'edge-line ' + (d.type || ''));
+
+                // Draw nodes
+                const node = g.append('g')
+                    .selectAll('g')
+                    .data(data.nodes)
+                    .join('g')
+                    .call(d3.drag()
+                        .on('start', dragStarted)
+                        .on('drag', dragged)
+                        .on('end', dragEnded));
+
+                // Highlight ring (hidden by default)
+                node.append('circle')
+                    .attr('class', 'highlight-ring')
+                    .attr('r', d => (d.size || 10) + 5);
+
+                // Node shape depends on type
+                node.each(function(d) {
+                    const el = d3.select(this);
+                    if (d.type === 'subnet') {
+                        el.append('rect')
+                            .attr('width', d.size * 2)
+                            .attr('height', d.size)
+                            .attr('x', -d.size)
+                            .attr('y', -d.size / 2)
+                            .attr('rx', 4)
+                            .attr('fill', d.color || '#334155')
+                            .attr('stroke', '#475569')
+                            .attr('stroke-width', 1);
+                    } else {
+                        el.append('circle')
+                            .attr('r', d.size || 10)
+                            .attr('fill', d.color || '#6b7280')
+                            .attr('stroke', d.type === 'gateway' ? '#93c5fd' : '#475569')
+                            .attr('stroke-width', d.type === 'gateway' ? 2 : 1);
+                    }
+                });
+
+                // Labels
+                node.append('text')
+                    .attr('class', 'node-label')
+                    .attr('dy', d => (d.size || 10) + 14)
+                    .text(d => d.label || d.id);
+
+                // Tooltip
+                node.on('mouseover', function(event, d) {
+                    let html = '<div class="tip-row"><span class="tip-label">ID:</span>' + d.id + '</div>';
+                    if (d.ip) html += '<div class="tip-row"><span class="tip-label">IP:</span>' + d.ip + '</div>';
+                    if (d.hostname) html += '<div class="tip-row"><span class="tip-label">Host:</span>' + d.hostname + '</div>';
+                    if (d.vendor) html += '<div class="tip-row"><span class="tip-label">Vendor:</span>' + d.vendor + '</div>';
+                    if (d.mac) html += '<div class="tip-row"><span class="tip-label">MAC:</span>' + d.mac + '</div>';
+                    html += '<div class="tip-row"><span class="tip-label">Type:</span>' + d.type + '</div>';
+                    html += '<div class="tip-row"><span class="tip-label">Category:</span>' + d.bigr_category + '</div>';
+                    if (d.open_ports && d.open_ports.length > 0) {
+                        html += '<div class="tip-row"><span class="tip-label">Ports:</span>' + d.open_ports.join(', ') + '</div>';
+                    }
+                    if (d.confidence > 0) {
+                        html += '<div class="tip-row"><span class="tip-label">Confidence:</span>' + d.confidence.toFixed(2) + '</div>';
+                    }
+                    tooltip.html(html)
+                        .style('display', 'block')
+                        .style('left', (event.pageX + 15) + 'px')
+                        .style('top', (event.pageY - 10) + 'px');
+                })
+                .on('mousemove', function(event) {
+                    tooltip.style('left', (event.pageX + 15) + 'px')
+                        .style('top', (event.pageY - 10) + 'px');
+                })
+                .on('mouseout', function() {
+                    tooltip.style('display', 'none');
+                });
+
+                // Click to highlight connected nodes
+                node.on('click', function(event, d) {
+                    // Reset all highlights
+                    g.selectAll('.highlight-ring').attr('stroke-opacity', 0);
+                    link.attr('stroke-opacity', 0.2);
+
+                    // Find connected node IDs
+                    const connectedIds = new Set();
+                    connectedIds.add(d.id);
+                    data.edges.forEach(e => {
+                        const src = typeof e.source === 'object' ? e.source.id : e.source;
+                        const tgt = typeof e.target === 'object' ? e.target.id : e.target;
+                        if (src === d.id) connectedIds.add(tgt);
+                        if (tgt === d.id) connectedIds.add(src);
+                    });
+
+                    // Highlight connected
+                    g.selectAll('.highlight-ring')
+                        .attr('stroke-opacity', function(n) {
+                            return connectedIds.has(n.id) ? 0.8 : 0;
+                        });
+                    link.attr('stroke-opacity', function(e) {
+                        const src = typeof e.source === 'object' ? e.source.id : e.source;
+                        const tgt = typeof e.target === 'object' ? e.target.id : e.target;
+                        return (src === d.id || tgt === d.id) ? 1 : 0.1;
+                    });
+                });
+
+                // Click background to reset
+                svg.on('click', function(event) {
+                    if (event.target.tagName === 'svg' || event.target === svg.node()) {
+                        g.selectAll('.highlight-ring').attr('stroke-opacity', 0);
+                        link.attr('stroke-opacity', 0.6);
+                    }
+                });
+
+                // Simulation tick
+                simulation.on('tick', () => {
+                    link
+                        .attr('x1', d => d.source.x)
+                        .attr('y1', d => d.source.y)
+                        .attr('x2', d => d.target.x)
+                        .attr('y2', d => d.target.y);
+                    node.attr('transform', d => `translate(${d.x},${d.y})`);
+                });
+
+                function dragStarted(event, d) {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    d.fx = d.x;
+                    d.fy = d.y;
+                }
+                function dragged(event, d) {
+                    d.fx = event.x;
+                    d.fy = event.y;
+                }
+                function dragEnded(event, d) {
+                    if (!event.active) simulation.alphaTarget(0);
+                    d.fx = null;
+                    d.fy = null;
+                }
+            })
+            .catch(err => {
+                document.getElementById('stats-bar').innerHTML =
+                    '<span style="color:#ef4444;">Failed to load topology data.</span>';
+                console.error('Topology load error:', err);
+            });
+    })();
     </script>
 </body>
 </html>"""

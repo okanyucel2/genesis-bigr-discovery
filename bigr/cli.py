@@ -498,6 +498,124 @@ def subnets_list(
     console.print(table)
 
 
+# ---------------------------------------------------------------------------
+# SNMP sub-app
+# ---------------------------------------------------------------------------
+
+snmp_app = typer.Typer(help="Manage SNMP switches")
+app.add_typer(snmp_app, name="snmp")
+
+
+@snmp_app.command("add")
+def snmp_add(
+    host: str = typer.Argument(..., help="Switch IP address or hostname"),
+    community: str = typer.Option("public", "--community", "-c", help="SNMP community string"),
+    label: str = typer.Option("", "--label", "-l", help="Friendly label"),
+    snmp_version: str = typer.Option("2c", "--version", "-v", help="SNMP version (2c or 3)"),
+    db_path_opt: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="Database path (for testing)"),
+) -> None:
+    """Register an SNMP-managed switch."""
+    from bigr.scanner.snmp import SwitchConfig
+    from bigr.scanner.switch_map import save_switch
+
+    resolved_db = Path(db_path_opt) if db_path_opt else None
+    config = SwitchConfig(host=host, community=community, version=snmp_version, label=label)
+    save_switch(config, db_path=resolved_db)
+    console.print(f"[green]Added[/green] switch {host}")
+    if label:
+        console.print(f"  Label: {label}")
+
+
+@snmp_app.command("remove")
+def snmp_remove(
+    host: str = typer.Argument(..., help="Switch IP address or hostname to remove"),
+    db_path_opt: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="Database path (for testing)"),
+) -> None:
+    """Remove a registered switch."""
+    from bigr.scanner.switch_map import remove_switch
+
+    resolved_db = Path(db_path_opt) if db_path_opt else None
+    remove_switch(host, db_path=resolved_db)
+    console.print(f"[green]Removed[/green] switch {host}")
+
+
+@snmp_app.command("list")
+def snmp_list(
+    db_path_opt: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="Database path (for testing)"),
+) -> None:
+    """List all registered switches."""
+    from bigr.scanner.switch_map import get_switches
+
+    resolved_db = Path(db_path_opt) if db_path_opt else None
+    switch_list = get_switches(db_path=resolved_db)
+    if not switch_list:
+        console.print("[yellow]No switches registered.[/yellow] Use 'bigr snmp add' to register one.")
+        return
+
+    table = Table(title="\nRegistered Switches")
+    table.add_column("Host", style="cyan")
+    table.add_column("Label")
+    table.add_column("Community")
+    table.add_column("Version")
+    table.add_column("MACs", justify="right")
+    table.add_column("Last Polled")
+
+    for s in switch_list:
+        last_polled = s.get("last_polled") or "-"
+        if last_polled != "-":
+            last_polled = last_polled[:19].replace("T", " ")
+        table.add_row(
+            s["host"],
+            s.get("label") or "-",
+            s.get("community", "public"),
+            s.get("version", "2c"),
+            str(s.get("mac_count", 0)),
+            last_polled,
+        )
+
+    console.print(table)
+
+
+@snmp_app.command("scan")
+def snmp_scan(
+    db_path_opt: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="Database path (for testing)"),
+) -> None:
+    """Scan all registered switches for MAC tables."""
+    from bigr.scanner.switch_map import get_switches, scan_all_switches
+
+    resolved_db = Path(db_path_opt) if db_path_opt else None
+    switch_list = get_switches(db_path=resolved_db)
+    if not switch_list:
+        console.print("[yellow]No switches registered.[/yellow] Use 'bigr snmp add' first.")
+        return
+
+    console.print(f"[bold]Scanning {len(switch_list)} switch(es)...[/bold]")
+
+    with console.status("[bold green]Reading MAC tables..."):
+        entries = scan_all_switches(db_path=resolved_db)
+
+    console.print(f"[green]Scan complete![/green] Found [bold]{len(entries)}[/bold] MAC entries.")
+
+    if entries:
+        table = Table(title="\nMAC Table Summary")
+        table.add_column("MAC", style="cyan")
+        table.add_column("Switch")
+        table.add_column("Port")
+        table.add_column("Port Index", justify="right")
+
+        for entry in entries[:50]:  # Show first 50
+            table.add_row(
+                entry.mac,
+                f"{entry.switch_label or entry.switch_host}",
+                entry.port_name,
+                str(entry.port_index),
+            )
+
+        console.print(table)
+        if len(entries) > 50:
+            console.print(f"[dim]... and {len(entries) - 50} more entries.[/dim]")
+
+
 @app.command()
 def version() -> None:
     """Show version information."""

@@ -94,10 +94,34 @@ def init_db(db_path: Path | None = None) -> None:
                 last_scanned  TEXT,
                 asset_count   INTEGER DEFAULT 0
             );
+
+            CREATE TABLE IF NOT EXISTS switches (
+                host        TEXT PRIMARY KEY,
+                community   TEXT DEFAULT 'public',
+                version     TEXT DEFAULT '2c',
+                label       TEXT DEFAULT '',
+                last_polled TEXT,
+                mac_count   INTEGER DEFAULT 0
+            );
         """)
+        # Add switch columns to assets if they don't exist yet (migration-safe)
+        _add_column_if_missing(conn, "assets", "switch_host", "TEXT")
+        _add_column_if_missing(conn, "assets", "switch_port", "TEXT")
+        _add_column_if_missing(conn, "assets", "switch_port_index", "INTEGER")
+
         conn.commit()
     finally:
         conn.close()
+
+
+def _add_column_if_missing(
+    conn: sqlite3.Connection, table: str, column: str, col_type: str
+) -> None:
+    """Add a column to a table if it doesn't already exist."""
+    cursor = conn.execute(f"PRAGMA table_info({table})")
+    existing = {row[1] for row in cursor.fetchall()}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
 
 
 def save_scan(scan_result: ScanResult, db_path: Path | None = None) -> str:
