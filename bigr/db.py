@@ -103,6 +103,26 @@ def init_db(db_path: Path | None = None) -> None:
                 last_polled TEXT,
                 mac_count   INTEGER DEFAULT 0
             );
+
+            CREATE TABLE IF NOT EXISTS certificates (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                ip              TEXT NOT NULL,
+                port            INTEGER NOT NULL,
+                cn              TEXT,
+                issuer          TEXT,
+                issuer_org      TEXT,
+                valid_from      TEXT,
+                valid_to        TEXT,
+                serial          TEXT,
+                key_size        INTEGER,
+                key_algorithm   TEXT,
+                is_self_signed  INTEGER DEFAULT 0,
+                is_expired      INTEGER DEFAULT 0,
+                days_until_expiry INTEGER,
+                san             TEXT,
+                last_checked    TEXT NOT NULL,
+                UNIQUE(ip, port)
+            );
         """)
         # Add switch columns to assets if they don't exist yet (migration-safe)
         _add_column_if_missing(conn, "assets", "switch_host", "TEXT")
@@ -547,3 +567,113 @@ def ConfidenceLevel_from_score(score: float) -> str:
     if score >= 0.3:
         return "low"
     return "unclassified"
+
+
+# ---------------------------------------------------------------------------
+# Certificate management
+# ---------------------------------------------------------------------------
+
+
+def save_certificate(cert, db_path: Path | None = None) -> None:
+    """Save or update a TLS certificate record.
+
+    Uses UPSERT on (ip, port) unique constraint.
+    """
+    from bigr.scanner.tls import CertificateInfo
+
+    init_db(db_path)
+    conn = _connect(db_path)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        conn.execute(
+            """INSERT INTO certificates
+               (ip, port, cn, issuer, issuer_org, valid_from, valid_to,
+                serial, key_size, key_algorithm, is_self_signed, is_expired,
+                days_until_expiry, san, last_checked)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(ip, port) DO UPDATE SET
+                cn = excluded.cn,
+                issuer = excluded.issuer,
+                issuer_org = excluded.issuer_org,
+                valid_from = excluded.valid_from,
+                valid_to = excluded.valid_to,
+                serial = excluded.serial,
+                key_size = excluded.key_size,
+                key_algorithm = excluded.key_algorithm,
+                is_self_signed = excluded.is_self_signed,
+                is_expired = excluded.is_expired,
+                days_until_expiry = excluded.days_until_expiry,
+                san = excluded.san,
+                last_checked = excluded.last_checked""",
+            (
+                cert.ip,
+                cert.port,
+                cert.cn,
+                cert.issuer,
+                cert.issuer_org,
+                cert.valid_from,
+                cert.valid_to,
+                cert.serial,
+                cert.key_size,
+                cert.key_algorithm,
+                int(cert.is_self_signed),
+                int(cert.is_expired),
+                cert.days_until_expiry,
+                json.dumps(cert.san),
+                now_iso,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_certificates(db_path: Path | None = None) -> list[dict]:
+    """Return all stored certificates."""
+    init_db(db_path)
+    conn = _connect(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT * FROM certificates ORDER BY last_checked DESC"
+        ).fetchall()
+        result = []
+        for row in rows:
+            d = dict(row)
+            d["is_self_signed"] = bool(d.get("is_self_signed"))
+            d["is_expired"] = bool(d.get("is_expired"))
+            try:
+                d["san"] = json.loads(d.get("san") or "[]")
+            except (json.JSONDecodeError, TypeError):
+                d["san"] = []
+            result.append(d)
+        return result
+    finally:
+        conn.close()
+
+
+def get_expiring_certificates(
+    days: int = 30, db_path: Path | None = None
+) -> list[dict]:
+    """Return certificates expiring within N days (includes already expired)."""
+    init_db(db_path)
+    conn = _connect(db_path)
+    try:
+        rows = conn.execute(
+            """SELECT * FROM certificates
+               WHERE days_until_expiry IS NOT NULL AND days_until_expiry <= ?
+               ORDER BY days_until_expiry ASC""",
+            (days,),
+        ).fetchall()
+        result = []
+        for row in rows:
+            d = dict(row)
+            d["is_self_signed"] = bool(d.get("is_self_signed"))
+            d["is_expired"] = bool(d.get("is_expired"))
+            try:
+                d["san"] = json.loads(d.get("san") or "[]")
+            except (json.JSONDecodeError, TypeError):
+                d["san"] = []
+            result.append(d)
+        return result
+    finally:
+        conn.close()

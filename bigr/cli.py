@@ -651,6 +651,142 @@ def snmp_scan(
             console.print(f"[dim]... and {len(entries) - 50} more entries.[/dim]")
 
 
+# ---------------------------------------------------------------------------
+# Certs sub-app
+# ---------------------------------------------------------------------------
+
+certs_app = typer.Typer(help="TLS certificate discovery and monitoring")
+app.add_typer(certs_app, name="certs")
+
+
+@certs_app.command("scan")
+def certs_scan(
+    db_path_opt: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="Database path (for testing)"),
+) -> None:
+    """Scan all known assets for TLS certificates."""
+    from bigr.db import get_all_assets, save_certificate
+    from bigr.scanner.tls import TLS_PORTS, scan_host_certificates
+
+    resolved_db = Path(db_path_opt) if db_path_opt else None
+    all_assets = get_all_assets(db_path=resolved_db)
+
+    if not all_assets:
+        console.print("[yellow]No assets found.[/yellow] Run 'bigr scan' first.")
+        return
+
+    console.print(f"[bold]Scanning {len(all_assets)} asset(s) for TLS certificates...[/bold]")
+
+    total_found = 0
+    for asset in all_assets:
+        ip = asset.get("ip", "")
+        if not ip:
+            continue
+        with console.status(f"[bold green]Checking {ip}..."):
+            certs = scan_host_certificates(ip)
+        for cert in certs:
+            save_certificate(cert, db_path=resolved_db)
+            total_found += 1
+
+    console.print(f"[green]Scan complete![/green] Found [bold]{total_found}[/bold] certificate(s).")
+
+
+@certs_app.command("list")
+def certs_list(
+    db_path_opt: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="Database path (for testing)"),
+) -> None:
+    """List all discovered TLS certificates."""
+    from bigr.db import get_certificates
+
+    resolved_db = Path(db_path_opt) if db_path_opt else None
+    cert_list = get_certificates(db_path=resolved_db)
+
+    if not cert_list:
+        console.print("[yellow]No certificates found.[/yellow] Run 'bigr certs scan' first.")
+        return
+
+    table = Table(title="\nTLS Certificates")
+    table.add_column("IP", style="cyan")
+    table.add_column("Port", justify="right")
+    table.add_column("CN")
+    table.add_column("Issuer")
+    table.add_column("Valid To")
+    table.add_column("Days Left", justify="right")
+    table.add_column("Self-Signed")
+    table.add_column("Key Size", justify="right")
+
+    for c in cert_list:
+        days = c.get("days_until_expiry")
+        days_str = str(days) if days is not None else "-"
+        if days is not None and days <= 30:
+            days_str = f"[red]{days}[/red]"
+        elif days is not None and days <= 7:
+            days_str = f"[red bold]{days}[/red bold]"
+
+        valid_to = c.get("valid_to") or "-"
+        if valid_to != "-":
+            valid_to = valid_to[:10]
+
+        table.add_row(
+            c.get("ip", "-"),
+            str(c.get("port", "-")),
+            c.get("cn") or "-",
+            c.get("issuer") or "-",
+            valid_to,
+            days_str,
+            "Yes" if c.get("is_self_signed") else "No",
+            str(c.get("key_size") or "-"),
+        )
+
+    console.print(table)
+
+
+@certs_app.command("expiring")
+def certs_expiring(
+    days: int = typer.Option(30, "--days", "-d", help="Days until expiry threshold"),
+    db_path_opt: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="Database path (for testing)"),
+) -> None:
+    """Show certificates expiring within N days."""
+    from bigr.db import get_expiring_certificates
+
+    resolved_db = Path(db_path_opt) if db_path_opt else None
+    cert_list = get_expiring_certificates(days=days, db_path=resolved_db)
+
+    if not cert_list:
+        console.print(f"[green]No certificates expiring within {days} days.[/green]")
+        return
+
+    table = Table(title=f"\nCertificates Expiring Within {days} Days")
+    table.add_column("IP", style="cyan")
+    table.add_column("Port", justify="right")
+    table.add_column("CN")
+    table.add_column("Issuer")
+    table.add_column("Days Left", justify="right")
+    table.add_column("Status")
+
+    for c in cert_list:
+        d = c.get("days_until_expiry")
+        if d is not None and d < 0:
+            status = "[red bold]EXPIRED[/red bold]"
+            days_str = f"[red bold]{d}[/red bold]"
+        elif d is not None and d <= 7:
+            status = "[red]CRITICAL[/red]"
+            days_str = f"[red]{d}[/red]"
+        else:
+            status = "[yellow]WARNING[/yellow]"
+            days_str = f"[yellow]{d}[/yellow]"
+
+        table.add_row(
+            c.get("ip", "-"),
+            str(c.get("port", "-")),
+            c.get("cn") or "-",
+            c.get("issuer") or "-",
+            days_str,
+            status,
+        )
+
+    console.print(table)
+
+
 @app.command()
 def compliance(
     fmt: str = typer.Option("summary", "--format", "-f", help="Output format: summary, detailed, json"),
@@ -820,6 +956,265 @@ def analytics(
                 str(entry.get("total_assets", 0)),
             )
         console.print(table)
+
+
+@app.command()
+def risk(
+    fmt: str = typer.Option("summary", "--format", "-f", help="Output: summary, json, top10"),
+    db_path: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="Database path (for testing)"),
+) -> None:
+    """Assess network risk and show top risky assets."""
+    from bigr.risk.scorer import assess_network_risk
+
+    resolved_db = Path(db_path) if db_path else None
+    all_assets = get_all_assets(db_path=resolved_db)
+
+    # Build asset dicts
+    asset_dicts = []
+    for a in all_assets:
+        asset_dicts.append({
+            "ip": a.get("ip", ""),
+            "mac": a.get("mac"),
+            "hostname": a.get("hostname"),
+            "vendor": a.get("vendor"),
+            "bigr_category": a.get("bigr_category", "unclassified"),
+            "confidence_score": a.get("confidence_score", 0.0),
+            "open_ports": a.get("open_ports", []),
+            "first_seen": a.get("first_seen"),
+        })
+
+    report = assess_network_risk(asset_dicts)
+
+    if fmt == "json":
+        console.print(json.dumps(report.to_dict(), indent=2))
+        return
+
+    if fmt == "top10":
+        table = Table(title="\nTop 10 Riskiest Assets")
+        table.add_column("IP", style="cyan")
+        table.add_column("Vendor")
+        table.add_column("Category")
+        table.add_column("Risk Score", justify="right")
+        table.add_column("Risk Level")
+        table.add_column("Top CVE")
+
+        level_styles = {
+            "critical": "red bold",
+            "high": "red",
+            "medium": "yellow",
+            "low": "green",
+            "info": "dim",
+        }
+
+        for p in report.top_risks:
+            style = level_styles.get(p.risk_level, "white")
+            table.add_row(
+                p.ip,
+                p.vendor or "-",
+                p.bigr_category,
+                f"[{style}]{p.risk_score:.1f}[/{style}]",
+                f"[{style}]{p.risk_level.upper()}[/{style}]",
+                p.top_cve or "-",
+            )
+
+        console.print(table)
+        return
+
+    # Summary format (default)
+    console.print(f"\n[bold]Network Risk Assessment[/bold]")
+    console.print(f"  Average Risk: [bold]{report.average_risk:.1f}[/bold] / 10.0")
+    console.print(f"  Max Risk:     [bold]{report.max_risk:.1f}[/bold] / 10.0")
+    console.print()
+
+    # Risk level distribution
+    dist_table = Table(title="Risk Distribution")
+    dist_table.add_column("Level", style="bold")
+    dist_table.add_column("Count", justify="right")
+    dist_table.add_row("[red bold]Critical[/red bold]", str(report.critical_count))
+    dist_table.add_row("[red]High[/red]", str(report.high_count))
+    dist_table.add_row("[yellow]Medium[/yellow]", str(report.medium_count))
+    dist_table.add_row("[green]Low[/green]", str(report.low_count))
+    console.print(dist_table)
+
+    # Show top 5 in summary
+    if report.top_risks:
+        console.print()
+        top_table = Table(title="Top Risks")
+        top_table.add_column("IP", style="cyan")
+        top_table.add_column("Category")
+        top_table.add_column("Score", justify="right")
+        top_table.add_column("Level")
+        for p in report.top_risks[:5]:
+            top_table.add_row(p.ip, p.bigr_category, f"{p.risk_score:.1f}", p.risk_level)
+        console.print(top_table)
+
+
+# ---------------------------------------------------------------------------
+# Vuln sub-app
+# ---------------------------------------------------------------------------
+
+vuln_app = typer.Typer(help="Vulnerability scanning and CVE correlation")
+app.add_typer(vuln_app, name="vuln")
+
+
+@vuln_app.command("seed")
+def vuln_seed(
+    db_path: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="CVE DB path (for testing)"),
+) -> None:
+    """Seed the CVE database with built-in vulnerability data."""
+    from bigr.vuln.cve_db import init_cve_db
+    from bigr.vuln.nvd_sync import seed_cve_database
+
+    resolved = Path(db_path) if db_path else None
+    if resolved:
+        init_cve_db(resolved)
+    count = seed_cve_database(db_path=resolved)
+    console.print(f"[green]Seeded[/green] {count} CVEs into the database.")
+
+
+@vuln_app.command("scan")
+def vuln_scan(
+    db_path: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="CVE DB path (for testing)"),
+    asset_db_path: Optional[str] = typer.Option(None, "--asset-db-path", hidden=True, help="Asset DB path (for testing)"),
+) -> None:
+    """Scan assets for known vulnerabilities."""
+    from bigr.vuln.cve_db import get_cve_stats, init_cve_db
+    from bigr.vuln.matcher import scan_all_vulnerabilities
+    from bigr.vuln.nvd_sync import seed_cve_database
+
+    resolved_cve = Path(db_path) if db_path else None
+    resolved_asset = Path(asset_db_path) if asset_db_path else None
+
+    # Ensure CVE DB is initialized and seeded
+    init_cve_db(resolved_cve)
+    stats = get_cve_stats(db_path=resolved_cve)
+    if stats["total"] == 0:
+        seed_cve_database(db_path=resolved_cve)
+
+    # Get assets from the asset database
+    all_assets = get_all_assets(db_path=resolved_asset)
+    asset_dicts = [
+        {
+            "ip": a.get("ip", ""),
+            "mac": a.get("mac"),
+            "vendor": a.get("vendor"),
+            "open_ports": a.get("open_ports", []),
+        }
+        for a in all_assets
+    ]
+
+    summaries = scan_all_vulnerabilities(asset_dicts, db_path=resolved_cve)
+
+    if not summaries:
+        console.print("[yellow]No vulnerabilities found.[/yellow]")
+        return
+
+    table = Table(title="\nVulnerability Scan Results")
+    table.add_column("IP", style="cyan")
+    table.add_column("Total", justify="right")
+    table.add_column("Critical", justify="right", style="red bold")
+    table.add_column("High", justify="right", style="red")
+    table.add_column("Medium", justify="right", style="yellow")
+    table.add_column("Low", justify="right", style="dim")
+    table.add_column("Max CVSS", justify="right")
+
+    for s in summaries:
+        table.add_row(
+            s.ip,
+            str(s.total_vulns),
+            str(s.critical_count),
+            str(s.high_count),
+            str(s.medium_count),
+            str(s.low_count),
+            f"{s.max_cvss:.1f}",
+        )
+
+    console.print(table)
+    console.print(f"\n[bold]{len(summaries)}[/bold] assets with vulnerabilities found.")
+
+
+@vuln_app.command("stats")
+def vuln_stats(
+    db_path: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="CVE DB path (for testing)"),
+) -> None:
+    """Show CVE database statistics."""
+    from bigr.vuln.cve_db import get_cve_stats, init_cve_db
+
+    resolved = Path(db_path) if db_path else None
+    init_cve_db(resolved)
+    stats = get_cve_stats(db_path=resolved)
+
+    console.print(f"\n[bold]CVE Database Statistics[/bold]")
+    console.print(f"  Total CVEs: [bold]{stats['total']}[/bold]")
+    if stats.get("last_sync"):
+        console.print(f"  Last Sync:  {stats['last_sync']}")
+
+    by_sev = stats.get("by_severity", {})
+    if by_sev:
+        table = Table(title="By Severity")
+        table.add_column("Severity", style="bold")
+        table.add_column("Count", justify="right")
+        sev_styles = {"critical": "red bold", "high": "red", "medium": "yellow", "low": "dim", "none": "dim"}
+        for sev in ("critical", "high", "medium", "low", "none"):
+            count = by_sev.get(sev, 0)
+            if count > 0:
+                style = sev_styles.get(sev, "white")
+                table.add_row(f"[{style}]{sev.capitalize()}[/{style}]", str(count))
+        console.print(table)
+
+
+@vuln_app.command("search")
+def vuln_search(
+    query: str = typer.Argument(..., help="Vendor name or CVE ID to search"),
+    db_path: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="CVE DB path (for testing)"),
+) -> None:
+    """Search CVE database by vendor or CVE ID."""
+    from bigr.vuln.cve_db import get_cve_by_id, init_cve_db, search_cves_by_vendor
+
+    resolved = Path(db_path) if db_path else None
+    init_cve_db(resolved)
+
+    results = []
+
+    # Check if query looks like a CVE ID
+    if query.upper().startswith("CVE-"):
+        entry = get_cve_by_id(query.upper(), db_path=resolved)
+        if entry:
+            results = [entry]
+    else:
+        results = search_cves_by_vendor(query, db_path=resolved)
+
+    if not results:
+        console.print(f"[yellow]No CVEs found for '{query}'.[/yellow]")
+        return
+
+    table = Table(title=f"\nCVE Search: {query}")
+    table.add_column("CVE ID", style="cyan")
+    table.add_column("CVSS", justify="right")
+    table.add_column("Severity")
+    table.add_column("Vendor")
+    table.add_column("Product")
+    table.add_column("Description")
+    table.add_column("KEV")
+
+    sev_styles = {"critical": "red bold", "high": "red", "medium": "yellow", "low": "dim", "none": "dim"}
+    for entry in results:
+        style = sev_styles.get(entry.severity, "white")
+        kev = "[red]YES[/red]" if entry.cisa_kev else "-"
+        # Truncate description
+        desc = entry.description[:60] + "..." if len(entry.description) > 60 else entry.description
+        table.add_row(
+            entry.cve_id,
+            f"{entry.cvss_score:.1f}",
+            f"[{style}]{entry.severity.upper()}[/{style}]",
+            entry.affected_vendor,
+            entry.affected_product,
+            desc,
+            kev,
+        )
+
+    console.print(table)
+    console.print(f"\n[bold]{len(results)}[/bold] CVEs found.")
 
 
 @app.command()

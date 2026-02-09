@@ -525,6 +525,208 @@ class TestServeCommand:
     # incompatibility in CliRunner. --help works fine in actual CLI usage.
 
 
+class TestComplianceCommand:
+    """Tests for 'bigr compliance' command."""
+
+    @patch("bigr.cli.get_subnets", return_value=[])
+    @patch("bigr.cli.get_all_assets")
+    def test_compliance_summary(self, mock_assets, mock_subnets):
+        """Compliance summary shows score and grade."""
+        mock_assets.return_value = [
+            {"ip": "10.0.0.1", "confidence_score": 0.85, "bigr_category": "ag_ve_sistemler", "manual_category": None},
+            {"ip": "10.0.0.2", "confidence_score": 0.3, "bigr_category": "unclassified", "manual_category": None},
+        ]
+        result = runner.invoke(app, ["compliance"])
+        assert result.exit_code == 0
+        # Should show compliance score and grade
+        assert "Compliance" in result.output or "Score" in result.output or "%" in result.output
+
+    @patch("bigr.cli.get_subnets", return_value=[])
+    @patch("bigr.cli.get_all_assets")
+    def test_compliance_json(self, mock_assets, mock_subnets):
+        """--format json outputs valid JSON with compliance_score."""
+        mock_assets.return_value = [
+            {"ip": "10.0.0.1", "confidence_score": 0.85, "bigr_category": "ag_ve_sistemler", "manual_category": None},
+        ]
+        result = runner.invoke(app, ["compliance", "--format", "json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "compliance_score" in data
+        assert "grade" in data
+
+    @patch("bigr.cli.get_subnets", return_value=[])
+    @patch("bigr.cli.get_all_assets")
+    def test_compliance_empty_assets(self, mock_assets, mock_subnets):
+        """Compliance with no assets returns 100% score."""
+        mock_assets.return_value = []
+        result = runner.invoke(app, ["compliance"])
+        assert result.exit_code == 0
+
+    @patch("bigr.cli.get_subnets", return_value=[])
+    @patch("bigr.cli.get_all_assets")
+    def test_compliance_json_empty_is_100(self, mock_assets, mock_subnets):
+        """Compliance with no assets returns 100% score in JSON."""
+        mock_assets.return_value = []
+        result = runner.invoke(app, ["compliance", "--format", "json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["compliance_score"] == 100.0
+
+    @patch("bigr.cli.get_subnets", return_value=[])
+    @patch("bigr.cli.get_all_assets")
+    def test_compliance_all_classified(self, mock_assets, mock_subnets):
+        """All assets with high confidence should get grade A."""
+        mock_assets.return_value = [
+            {"ip": "10.0.0.1", "confidence_score": 0.9, "bigr_category": "ag_ve_sistemler", "manual_category": None},
+            {"ip": "10.0.0.2", "confidence_score": 0.95, "bigr_category": "iot", "manual_category": None},
+            {"ip": "10.0.0.3", "confidence_score": 0.8, "bigr_category": "uygulamalar", "manual_category": None},
+        ]
+        result = runner.invoke(app, ["compliance", "--format", "json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["compliance_score"] == 100.0
+        assert data["grade"] == "A"
+
+
+class TestAnalyticsCommand:
+    """Tests for 'bigr analytics' command."""
+
+    @patch("bigr.analytics.get_full_analytics")
+    def test_analytics_summary(self, mock_analytics):
+        """Analytics summary format runs successfully."""
+        from bigr.analytics import AnalyticsResult, TrendSeries
+
+        mock_analytics.return_value = AnalyticsResult(
+            asset_count_trend=TrendSeries(name="asset_count", points=[]),
+            category_trends=[],
+            new_vs_removed=TrendSeries(name="new_vs_removed", points=[]),
+            most_changed_assets=[],
+            scan_frequency=[],
+        )
+        result = runner.invoke(app, ["analytics"])
+        assert result.exit_code == 0
+
+    @patch("bigr.analytics.get_full_analytics")
+    def test_analytics_json(self, mock_analytics):
+        """--format json outputs valid JSON with asset_count_trend key."""
+        from bigr.analytics import AnalyticsResult, TrendSeries
+
+        mock_analytics.return_value = AnalyticsResult(
+            asset_count_trend=TrendSeries(name="asset_count", points=[]),
+            category_trends=[],
+            new_vs_removed=TrendSeries(name="new_vs_removed", points=[]),
+            most_changed_assets=[],
+            scan_frequency=[],
+        )
+        result = runner.invoke(app, ["analytics", "--format", "json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "asset_count_trend" in data
+
+    @patch("bigr.analytics.get_full_analytics")
+    def test_analytics_days_param(self, mock_analytics):
+        """--days parameter is passed through to the analytics engine."""
+        from bigr.analytics import AnalyticsResult, TrendSeries
+
+        mock_analytics.return_value = AnalyticsResult(
+            asset_count_trend=TrendSeries(name="asset_count", points=[]),
+            category_trends=[],
+            new_vs_removed=TrendSeries(name="new_vs_removed", points=[]),
+            most_changed_assets=[],
+            scan_frequency=[],
+        )
+        result = runner.invoke(app, ["analytics", "--days", "7"])
+        assert result.exit_code == 0
+        mock_analytics.assert_called_once()
+        call_kwargs = mock_analytics.call_args
+        assert call_kwargs[1].get("days") == 7 or call_kwargs[0][0] == 7 if call_kwargs[0] else call_kwargs[1].get("days") == 7
+
+
+class TestReportHtmlCommand:
+    """Tests for 'bigr report --format html-report'."""
+
+    def test_html_report_generation(self, tmp_path: Path):
+        """Generate HTML report from scan data."""
+        data_file = tmp_path / "scan.json"
+        data_file.write_text(json.dumps({
+            "target": "10.0.0.0/24",
+            "scan_method": "hybrid",
+            "total_assets": 3,
+            "category_summary": {"ag_ve_sistemler": 1, "iot": 1, "tasinabilir": 1},
+            "assets": [
+                {"ip": "10.0.0.1", "mac": "aa:bb:cc:dd:ee:01", "hostname": "router",
+                 "vendor": "Cisco", "open_ports": [22, 80], "bigr_category": "ag_ve_sistemler",
+                 "bigr_category_tr": "Ag ve Sistemler", "confidence_score": 0.85,
+                 "confidence_level": "high", "os_hint": "Linux"},
+                {"ip": "10.0.0.2", "mac": "aa:bb:cc:dd:ee:02", "hostname": "camera",
+                 "vendor": "Hikvision", "open_ports": [80, 554], "bigr_category": "iot",
+                 "bigr_category_tr": "IoT", "confidence_score": 0.7,
+                 "confidence_level": "high", "os_hint": "IP Camera"},
+                {"ip": "10.0.0.3", "mac": "aa:bb:cc:dd:ee:03", "hostname": "laptop",
+                 "vendor": "Apple", "open_ports": [], "bigr_category": "tasinabilir",
+                 "bigr_category_tr": "Tasinabilir", "confidence_score": 0.6,
+                 "confidence_level": "medium", "os_hint": None},
+            ]
+        }))
+
+        output_file = str(tmp_path / "report.html")
+        result = runner.invoke(app, ["report", "--input", str(data_file), "--format", "html-report", "--output", output_file])
+        assert result.exit_code == 0
+        assert Path(output_file).exists()
+        content = Path(output_file).read_text()
+        assert "<html" in content
+        assert "10.0.0.1" in content
+
+    def test_html_report_contains_all_assets(self, tmp_path: Path):
+        """HTML report should contain all asset IPs."""
+        data_file = tmp_path / "scan.json"
+        data_file.write_text(json.dumps({
+            "target": "10.0.0.0/24",
+            "scan_method": "hybrid",
+            "total_assets": 2,
+            "category_summary": {"ag_ve_sistemler": 1, "iot": 1},
+            "assets": [
+                {"ip": "10.0.0.1", "mac": "aa:bb:cc:dd:ee:01", "hostname": "router",
+                 "vendor": "Cisco", "open_ports": [22], "bigr_category": "ag_ve_sistemler",
+                 "bigr_category_tr": "Ag ve Sistemler", "confidence_score": 0.85,
+                 "confidence_level": "high", "os_hint": "Linux"},
+                {"ip": "10.0.0.2", "mac": "aa:bb:cc:dd:ee:02", "hostname": "camera",
+                 "vendor": "Hikvision", "open_ports": [554], "bigr_category": "iot",
+                 "bigr_category_tr": "IoT", "confidence_score": 0.7,
+                 "confidence_level": "high", "os_hint": "IP Camera"},
+            ]
+        }))
+
+        output_file = str(tmp_path / "report.html")
+        result = runner.invoke(app, ["report", "--input", str(data_file), "--format", "html-report", "--output", output_file])
+        assert result.exit_code == 0
+        content = Path(output_file).read_text()
+        assert "10.0.0.1" in content
+        assert "10.0.0.2" in content
+
+    def test_html_report_default_output_path(self, tmp_path: Path):
+        """HTML report without --output uses input filename with .html extension."""
+        data_file = tmp_path / "myscan.json"
+        data_file.write_text(json.dumps({
+            "target": "10.0.0.0/24",
+            "scan_method": "hybrid",
+            "total_assets": 1,
+            "category_summary": {"ag_ve_sistemler": 1},
+            "assets": [
+                {"ip": "10.0.0.1", "mac": "aa:bb:cc:dd:ee:01", "hostname": "router",
+                 "vendor": "Cisco", "open_ports": [22], "bigr_category": "ag_ve_sistemler",
+                 "bigr_category_tr": "Ag ve Sistemler", "confidence_score": 0.85,
+                 "confidence_level": "high", "os_hint": "Linux"},
+            ]
+        }))
+
+        result = runner.invoke(app, ["report", "--input", str(data_file), "--format", "html-report"])
+        assert result.exit_code == 0
+        # Default output path should be myscan.html
+        expected_output = tmp_path / "myscan.html"
+        assert expected_output.exists()
+
+
 class TestEndToEndSubnetScanWorkflow:
     """Full workflow: add subnet -> scan --all -> verify."""
 

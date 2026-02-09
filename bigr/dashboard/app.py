@@ -152,6 +152,17 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         """Serve network topology visualization page."""
         return HTMLResponse(content=_render_topology_page())
 
+    @app.get("/api/certificates", response_class=JSONResponse)
+    async def api_certificates():
+        """Return all discovered TLS certificates."""
+        from bigr.db import get_certificates
+
+        try:
+            cert_list = get_certificates(db_path=_db_path)
+            return {"certificates": cert_list}
+        except Exception:
+            return {"certificates": []}
+
     @app.get("/api/compliance", response_class=JSONResponse)
     async def api_compliance():
         """Return compliance metrics."""
@@ -197,6 +208,100 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
     async def analytics_page():
         """Serve analytics dashboard with trend charts."""
         return HTMLResponse(content=_render_analytics_page())
+
+    @app.get("/api/risk", response_class=JSONResponse)
+    async def api_risk():
+        """Return risk assessment data."""
+        from bigr.risk.scorer import assess_network_risk
+
+        try:
+            all_assets = get_all_assets(db_path=_db_path)
+        except Exception:
+            all_assets = []
+
+        # Fall back to file-based data if DB has no assets
+        if not all_assets:
+            data = _load_data()
+            all_assets = data.get("assets", [])
+
+        asset_dicts = []
+        for a in all_assets:
+            asset_dicts.append({
+                "ip": a.get("ip", ""),
+                "mac": a.get("mac"),
+                "hostname": a.get("hostname"),
+                "vendor": a.get("vendor"),
+                "bigr_category": a.get("bigr_category", "unclassified"),
+                "confidence_score": a.get("confidence_score", 0.0),
+                "open_ports": a.get("open_ports", []),
+                "first_seen": a.get("first_seen"),
+            })
+
+        report = assess_network_risk(asset_dicts)
+        return report.to_dict()
+
+    @app.get("/risk", response_class=HTMLResponse)
+    async def risk_page():
+        """Serve risk assessment dashboard page."""
+        from bigr.risk.scorer import assess_network_risk
+
+        try:
+            all_assets = get_all_assets(db_path=_db_path)
+        except Exception:
+            all_assets = []
+
+        if not all_assets:
+            data = _load_data()
+            all_assets = data.get("assets", [])
+
+        asset_dicts = []
+        for a in all_assets:
+            asset_dicts.append({
+                "ip": a.get("ip", ""),
+                "mac": a.get("mac"),
+                "hostname": a.get("hostname"),
+                "vendor": a.get("vendor"),
+                "bigr_category": a.get("bigr_category", "unclassified"),
+                "confidence_score": a.get("confidence_score", 0.0),
+                "open_ports": a.get("open_ports", []),
+                "first_seen": a.get("first_seen"),
+            })
+
+        report = assess_network_risk(asset_dicts)
+        return HTMLResponse(content=_render_risk_page(report))
+
+    @app.get("/api/vulnerabilities", response_class=JSONResponse)
+    async def api_vulnerabilities():
+        """Return vulnerability scan results for all known assets."""
+        from bigr.vuln.cve_db import get_cve_stats, init_cve_db
+        from bigr.vuln.matcher import scan_all_vulnerabilities
+        from bigr.vuln.nvd_sync import seed_cve_database
+
+        try:
+            # Initialize and seed CVE DB if needed
+            init_cve_db(_db_path)
+            stats = get_cve_stats(db_path=_db_path)
+            if stats["total"] == 0:
+                seed_cve_database(db_path=_db_path)
+
+            # Get assets
+            data = _load_data()
+            assets = data.get("assets", [])
+
+            summaries = scan_all_vulnerabilities(assets, db_path=_db_path)
+            return {
+                "summaries": [s.to_dict() for s in summaries],
+                "total_assets_scanned": len(assets),
+                "total_vulnerable": len(summaries),
+                "cve_db_stats": get_cve_stats(db_path=_db_path),
+            }
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+    @app.get("/vulnerabilities", response_class=HTMLResponse)
+    async def vulnerabilities_page():
+        """Serve vulnerability dashboard page."""
+        return HTMLResponse(content=_render_vulnerabilities_page())
 
     @app.get("/api/health")
     async def health():
@@ -1484,6 +1589,326 @@ def _render_analytics_page() -> str:
 
     // Load initial data
     loadData(30);
+    </script>
+</body>
+</html>"""
+
+
+def _render_risk_page(report) -> str:
+    """Render the Risk Assessment Dashboard page."""
+    from bigr.risk.models import RiskReport
+
+    avg = report.average_risk
+    mx = report.max_risk
+
+    # Gauge color based on average risk
+    if avg >= 8.0:
+        gauge_color = "#ef4444"
+    elif avg >= 6.0:
+        gauge_color = "#f97316"
+    elif avg >= 4.0:
+        gauge_color = "#eab308"
+    else:
+        gauge_color = "#22c55e"
+
+    # Build top 10 rows
+    level_colors = {
+        "critical": "#ef4444",
+        "high": "#f97316",
+        "medium": "#eab308",
+        "low": "#22c55e",
+        "info": "#94a3b8",
+    }
+
+    top_rows = ""
+    for p in report.top_risks:
+        lvl_color = level_colors.get(p.risk_level, "#94a3b8")
+        top_rows += f"""
+            <tr>
+                <td style="color:#67e8f9;">{p.ip}</td>
+                <td>{p.vendor or '-'}</td>
+                <td>{p.bigr_category}</td>
+                <td style="font-weight:700;">{p.risk_score:.1f}</td>
+                <td><span class="risk-badge" style="background:{lvl_color}">{p.risk_level.upper()}</span></td>
+                <td>{p.top_cve or '-'}</td>
+            </tr>"""
+
+    # Category risk comparison
+    category_scores: dict[str, list[float]] = {}
+    for p in report.profiles:
+        cat = p.bigr_category
+        category_scores.setdefault(cat, []).append(p.risk_score)
+
+    cat_colors = {
+        "ag_ve_sistemler": "#3b82f6",
+        "uygulamalar": "#8b5cf6",
+        "iot": "#10b981",
+        "tasinabilir": "#f59e0b",
+        "unclassified": "#6b7280",
+    }
+
+    cat_bars = ""
+    max_cat_avg = 10.0
+    for cat, scores in sorted(category_scores.items()):
+        cat_avg = sum(scores) / len(scores)
+        pct = (cat_avg / max_cat_avg) * 100
+        color = cat_colors.get(cat, "#6b7280")
+        cat_bars += f"""
+            <div class="dist-row">
+                <span class="dist-label">{cat}</span>
+                <div class="dist-bar-bg">
+                    <div class="dist-bar" style="width:{pct}%;background:{color}"></div>
+                </div>
+                <span class="dist-count">{cat_avg:.1f} avg ({len(scores)} assets)</span>
+            </div>"""
+
+    return f"""<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIGR Discovery - Risk Assessment</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+        }}
+        .header {{
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+        .header h1 {{ font-size: 1.25rem; font-weight: 600; color: #f1f5f9; }}
+        .btn {{
+            background: #334155; color: #e2e8f0; border: 1px solid #475569;
+            padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer;
+            font-size: 0.75rem; text-decoration: none; transition: background 0.15s;
+        }}
+        .btn:hover {{ background: #475569; }}
+        .container {{ max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
+        .score-gauge {{
+            text-align: center; padding: 2rem; margin-bottom: 1.5rem;
+            background: #1e293b; border-radius: 12px; border: 1px solid #334155;
+        }}
+        .score-value {{
+            font-size: 4rem; font-weight: 800; color: {gauge_color};
+        }}
+        .score-label {{ color: #94a3b8; margin-top: 0.5rem; }}
+        .cards {{
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem; margin-bottom: 1.5rem;
+        }}
+        .card {{
+            background: #1e293b; border-radius: 8px; padding: 1.25rem;
+            text-align: center; border: 1px solid #334155;
+        }}
+        .card-count {{ font-size: 2rem; font-weight: 700; color: #f1f5f9; }}
+        .card-label {{ font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem; }}
+        .section {{
+            background: #1e293b; border-radius: 8px; padding: 1.25rem;
+            margin-bottom: 1.5rem; border: 1px solid #334155;
+        }}
+        .section h2 {{ font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: #f1f5f9; }}
+        table {{
+            width: 100%; border-collapse: collapse; background: #1e293b;
+            border-radius: 8px; overflow: hidden;
+        }}
+        th {{
+            background: #0f172a; padding: 0.6rem 0.8rem; text-align: left;
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+            color: #94a3b8; border-bottom: 1px solid #334155;
+        }}
+        td {{ padding: 0.5rem 0.8rem; border-bottom: 1px solid #1e293b; font-size: 0.8rem; }}
+        tr:hover {{ background: #334155; }}
+        .risk-badge {{
+            display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px;
+            font-size: 0.7rem; font-weight: 600; color: #fff;
+        }}
+        .dist-row {{ display: flex; align-items: center; gap: 0.75rem; margin: 0.5rem 0; }}
+        .dist-label {{ width: 150px; font-size: 0.8rem; color: #94a3b8; text-align: right; }}
+        .dist-bar-bg {{
+            flex: 1; height: 20px; background: #0f172a; border-radius: 4px; overflow: hidden;
+        }}
+        .dist-bar {{ height: 100%; border-radius: 4px; transition: width 0.5s; }}
+        .dist-count {{ width: 180px; font-size: 0.8rem; color: #e2e8f0; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div style="display:flex;align-items:center;gap:1rem;">
+            <h1>Risk Assessment Dashboard</h1>
+            <a href="/" class="btn">Asset Dashboard</a>
+            <a href="/topology" class="btn">Topology</a>
+            <a href="/compliance" class="btn">Compliance</a>
+        </div>
+    </div>
+    <div class="container">
+        <div class="score-gauge">
+            <div class="score-value">{avg:.1f}</div>
+            <div class="score-label">Network Average Risk Score (Max: {mx:.1f})</div>
+        </div>
+
+        <div class="cards">
+            <div class="card" style="border-top: 3px solid #ef4444;">
+                <div class="card-count">{report.critical_count}</div>
+                <div class="card-label">Critical</div>
+            </div>
+            <div class="card" style="border-top: 3px solid #f97316;">
+                <div class="card-count">{report.high_count}</div>
+                <div class="card-label">High</div>
+            </div>
+            <div class="card" style="border-top: 3px solid #eab308;">
+                <div class="card-count">{report.medium_count}</div>
+                <div class="card-label">Medium</div>
+            </div>
+            <div class="card" style="border-top: 3px solid #22c55e;">
+                <div class="card-count">{report.low_count}</div>
+                <div class="card-label">Low</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Top 10 Riskiest Assets</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>IP</th>
+                        <th>Vendor</th>
+                        <th>Category</th>
+                        <th>Risk Score</th>
+                        <th>Risk Level</th>
+                        <th>Top CVE</th>
+                    </tr>
+                </thead>
+                <tbody>{top_rows}</tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>Category Risk Comparison</h2>
+            {cat_bars}
+        </div>
+    </div>
+</body>
+</html>"""
+
+
+def _render_vulnerabilities_page() -> str:
+    """Render the vulnerability scanning dashboard page."""
+    return """<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIGR Discovery - Vulnerabilities</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #0f172a; color: #e2e8f0; min-height: 100vh;
+        }
+        .header {
+            background: #1e293b; border-bottom: 1px solid #334155;
+            padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center;
+        }
+        .header h1 { font-size: 1.25rem; font-weight: 600; color: #f1f5f9; }
+        .header-left { display: flex; align-items: center; gap: 1rem; }
+        .btn {
+            background: #334155; color: #e2e8f0; border: 1px solid #475569;
+            padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer;
+            font-size: 0.75rem; text-decoration: none; transition: background 0.15s;
+        }
+        .btn:hover { background: #475569; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+        .cards {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem; margin-bottom: 1.5rem;
+        }
+        .card {
+            background: #1e293b; border-radius: 8px; padding: 1.25rem;
+            text-align: center; border: 1px solid #334155;
+        }
+        .card-count { font-size: 2rem; font-weight: 700; color: #f1f5f9; }
+        .card-label { font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem; }
+        .section {
+            background: #1e293b; border-radius: 8px; padding: 1.25rem;
+            margin-bottom: 1.5rem; border: 1px solid #334155;
+        }
+        .section h2 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: #f1f5f9; }
+        table { width: 100%; border-collapse: collapse; }
+        th {
+            background: #0f172a; padding: 0.6rem 0.8rem; text-align: left;
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+            color: #94a3b8; border-bottom: 1px solid #334155;
+        }
+        td { padding: 0.5rem 0.8rem; border-bottom: 1px solid #1e293b; font-size: 0.8rem; }
+        tr:hover { background: #334155; }
+        .badge {
+            display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px;
+            font-size: 0.7rem; font-weight: 600; color: #fff;
+        }
+        .sev-critical { background: #dc2626; }
+        .sev-high { background: #ea580c; }
+        .sev-medium { background: #ca8a04; }
+        .sev-low { background: #6b7280; }
+        .loading { text-align: center; color: #64748b; padding: 2rem; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>Vulnerability Scanner</h1>
+            <a href="/" class="btn">Dashboard</a>
+            <a href="/risk" class="btn">Risk</a>
+        </div>
+    </div>
+    <div class="container">
+        <div class="cards" id="stats-cards">
+            <div class="card"><div class="card-count" id="total-scanned">-</div><div class="card-label">Assets Scanned</div></div>
+            <div class="card" style="border-top:3px solid #dc2626"><div class="card-count" id="total-vulnerable">-</div><div class="card-label">Vulnerable Assets</div></div>
+            <div class="card"><div class="card-count" id="total-cves">-</div><div class="card-label">CVEs in Database</div></div>
+        </div>
+        <div class="section">
+            <h2>Vulnerable Assets</h2>
+            <div id="vuln-table"><div class="loading">Loading vulnerability data...</div></div>
+        </div>
+    </div>
+    <script>
+    fetch('/api/vulnerabilities')
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('total-scanned').textContent = data.total_assets_scanned || 0;
+            document.getElementById('total-vulnerable').textContent = data.total_vulnerable || 0;
+            document.getElementById('total-cves').textContent = (data.cve_db_stats || {}).total || 0;
+
+            const summaries = data.summaries || [];
+            const el = document.getElementById('vuln-table');
+            if (summaries.length === 0) {
+                el.innerHTML = '<div class="loading">No vulnerabilities detected.</div>';
+                return;
+            }
+            let html = '<table><thead><tr><th>IP</th><th>Total</th><th>Critical</th><th>High</th><th>Medium</th><th>Low</th><th>Max CVSS</th></tr></thead><tbody>';
+            summaries.forEach(s => {
+                html += '<tr><td style="color:#67e8f9">' + s.ip + '</td>'
+                    + '<td>' + s.total_vulns + '</td>'
+                    + '<td><span class="badge sev-critical">' + s.critical_count + '</span></td>'
+                    + '<td><span class="badge sev-high">' + s.high_count + '</span></td>'
+                    + '<td><span class="badge sev-medium">' + s.medium_count + '</span></td>'
+                    + '<td><span class="badge sev-low">' + s.low_count + '</span></td>'
+                    + '<td>' + s.max_cvss.toFixed(1) + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            el.innerHTML = html;
+        })
+        .catch(() => {
+            document.getElementById('vuln-table').innerHTML = '<div class="loading" style="color:#ef4444">Failed to load vulnerability data.</div>';
+        });
     </script>
 </body>
 </html>"""
