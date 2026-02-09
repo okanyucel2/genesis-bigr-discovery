@@ -1,0 +1,64 @@
+import { createRouter, createWebHistory } from 'vue-router'
+
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes: [
+    {
+      path: '/',
+      name: 'dashboard',
+      component: () => import('@/views/DashboardView.vue'),
+    },
+    {
+      path: '/assets',
+      name: 'assets',
+      component: () => import('@/views/AssetsView.vue'),
+    },
+    {
+      path: '/assets/:ip',
+      name: 'asset-detail',
+      component: () => import('@/views/AssetDetailView.vue'),
+    },
+    {
+      path: '/topology',
+      name: 'topology',
+      component: () => import('@/views/TopologyView.vue'),
+    },
+    {
+      path: '/compliance',
+      name: 'compliance',
+      component: () => import('@/views/ComplianceView.vue'),
+    },
+    {
+      path: '/analytics',
+      name: 'analytics',
+      component: () => import('@/views/AnalyticsView.vue'),
+    },
+    {
+      path: '/vulnerabilities',
+      name: 'vulnerabilities',
+      component: () => import('@/views/VulnerabilitiesView.vue'),
+    },
+    {
+      path: '/risk',
+      name: 'risk',
+      component: () => import('@/views/RiskView.vue'),
+    },
+    {
+      path: '/certificates',
+      name: 'certificates',
+      component: () => import('@/views/CertificatesView.vue'),
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('@/views/SettingsView.vue'),
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'not-found',
+      component: () => import('@/views/NotFoundView.vue'),
+    },
+  ],
+})
+
+export default router

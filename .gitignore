@@ -17,3 +17,10 @@ htmlcov/
 assets.json
 *.db
 .DS_Store
+
+# Frontend
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts

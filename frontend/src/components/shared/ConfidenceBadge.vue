@@ -1,0 +1,39 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import { cn } from '@/lib/utils'
+
+const props = defineProps<{
+  score: number
+  level?: string
+  class?: string
+}>()
+
+const confidenceConfig = computed(() => {
+  const pct = props.score
+  if (pct >= 90)
+    return { bg: 'bg-emerald-500/20', text: 'text-emerald-400', label: 'High' }
+  if (pct >= 70)
+    return { bg: 'bg-cyan-500/20', text: 'text-cyan-400', label: 'Good' }
+  if (pct >= 50)
+    return { bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: 'Fair' }
+  return { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Low' }
+})
+
+const displayLabel = computed(() => props.level ?? confidenceConfig.value.label)
+</script>
+
+<template>
+  <span
+    :class="
+      cn(
+        'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold',
+        confidenceConfig.bg,
+        confidenceConfig.text,
+        props.class,
+      )
+    "
+  >
+    <span>{{ displayLabel }}</span>
+    <span class="opacity-75">{{ score }}%</span>
+  </span>
+</template>

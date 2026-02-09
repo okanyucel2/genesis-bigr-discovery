@@ -1,0 +1,66 @@
+export type BigrCategory =
+  | 'ag_ve_sistemler'
+  | 'uygulamalar'
+  | 'iot'
+  | 'tasinabilir'
+  | 'unclassified'
+
+export interface BigrCategoryInfo {
+  label: string
+  labelTr: string
+  color: string
+  bgClass: string
+  textClass: string
+  icon: string
+}
+
+export const BIGR_CATEGORIES: Record<BigrCategory, BigrCategoryInfo> = {
+  ag_ve_sistemler: {
+    label: 'Network & Systems',
+    labelTr: 'Ağ ve Sistemler',
+    color: '#3b82f6',
+    bgClass: 'bg-blue-500/20',
+    textClass: 'text-blue-400',
+    icon: 'Network',
+  },
+  uygulamalar: {
+    label: 'Applications',
+    labelTr: 'Uygulamalar',
+    color: '#8b5cf6',
+    bgClass: 'bg-purple-500/20',
+    textClass: 'text-purple-400',
+    icon: 'Globe',
+  },
+  iot: {
+    label: 'IoT',
+    labelTr: 'IoT Cihazlar',
+    color: '#10b981',
+    bgClass: 'bg-emerald-500/20',
+    textClass: 'text-emerald-400',
+    icon: 'Cpu',
+  },
+  tasinabilir: {
+    label: 'Portable Devices',
+    labelTr: 'Taşınabilir Cihazlar',
+    color: '#f59e0b',
+    bgClass: 'bg-amber-500/20',
+    textClass: 'text-amber-400',
+    icon: 'Laptop',
+  },
+  unclassified: {
+    label: 'Unclassified',
+    labelTr: 'Sınıflandırılmamış',
+    color: '#6b7280',
+    bgClass: 'bg-gray-500/20',
+    textClass: 'text-gray-400',
+    icon: 'HelpCircle',
+  },
+}
+
+export const BIGR_CATEGORY_LIST: BigrCategory[] = [
+  'ag_ve_sistemler',
+  'uygulamalar',
+  'iot',
+  'tasinabilir',
+  'unclassified',
+]
