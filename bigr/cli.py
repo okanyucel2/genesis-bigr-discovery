@@ -16,6 +16,7 @@ from bigr.classifier.bigr_mapper import classify_assets
 from bigr.config import load_config, parse_interval
 from bigr.db import (
     add_subnet,
+    get_all_assets,
     get_latest_scan,
     get_scan_list,
     get_subnets,
@@ -149,7 +150,9 @@ def scan(
 @app.command()
 def report(
     input_file: str = typer.Option("assets.json", "--input", "-i", help="Input scan result file"),
-    fmt: str = typer.Option("summary", "--format", "-f", help="Report format: summary, detailed, bigr-matrix"),
+    fmt: str = typer.Option("summary", "--format", "-f",
+                            help="Report format: summary, detailed, bigr-matrix, html-report"),
+    output: str = typer.Option("", "--output", "-o", help="Output file path (for html-report)"),
 ) -> None:
     """Generate report from existing scan results."""
     path = Path(input_file)
@@ -160,7 +163,39 @@ def report(
     with path.open(encoding="utf-8") as f:
         data = json.load(f)
 
-    if fmt == "detailed":
+    if fmt == "html-report":
+        from bigr.report.generator import ReportConfig, build_full_report
+
+        assets = data.get("assets", [])
+        category_summary = data.get("category_summary", {})
+        total_assets = data.get("total_assets", len(assets))
+
+        # Build compliance data from scan result
+        total_classified = sum(
+            v for k, v in category_summary.items() if k != "unclassified"
+        )
+        total_unclassified = category_summary.get("unclassified", 0)
+        # Simple compliance score: % classified
+        score = (total_classified / total_assets * 100) if total_assets > 0 else 0
+        grade = _score_to_grade(score)
+
+        compliance_data = {
+            "score": round(score, 1),
+            "grade": grade,
+            "scan_date": data.get("started_at", ""),
+            "category_distribution": category_summary,
+            "total_classified": total_classified,
+            "total_unclassified": total_unclassified,
+        }
+
+        config = ReportConfig()
+        generated = build_full_report(assets, compliance_data, config=config)
+
+        # Determine output path
+        out_path = output if output else str(path.with_suffix(".html"))
+        generated.save(out_path)
+        console.print(f"[green]HTML report saved:[/green] {out_path}")
+    elif fmt == "detailed":
         _print_detailed(data)
     elif fmt == "bigr-matrix":
         _print_bigr_matrix(data)
@@ -617,6 +652,177 @@ def snmp_scan(
 
 
 @app.command()
+def compliance(
+    fmt: str = typer.Option("summary", "--format", "-f", help="Output format: summary, detailed, json"),
+    db_path: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="Database path (for testing)"),
+) -> None:
+    """Show BİGR compliance score and breakdown."""
+    from bigr.compliance import calculate_compliance, calculate_subnet_compliance
+
+    resolved_db = Path(db_path) if db_path else None
+
+    # Load all assets from the database
+    all_assets = get_all_assets(db_path=resolved_db)
+
+    # Convert to compliance-friendly dicts
+    asset_dicts = []
+    for a in all_assets:
+        asset_dicts.append({
+            "ip": a.get("ip", ""),
+            "mac": a.get("mac"),
+            "hostname": a.get("hostname"),
+            "vendor": a.get("vendor"),
+            "confidence_score": a.get("confidence_score", 0.0),
+            "bigr_category": a.get("bigr_category", "unclassified"),
+            "manual_category": a.get("manual_category"),
+        })
+
+    report = calculate_compliance(asset_dicts)
+
+    # Get subnets and calculate per-subnet compliance
+    subnets = get_subnets(db_path=resolved_db)
+    if subnets:
+        report.subnet_compliance = calculate_subnet_compliance(asset_dicts, subnets)
+
+    if fmt == "json":
+        console.print(json.dumps(report.to_dict(), indent=2))
+        return
+
+    # Summary format
+    score = report.breakdown.compliance_score
+    grade = report.breakdown.grade
+    grade_colors = {"A": "green", "B": "blue", "C": "yellow", "D": "red", "F": "red bold"}
+    grade_color = grade_colors.get(grade, "white")
+
+    console.print(f"\n[bold]BİGR Compliance Report[/bold]")
+    console.print(f"  Score: [{grade_color}]{score}%[/{grade_color}]  Grade: [{grade_color}]{grade}[/{grade_color}]")
+    console.print()
+
+    # Breakdown
+    b = report.breakdown
+    table = Table(title="Classification Breakdown")
+    table.add_column("Category", style="bold")
+    table.add_column("Count", justify="right")
+    table.add_row("[green]Fully Classified[/green]", str(b.fully_classified))
+    table.add_row("[yellow]Partially Classified[/yellow]", str(b.partially_classified))
+    table.add_row("[red]Unclassified[/red]", str(b.unclassified))
+    table.add_row("[cyan]Manual Overrides[/cyan]", str(b.manual_overrides))
+    table.add_row("[bold]Total[/bold]", str(b.total_assets))
+    console.print(table)
+
+    # Distribution
+    dist = report.distribution
+    if dist.total > 0:
+        console.print()
+        dist_table = Table(title="Category Distribution")
+        dist_table.add_column("Category", style="bold")
+        dist_table.add_column("Count", justify="right")
+        dist_table.add_column("Percentage", justify="right")
+        pct = dist.percentages()
+        labels = {
+            "ag_ve_sistemler": "Ag ve Sistemler",
+            "uygulamalar": "Uygulamalar",
+            "iot": "IoT",
+            "tasinabilir": "Tasinabilir",
+            "unclassified": "Siniflandirilmamis",
+        }
+        for key, label in labels.items():
+            count = getattr(dist, key)
+            if count > 0:
+                dist_table.add_row(label, str(count), f"{pct[key]}%")
+        console.print(dist_table)
+
+    # Action items
+    if report.action_items:
+        console.print()
+        action_table = Table(title="Action Items")
+        action_table.add_column("Priority", style="bold")
+        action_table.add_column("Type")
+        action_table.add_column("IP", style="cyan")
+        action_table.add_column("Reason")
+        for item in report.action_items[:20]:
+            pri = item["priority"]
+            pri_style = {"critical": "red", "high": "yellow", "normal": "dim"}.get(pri, "white")
+            action_table.add_row(
+                f"[{pri_style}]{pri}[/{pri_style}]",
+                item["type"],
+                item["ip"],
+                item["reason"],
+            )
+        console.print(action_table)
+
+
+@app.command()
+def analytics(
+    days: int = typer.Option(30, "--days", "-d", help="Lookback period in days"),
+    fmt: str = typer.Option("summary", "--format", "-f", help="Output format: summary, json"),
+    db_path: Optional[str] = typer.Option(None, "--db-path", hidden=True, help="Database path (for testing)"),
+) -> None:
+    """Show historical trends and analytics."""
+    from bigr.analytics import get_full_analytics
+
+    resolved_db = Path(db_path) if db_path else None
+    result = get_full_analytics(days=days, db_path=resolved_db)
+
+    if fmt == "json":
+        console.print(json.dumps(result.to_dict(), indent=2, default=str))
+        return
+
+    # Summary format
+    console.print("\n[bold]BIGR Analytics[/bold]")
+    console.print(f"Period: last {days} days\n")
+
+    # Asset count trend
+    if result.asset_count_trend and result.asset_count_trend.points:
+        table = Table(title="Asset Count Trend")
+        table.add_column("Date", style="cyan")
+        table.add_column("Assets", justify="right")
+        for pt in result.asset_count_trend.points:
+            table.add_row(pt.date, str(pt.value))
+        console.print(table)
+    else:
+        console.print("[dim]No asset count data available.[/dim]")
+
+    # Category trends
+    if result.category_trends:
+        table = Table(title="\nCategory Trends")
+        table.add_column("Category", style="bold")
+        table.add_column("Total", justify="right")
+        for series in result.category_trends:
+            total = sum(p.value for p in series.points)
+            table.add_row(series.name, str(total))
+        console.print(table)
+
+    # Most changed assets
+    if result.most_changed_assets:
+        table = Table(title="\nMost Changed Assets")
+        table.add_column("IP", style="cyan")
+        table.add_column("Changes", justify="right")
+        table.add_column("Last Change")
+        for asset in result.most_changed_assets[:10]:
+            table.add_row(
+                asset.get("ip", "-"),
+                str(asset.get("change_count", 0)),
+                (asset.get("last_change") or "-")[:19].replace("T", " "),
+            )
+        console.print(table)
+
+    # Scan frequency
+    if result.scan_frequency:
+        table = Table(title="\nScan Frequency")
+        table.add_column("Date", style="cyan")
+        table.add_column("Scans", justify="right")
+        table.add_column("Total Assets", justify="right")
+        for entry in result.scan_frequency:
+            table.add_row(
+                entry.get("date", "-"),
+                str(entry.get("scan_count", 0)),
+                str(entry.get("total_assets", 0)),
+            )
+        console.print(table)
+
+
+@app.command()
 def version() -> None:
     """Show version information."""
     from bigr import __version__
@@ -624,6 +830,25 @@ def version() -> None:
 
 
 # --- Display Helpers ---
+
+
+def _score_to_grade(score: float) -> str:
+    """Convert compliance percentage to letter grade."""
+    if score >= 95:
+        return "A+"
+    if score >= 90:
+        return "A"
+    if score >= 85:
+        return "B+"
+    if score >= 80:
+        return "B"
+    if score >= 75:
+        return "C+"
+    if score >= 70:
+        return "C"
+    if score >= 60:
+        return "D"
+    return "F"
 
 def _print_summary(result: ScanResult) -> None:
     table = Table(title="\nBİGR Asset Summary")

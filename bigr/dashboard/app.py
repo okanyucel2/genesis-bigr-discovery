@@ -152,6 +152,52 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         """Serve network topology visualization page."""
         return HTMLResponse(content=_render_topology_page())
 
+    @app.get("/api/compliance", response_class=JSONResponse)
+    async def api_compliance():
+        """Return compliance metrics."""
+        from bigr.compliance import calculate_compliance, calculate_subnet_compliance
+
+        data = _load_data()
+        assets = data.get("assets", [])
+
+        report = calculate_compliance(assets)
+
+        # Calculate subnet compliance if subnets are registered
+        try:
+            subnet_list = get_subnets(db_path=_db_path)
+            if subnet_list:
+                report.subnet_compliance = calculate_subnet_compliance(assets, subnet_list)
+        except Exception:
+            pass
+
+        return report.to_dict()
+
+    @app.get("/compliance", response_class=HTMLResponse)
+    async def compliance_page():
+        """Serve compliance dashboard with charts."""
+        from bigr.compliance import calculate_compliance
+
+        data = _load_data()
+        assets = data.get("assets", [])
+        report = calculate_compliance(assets)
+        return HTMLResponse(content=_render_compliance_page(report))
+
+    @app.get("/api/analytics", response_class=JSONResponse)
+    async def api_analytics(days: int = 30):
+        """Return analytics data."""
+        from bigr.analytics import get_full_analytics
+
+        try:
+            result = get_full_analytics(days=days, db_path=_db_path)
+            return result.to_dict()
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+    @app.get("/analytics", response_class=HTMLResponse)
+    async def analytics_page():
+        """Serve analytics dashboard with trend charts."""
+        return HTMLResponse(content=_render_analytics_page())
+
     @app.get("/api/health")
     async def health():
         return {"status": "ok", "data_file": str(_data_path), "exists": _data_path.exists()}
@@ -993,6 +1039,451 @@ def _render_topology_page() -> str:
                 console.error('Topology load error:', err);
             });
     })();
+    </script>
+</body>
+</html>"""
+
+
+def _render_compliance_page(report) -> str:
+    """Render the BİGR Compliance Dashboard page."""
+    score = report.breakdown.compliance_score
+    grade = report.breakdown.grade
+    b = report.breakdown
+    dist = report.distribution
+
+    grade_colors = {"A": "#22c55e", "B": "#3b82f6", "C": "#eab308", "D": "#f97316", "F": "#ef4444"}
+    grade_color = grade_colors.get(grade, "#6b7280")
+
+    # Build category distribution bars
+    pct = dist.percentages()
+    category_info = {
+        "ag_ve_sistemler": {"label": "Ag ve Sistemler", "color": "#3b82f6"},
+        "uygulamalar": {"label": "Uygulamalar", "color": "#8b5cf6"},
+        "iot": {"label": "IoT", "color": "#10b981"},
+        "tasinabilir": {"label": "Tasinabilir", "color": "#f59e0b"},
+        "unclassified": {"label": "Siniflandirilmamis", "color": "#6b7280"},
+    }
+
+    dist_bars_html = ""
+    for key, info in category_info.items():
+        count = getattr(dist, key)
+        percentage = pct.get(key, 0)
+        if count > 0 or key == "unclassified":
+            dist_bars_html += f"""
+            <div class="dist-row">
+                <span class="dist-label">{info['label']}</span>
+                <div class="dist-bar-bg">
+                    <div class="dist-bar" style="width:{percentage}%;background:{info['color']}"></div>
+                </div>
+                <span class="dist-count">{count} ({percentage}%)</span>
+            </div>"""
+
+    # Build subnet table rows
+    subnet_rows = ""
+    for sc in report.subnet_compliance:
+        sc_color = grade_colors.get(sc.breakdown.grade, "#6b7280")
+        subnet_rows += f"""
+            <tr>
+                <td>{sc.cidr}</td>
+                <td>{sc.label or '-'}</td>
+                <td style="color:{sc_color};font-weight:600;">{sc.breakdown.compliance_score}%</td>
+                <td style="color:{sc_color};font-weight:600;">{sc.breakdown.grade}</td>
+                <td>{sc.breakdown.total_assets}</td>
+            </tr>"""
+
+    subnet_section = ""
+    if report.subnet_compliance:
+        subnet_section = f"""
+        <div class="section">
+            <h2>Subnet Compliance</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>CIDR</th>
+                        <th>Label</th>
+                        <th>Score</th>
+                        <th>Grade</th>
+                        <th>Assets</th>
+                    </tr>
+                </thead>
+                <tbody>{subnet_rows}</tbody>
+            </table>
+        </div>"""
+
+    # Build action items
+    action_rows = ""
+    pri_colors_map = {"critical": "#ef4444", "high": "#f97316", "normal": "#94a3b8"}
+    for item in report.action_items[:30]:
+        pri = item.get("priority", "normal")
+        pri_color = pri_colors_map.get(pri, "#94a3b8")
+        action_rows += f"""
+            <tr>
+                <td><span class="priority-badge" style="background:{pri_color}">{pri}</span></td>
+                <td>{item.get('type', '-')}</td>
+                <td style="color:#67e8f9;">{item.get('ip', '-')}</td>
+                <td>{item.get('reason', '-')}</td>
+            </tr>"""
+
+    action_section = ""
+    if report.action_items:
+        action_section = f"""
+        <div class="section">
+            <h2>Action Items ({len(report.action_items)})</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Priority</th>
+                        <th>Type</th>
+                        <th>IP</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody>{action_rows}</tbody>
+            </table>
+        </div>"""
+
+    return f"""<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIGR Compliance Dashboard</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+        }}
+        .header {{
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+        .header h1 {{ font-size: 1.25rem; font-weight: 600; color: #f1f5f9; }}
+        .btn {{
+            background: #334155; color: #e2e8f0; border: 1px solid #475569;
+            padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer;
+            font-size: 0.75rem; text-decoration: none; transition: background 0.15s;
+        }}
+        .btn:hover {{ background: #475569; }}
+        .container {{ max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
+        .score-gauge {{
+            text-align: center; padding: 2rem; margin-bottom: 1.5rem;
+            background: #1e293b; border-radius: 12px; border: 1px solid #334155;
+        }}
+        .score-value {{
+            font-size: 4rem; font-weight: 800; color: {grade_color};
+        }}
+        .score-grade {{
+            font-size: 2rem; font-weight: 700; color: {grade_color};
+            margin-top: 0.25rem;
+        }}
+        .score-label {{ color: #94a3b8; margin-top: 0.5rem; }}
+        .cards {{
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem; margin-bottom: 1.5rem;
+        }}
+        .card {{
+            background: #1e293b; border-radius: 8px; padding: 1.25rem;
+            text-align: center; border: 1px solid #334155;
+        }}
+        .card-count {{ font-size: 2rem; font-weight: 700; color: #f1f5f9; }}
+        .card-label {{ font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem; }}
+        .section {{
+            background: #1e293b; border-radius: 8px; padding: 1.25rem;
+            margin-bottom: 1.5rem; border: 1px solid #334155;
+        }}
+        .section h2 {{ font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: #f1f5f9; }}
+        .dist-row {{ display: flex; align-items: center; gap: 0.75rem; margin: 0.5rem 0; }}
+        .dist-label {{ width: 150px; font-size: 0.8rem; color: #94a3b8; text-align: right; }}
+        .dist-bar-bg {{
+            flex: 1; height: 20px; background: #0f172a; border-radius: 4px; overflow: hidden;
+        }}
+        .dist-bar {{ height: 100%; border-radius: 4px; transition: width 0.5s; }}
+        .dist-count {{ width: 100px; font-size: 0.8rem; color: #e2e8f0; }}
+        table {{
+            width: 100%; border-collapse: collapse; background: #1e293b;
+            border-radius: 8px; overflow: hidden;
+        }}
+        th {{
+            background: #0f172a; padding: 0.6rem 0.8rem; text-align: left;
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+            color: #94a3b8; border-bottom: 1px solid #334155;
+        }}
+        td {{ padding: 0.5rem 0.8rem; border-bottom: 1px solid #1e293b; font-size: 0.8rem; }}
+        tr:hover {{ background: #334155; }}
+        .priority-badge {{
+            display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px;
+            font-size: 0.7rem; font-weight: 600; color: #fff;
+        }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div style="display:flex;align-items:center;gap:1rem;">
+            <h1>BIGR Compliance Dashboard</h1>
+            <a href="/" class="btn">Asset Dashboard</a>
+            <a href="/topology" class="btn">Topology Map</a>
+        </div>
+    </div>
+    <div class="container">
+        <div class="score-gauge">
+            <div class="score-value">{score}%</div>
+            <div class="score-grade">Grade: {grade}</div>
+            <div class="score-label">BİGR Compliance Score</div>
+        </div>
+
+        <div class="cards">
+            <div class="card" style="border-top: 3px solid #22c55e;">
+                <div class="card-count">{b.fully_classified}</div>
+                <div class="card-label">Fully Classified</div>
+            </div>
+            <div class="card" style="border-top: 3px solid #eab308;">
+                <div class="card-count">{b.partially_classified}</div>
+                <div class="card-label">Partially Classified</div>
+            </div>
+            <div class="card" style="border-top: 3px solid #ef4444;">
+                <div class="card-count">{b.unclassified}</div>
+                <div class="card-label">Unclassified</div>
+            </div>
+            <div class="card" style="border-top: 3px solid #06b6d4;">
+                <div class="card-count">{b.manual_overrides}</div>
+                <div class="card-label">Manual Overrides</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Category Distribution</h2>
+            {dist_bars_html}
+        </div>
+
+        {subnet_section}
+        {action_section}
+    </div>
+</body>
+</html>"""
+
+
+def _render_analytics_page() -> str:
+    """Render the analytics dashboard page with trend charts."""
+    return """<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIGR Discovery - Analytics</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+        .header {
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 1.25rem; font-weight: 600; color: #f1f5f9; }
+        .header-left { display: flex; align-items: center; gap: 1rem; }
+        .btn {
+            background: #334155; color: #e2e8f0; border: 1px solid #475569;
+            padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer;
+            font-size: 0.75rem; transition: background 0.15s; text-decoration: none;
+        }
+        .btn:hover { background: #475569; }
+        .btn.active { background: #3b82f6; border-color: #3b82f6; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+        .range-selector { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+        .section {
+            background: #1e293b; border-radius: 8px; padding: 1.25rem;
+            margin-bottom: 1.5rem; border: 1px solid #334155;
+        }
+        .section h2 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: #f1f5f9; }
+        .chart-area { width: 100%; overflow-x: auto; }
+        .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 180px; padding: 0 0.5rem; }
+        .bar-wrapper { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 24px; }
+        .bar {
+            width: 100%; min-width: 16px; background: #3b82f6; border-radius: 3px 3px 0 0;
+            transition: height 0.3s;
+        }
+        .bar-label { font-size: 0.6rem; color: #94a3b8; margin-top: 4px; text-align: center; white-space: nowrap; }
+        .bar-value { font-size: 0.65rem; color: #e2e8f0; margin-bottom: 2px; }
+        table { width: 100%; border-collapse: collapse; }
+        th {
+            background: #0f172a; padding: 0.5rem 0.75rem; text-align: left;
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+            color: #94a3b8; border-bottom: 1px solid #334155;
+        }
+        td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #1e293b; font-size: 0.8rem; }
+        tr:hover { background: #334155; }
+        .badge {
+            display: inline-block; padding: 0.15rem 0.4rem; border-radius: 3px;
+            font-size: 0.7rem; font-weight: 500;
+        }
+        .loading { text-align: center; color: #64748b; padding: 2rem; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>Analytics &amp; Trends</h1>
+            <a href="/" class="btn">Dashboard</a>
+            <a href="/topology" class="btn">Topology</a>
+        </div>
+    </div>
+    <div class="container">
+        <div class="range-selector">
+            <button class="btn" onclick="loadData(7)" id="btn-7">7 Days</button>
+            <button class="btn active" onclick="loadData(30)" id="btn-30">30 Days</button>
+            <button class="btn" onclick="loadData(90)" id="btn-90">90 Days</button>
+        </div>
+
+        <div class="section">
+            <h2>Asset Count Trend</h2>
+            <div class="chart-area" id="asset-chart"><div class="loading">Loading...</div></div>
+        </div>
+
+        <div class="grid-2">
+            <div class="section">
+                <h2>Category Trends</h2>
+                <div id="category-chart"><div class="loading">Loading...</div></div>
+            </div>
+            <div class="section">
+                <h2>New vs Removed Devices</h2>
+                <div id="new-removed-chart"><div class="loading">Loading...</div></div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="section">
+                <h2>Most Changed Assets</h2>
+                <div id="changed-table"><div class="loading">Loading...</div></div>
+            </div>
+            <div class="section">
+                <h2>Scan Frequency</h2>
+                <div id="scan-freq"><div class="loading">Loading...</div></div>
+            </div>
+        </div>
+    </div>
+    <script>
+    let currentDays = 30;
+    const catColors = {
+        'ag_ve_sistemler': '#3b82f6',
+        'uygulamalar': '#8b5cf6',
+        'iot': '#10b981',
+        'tasinabilir': '#f59e0b',
+        'unclassified': '#6b7280'
+    };
+
+    function loadData(days) {
+        currentDays = days;
+        document.querySelectorAll('.range-selector .btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('btn-' + days).classList.add('active');
+
+        fetch('/api/analytics?days=' + days)
+            .then(r => r.json())
+            .then(data => {
+                renderAssetChart(data.asset_count_trend);
+                renderCategoryChart(data.category_trends);
+                renderNewRemoved(data.new_vs_removed);
+                renderChangedTable(data.most_changed_assets);
+                renderScanFreq(data.scan_frequency);
+            })
+            .catch(() => {
+                document.getElementById('asset-chart').innerHTML = '<div class="loading">Failed to load data.</div>';
+            });
+    }
+
+    function renderBarChart(containerId, points, color) {
+        const el = document.getElementById(containerId);
+        if (!points || points.length === 0) {
+            el.innerHTML = '<div class="loading">No data available.</div>';
+            return;
+        }
+        const maxVal = Math.max(...points.map(p => p.value), 1);
+        let html = '<div class="bar-chart">';
+        points.forEach(p => {
+            const h = Math.max((p.value / maxVal) * 160, 2);
+            const dateLabel = p.date ? p.date.substring(5) : '';
+            html += '<div class="bar-wrapper">' +
+                '<div class="bar-value">' + p.value + '</div>' +
+                '<div class="bar" style="height:' + h + 'px;background:' + color + '"></div>' +
+                '<div class="bar-label">' + dateLabel + '</div></div>';
+        });
+        html += '</div>';
+        el.innerHTML = html;
+    }
+
+    function renderAssetChart(trend) {
+        renderBarChart('asset-chart', trend ? trend.points : [], '#3b82f6');
+    }
+
+    function renderCategoryChart(trends) {
+        const el = document.getElementById('category-chart');
+        if (!trends || trends.length === 0) {
+            el.innerHTML = '<div class="loading">No data.</div>';
+            return;
+        }
+        let html = '<table><thead><tr><th>Category</th><th>Total</th></tr></thead><tbody>';
+        trends.forEach(s => {
+            const total = s.points.reduce((a, p) => a + p.value, 0);
+            const color = catColors[s.name] || '#6b7280';
+            html += '<tr><td><span class="badge" style="background:' + color + '">' + s.name + '</span></td>' +
+                '<td>' + total + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        el.innerHTML = html;
+    }
+
+    function renderNewRemoved(trend) {
+        renderBarChart('new-removed-chart', trend ? trend.points : [], '#22c55e');
+    }
+
+    function renderChangedTable(assets) {
+        const el = document.getElementById('changed-table');
+        if (!assets || assets.length === 0) {
+            el.innerHTML = '<div class="loading">No changes recorded.</div>';
+            return;
+        }
+        let html = '<table><thead><tr><th>IP</th><th>Changes</th><th>Last Change</th></tr></thead><tbody>';
+        assets.forEach(a => {
+            const lc = (a.last_change || '-').substring(0, 19).replace('T', ' ');
+            html += '<tr><td style="color:#67e8f9">' + a.ip + '</td>' +
+                '<td>' + a.change_count + '</td><td style="color:#94a3b8">' + lc + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        el.innerHTML = html;
+    }
+
+    function renderScanFreq(freq) {
+        const el = document.getElementById('scan-freq');
+        if (!freq || freq.length === 0) {
+            el.innerHTML = '<div class="loading">No scan data.</div>';
+            return;
+        }
+        let html = '<table><thead><tr><th>Date</th><th>Scans</th><th>Assets</th></tr></thead><tbody>';
+        freq.forEach(f => {
+            html += '<tr><td>' + f.date + '</td><td>' + f.scan_count + '</td>' +
+                '<td>' + (f.total_assets || 0) + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        el.innerHTML = html;
+    }
+
+    // Load initial data
+    loadData(30);
     </script>
 </body>
 </html>"""
