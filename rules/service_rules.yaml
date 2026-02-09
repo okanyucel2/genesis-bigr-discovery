@@ -1,0 +1,91 @@
+# BİGR mDNS Service Classification Rules
+# Maps mDNS service types to BİGR category scores
+
+- name: "Printer (IPP/mDNS)"
+  match:
+    service_type_contains: ["_ipp._tcp", "_printer._tcp"]
+  scores:
+    iot: 0.6
+  description: "mDNS printer service advertisement"
+
+- name: "Apple AirPlay"
+  match:
+    service_type_contains: ["_airplay._tcp", "_raop._tcp"]
+  scores:
+    tasinabilir: 0.3
+    iot: 0.2
+  description: "AirPlay could be Apple TV (IoT) or MacBook (Tasinabilir)"
+
+- name: "Chromecast"
+  match:
+    service_type_contains: ["_googlecast._tcp"]
+  scores:
+    iot: 0.6
+  description: "Chromecast is a media streaming IoT device"
+
+- name: "File Sharing (SMB)"
+  match:
+    service_type_contains: ["_smb._tcp"]
+  scores:
+    ag_ve_sistemler: 0.2
+    tasinabilir: 0.2
+  description: "SMB file sharing could be NAS (server) or workstation"
+
+- name: "Apple File Sharing"
+  match:
+    service_type_contains: ["_afpovertcp._tcp"]
+  scores:
+    tasinabilir: 0.3
+    ag_ve_sistemler: 0.1
+  description: "AFP is typically macOS computers or Time Capsule"
+
+- name: "SSH Server"
+  match:
+    service_type_contains: ["_ssh._tcp"]
+  scores:
+    ag_ve_sistemler: 0.3
+  description: "SSH service suggests server or network infrastructure"
+
+- name: "Web Server (HTTP)"
+  match:
+    service_type_contains: ["_http._tcp"]
+  scores:
+    uygulamalar: 0.2
+    ag_ve_sistemler: 0.1
+  description: "HTTP service could be web app or device management UI"
+
+- name: "IP Camera (RTSP)"
+  match:
+    service_type_contains: ["_rtsp._tcp"]
+  scores:
+    iot: 0.6
+  description: "RTSP streaming is characteristic of IP cameras"
+
+- name: "HomeKit Device"
+  match:
+    service_type_contains: ["_hap._tcp", "_homekit._tcp"]
+  scores:
+    iot: 0.6
+  description: "HomeKit accessory protocol indicates smart home IoT"
+
+- name: "Apple Companion"
+  match:
+    service_type_contains: ["_companion-link._tcp"]
+  scores:
+    tasinabilir: 0.5
+  description: "Apple Companion Link indicates iPhone/iPad/Apple Watch"
+
+- name: "Spotify Connect"
+  match:
+    service_type_contains: ["_spotify-connect._tcp"]
+  scores:
+    iot: 0.4
+    tasinabilir: 0.1
+  description: "Spotify Connect speakers or smart displays"
+
+- name: "Sonos Speaker"
+  match:
+    service_type_contains: ["_sonos._tcp"]
+  scores:
+    iot: 0.6
+  description: "Sonos smart speaker system"

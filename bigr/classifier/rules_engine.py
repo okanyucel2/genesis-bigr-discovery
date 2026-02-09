@@ -22,6 +22,7 @@ class RuleMatch:
     ports_exclude: list[int] = field(default_factory=list)
     vendor_contains: list[str] = field(default_factory=list)
     hostname_pattern: str | None = None
+    service_type_contains: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -67,6 +68,24 @@ class Rule:
             return False
         return bool(re.search(self.match.hostname_pattern, hostname, re.IGNORECASE))
 
+    def evaluate_service(self, service_types: list[str]) -> bool:
+        """Check if any service type matches the rule's service_type_contains.
+
+        Args:
+            service_types: List of mDNS service type strings
+                           (e.g., ["_googlecast._tcp.local."]).
+
+        Returns:
+            True if any rule pattern is found in any service type string.
+        """
+        if not self.match.service_type_contains:
+            return False
+        return any(
+            st in svc
+            for st in self.match.service_type_contains
+            for svc in service_types
+        )
+
 
 @dataclass
 class RuleSet:
@@ -74,10 +93,16 @@ class RuleSet:
     port_rules: list[Rule] = field(default_factory=list)
     vendor_rules: list[Rule] = field(default_factory=list)
     hostname_rules: list[Rule] = field(default_factory=list)
+    service_rules: list[Rule] = field(default_factory=list)
 
     @property
     def total_rules(self) -> int:
-        return len(self.port_rules) + len(self.vendor_rules) + len(self.hostname_rules)
+        return (
+            len(self.port_rules)
+            + len(self.vendor_rules)
+            + len(self.hostname_rules)
+            + len(self.service_rules)
+        )
 
 
 def _parse_rule(data: dict) -> Rule:
@@ -89,6 +114,7 @@ def _parse_rule(data: dict) -> Rule:
         ports_exclude=match_data.get("ports_exclude", []),
         vendor_contains=match_data.get("vendor_contains", []),
         hostname_pattern=match_data.get("hostname_pattern"),
+        service_type_contains=match_data.get("service_type_contains", []),
     )
     return Rule(
         name=data.get("name", "unnamed"),
@@ -121,7 +147,7 @@ def load_rules(rules_dir: str | Path | None = None) -> RuleSet:
         if not isinstance(raw_rules, list):
             continue
 
-        category = yaml_file.stem  # port_rules, vendor_rules, hostname_rules
+        category = yaml_file.stem  # port_rules, vendor_rules, hostname_rules, service_rules
         for raw_rule in raw_rules:
             rule = _parse_rule(raw_rule)
             if category == "port_rules":
@@ -130,6 +156,8 @@ def load_rules(rules_dir: str | Path | None = None) -> RuleSet:
                 ruleset.vendor_rules.append(rule)
             elif category == "hostname_rules":
                 ruleset.hostname_rules.append(rule)
+            elif category == "service_rules":
+                ruleset.service_rules.append(rule)
 
     return ruleset
 
@@ -168,5 +196,27 @@ def apply_hostname_rules(rules: list[Rule], hostname: str | None) -> tuple[dict[
                 scores[cat] = scores.get(cat, 0) + delta
             evidence.append(f"hostname '{hostname}' → {rule.name}")
             break  # First hostname match wins
+
+    return scores, evidence
+
+
+def apply_service_rules(rules: list[Rule], service_types: list[str]) -> tuple[dict[str, float], list[str]]:
+    """Apply mDNS service rules and return score deltas + evidence.
+
+    Args:
+        rules: List of service classification rules.
+        service_types: List of mDNS service type strings found on the asset.
+
+    Returns:
+        Tuple of (score deltas dict, evidence strings list).
+    """
+    scores: dict[str, float] = {}
+    evidence: list[str] = []
+
+    for rule in rules:
+        if rule.evaluate_service(service_types):
+            for cat, delta in rule.scores.items():
+                scores[cat] = scores.get(cat, 0) + delta
+            evidence.append(f"mDNS service → {rule.name}: {rule.description or 'matched'}")
 
     return scores, evidence

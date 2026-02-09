@@ -13,6 +13,7 @@ from bigr.classifier.rules_engine import (
     RuleSet,
     apply_hostname_rules,
     apply_port_rules,
+    apply_service_rules,
     apply_vendor_rules,
     load_rules,
 )
@@ -138,14 +139,58 @@ def score_by_os(os_hint: str | None, scores: ClassificationScores) -> None:
         scores.evidence["os_rule"] = rule_evidence
 
 
+def score_by_services(raw_evidence: dict, scores: ClassificationScores) -> None:
+    """Score based on mDNS service types using YAML rules.
+
+    Reads mdns_services from the asset's raw_evidence and applies
+    service classification rules from service_rules.yaml.
+
+    Args:
+        raw_evidence: Asset's raw_evidence dict (may contain 'mdns_services').
+        scores: ClassificationScores to update.
+    """
+    mdns_services = raw_evidence.get("mdns_services", [])
+    if not mdns_services:
+        return
+
+    # Extract unique service types from evidence
+    service_types = list({svc.get("service_type", "") for svc in mdns_services if svc.get("service_type")})
+    if not service_types:
+        return
+
+    ruleset = _get_ruleset()
+
+    if ruleset.service_rules:
+        deltas, evidence = apply_service_rules(ruleset.service_rules, service_types)
+        scores.add_scores(deltas)
+        if evidence:
+            scores.evidence["service_rules"] = evidence
+
+
 # --- Main Classifier ---
 
 def classify_asset(asset: Asset, do_fingerprint: bool = True) -> Asset:
     """Classify a single asset into BİGR category.
 
-    Runs all scoring rules and assigns the winning category + confidence.
-    Uses YAML rules if available, falls back to hardcoded rules.
+    Checks for manual override first. If present, uses that category with
+    confidence 1.0. Otherwise runs all scoring rules and assigns the winning
+    category + confidence. Uses YAML rules if available, falls back to
+    hardcoded rules.
     """
+    # Check for manual override first
+    from bigr.db import get_tags
+
+    try:
+        tags = get_tags()
+        for tag in tags:
+            if tag["ip"] == asset.ip:
+                asset.bigr_category = BigrCategory(tag["manual_category"])
+                asset.confidence_score = 1.0  # Manual = 100% confidence
+                asset.raw_evidence = {"manual_override": tag.get("manual_note") or "User override"}
+                return asset
+    except Exception:
+        pass  # DB not available, continue with auto-classification
+
     # Enrich vendor if not set
     if asset.vendor is None:
         asset.vendor = lookup_vendor(asset.mac)
@@ -160,7 +205,11 @@ def classify_asset(asset: Asset, do_fingerprint: bool = True) -> Asset:
     score_by_vendor(asset.vendor, scores)
     score_by_hostname(asset.hostname, scores)
     score_by_os(asset.os_hint, scores)
+    score_by_services(asset.raw_evidence, scores)
     _score_by_mac_randomization(asset.mac, asset.open_ports, scores)
+
+    # Preserve mDNS service evidence through classification
+    mdns_services = asset.raw_evidence.get("mdns_services")
 
     # Assign
     if scores.confidence >= 0.3:
@@ -170,6 +219,10 @@ def classify_asset(asset: Asset, do_fingerprint: bool = True) -> Asset:
 
     asset.confidence_score = scores.confidence
     asset.raw_evidence = scores.evidence
+
+    # Restore mDNS evidence so it persists in output
+    if mdns_services:
+        asset.raw_evidence["mdns_services"] = mdns_services
 
     return asset
 

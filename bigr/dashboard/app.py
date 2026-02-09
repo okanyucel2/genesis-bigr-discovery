@@ -8,6 +8,9 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from bigr.db import get_all_assets, get_asset_history, get_latest_scan, get_scan_list, get_tags
+from bigr.diff import get_changes_from_db
+
 
 def create_app(data_path: str = "assets.json") -> FastAPI:
     """Create dashboard FastAPI app."""
@@ -15,10 +18,18 @@ def create_app(data_path: str = "assets.json") -> FastAPI:
     _data_path = Path(data_path)
 
     def _load_data() -> dict:
-        if not _data_path.exists():
-            return {"assets": [], "category_summary": {}, "total_assets": 0}
-        with _data_path.open(encoding="utf-8") as f:
-            return json.load(f)
+        """Load scan data from file, falling back to database."""
+        if _data_path.exists():
+            with _data_path.open(encoding="utf-8") as f:
+                return json.load(f)
+        # Fall back to latest scan from database
+        try:
+            latest = get_latest_scan()
+            if latest:
+                return latest
+        except Exception:
+            pass
+        return {"assets": [], "category_summary": {}, "total_assets": 0}
 
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request):
@@ -27,7 +38,47 @@ def create_app(data_path: str = "assets.json") -> FastAPI:
 
     @app.get("/api/data", response_class=JSONResponse)
     async def api_data():
-        return _load_data()
+        data = _load_data()
+        # Enrich assets with manual_override flag
+        try:
+            tagged = get_tags()
+            tagged_ips = {t["ip"] for t in tagged}
+        except Exception:
+            tagged_ips = set()
+        for asset in data.get("assets", []):
+            asset["manual_override"] = asset.get("ip", "") in tagged_ips
+        return data
+
+    @app.get("/api/scans", response_class=JSONResponse)
+    async def api_scans():
+        """Return scan history from the database."""
+        try:
+            scans = get_scan_list(limit=50)
+            return {"scans": scans}
+        except Exception:
+            return {"scans": []}
+
+    @app.get("/api/assets/{ip}", response_class=JSONResponse)
+    async def api_asset_detail(ip: str):
+        """Return single asset details and scan history."""
+        try:
+            all_assets = get_all_assets()
+            asset = next((a for a in all_assets if a["ip"] == ip), None)
+            if asset is None:
+                return JSONResponse({"error": "Asset not found"}, status_code=404)
+            history = get_asset_history(ip=ip)
+            return {"asset": asset, "history": history}
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+    @app.get("/api/changes", response_class=JSONResponse)
+    async def api_changes(limit: int = 50):
+        """Return recent asset changes from the database."""
+        try:
+            changes = get_changes_from_db(limit=limit)
+            return {"changes": changes}
+        except Exception:
+            return {"changes": []}
 
     @app.get("/api/health")
     async def health():
@@ -66,6 +117,13 @@ def _render_dashboard(data: dict) -> str:
                 <div class="card-label">{info['label']}</div>
             </div>"""
 
+    # Determine which IPs have manual overrides
+    try:
+        tagged = get_tags()
+        tagged_ips = {t["ip"] for t in tagged}
+    except Exception:
+        tagged_ips = set()
+
     # Build asset table rows
     rows_html = ""
     for asset in assets:
@@ -74,6 +132,8 @@ def _render_dashboard(data: dict) -> str:
         ports = ", ".join(str(p) for p in asset.get("open_ports", [])) or "-"
         cat_key = asset.get("bigr_category", "unclassified")
         cat_color = category_info.get(cat_key, {}).get("color", "#6b7280")
+        is_manual = asset.get("ip", "") in tagged_ips
+        manual_badge = ' <span class="badge-manual">Manual</span>' if is_manual else ""
 
         rows_html += f"""
             <tr data-category="{cat_key}">
@@ -82,7 +142,7 @@ def _render_dashboard(data: dict) -> str:
                 <td>{asset.get('hostname') or '-'}</td>
                 <td>{asset.get('vendor') or '-'}</td>
                 <td><code>{ports}</code></td>
-                <td><span class="badge" style="background:{cat_color}">{asset.get('bigr_category_tr', '-')}</span></td>
+                <td><span class="badge" style="background:{cat_color}">{asset.get('bigr_category_tr', '-')}</span>{manual_badge}</td>
                 <td><span class="conf conf-{conf_class}">{conf:.2f}</span></td>
                 <td>{asset.get('os_hint') or '-'}</td>
             </tr>"""
@@ -214,6 +274,17 @@ def _render_dashboard(data: dict) -> str:
         .conf-high {{ color: #22c55e; }}
         .conf-medium {{ color: #eab308; }}
         .conf-low {{ color: #ef4444; }}
+        .badge-manual {{
+            display: inline-block;
+            padding: 0.15rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: #06b6d4;
+            border: 1px solid #06b6d4;
+            margin-left: 0.35rem;
+            vertical-align: middle;
+        }}
         .total-bar {{
             text-align: center;
             padding: 0.5rem;
@@ -263,6 +334,29 @@ def _render_dashboard(data: dict) -> str:
             </tbody>
         </table>
         <div class="total-bar" id="total-bar">Showing {total} of {total} assets</div>
+
+        <!-- Changes Section -->
+        <div style="margin-top: 2rem;">
+            <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.75rem; color: #f1f5f9;">
+                Recent Changes
+                <button class="btn" onclick="loadChanges()" style="margin-left: 0.5rem; font-size: 0.7rem;">Refresh</button>
+            </h2>
+            <table id="changes-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>IP</th>
+                        <th>Change Type</th>
+                        <th>Field</th>
+                        <th>Old Value</th>
+                        <th>New Value</th>
+                    </tr>
+                </thead>
+                <tbody id="changes-body">
+                    <tr><td colspan="6" style="text-align:center; color:#64748b;">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
     <script>
         let activeCategory = 'all';
@@ -342,6 +436,92 @@ def _render_dashboard(data: dict) -> str:
                 el.click();
             }});
         }}
+
+        function escapeHtml(text) {{
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.textContent;
+        }}
+
+        function loadChanges() {{
+            fetch('/api/changes?limit=50').then(r => r.json()).then(data => {{
+                const tbody = document.getElementById('changes-body');
+                const changes = data.changes || [];
+                // Clear existing rows
+                while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+                if (changes.length === 0) {{
+                    const row = document.createElement('tr');
+                    const cell = document.createElement('td');
+                    cell.colSpan = 6;
+                    cell.style.textAlign = 'center';
+                    cell.style.color = '#64748b';
+                    cell.textContent = 'No changes recorded yet.';
+                    row.appendChild(cell);
+                    tbody.appendChild(row);
+                    return;
+                }}
+                const badgeColors = {{
+                    'new_asset': '#22c55e',
+                    'field_changed': '#eab308',
+                    'removed': '#ef4444'
+                }};
+                changes.forEach(c => {{
+                    const tr = document.createElement('tr');
+                    const ts = (c.detected_at || '-').substring(0, 19).replace('T', ' ');
+                    const ct = c.change_type || '-';
+                    const color = badgeColors[ct] || '#94a3b8';
+                    const fieldVal = ct === 'new_asset' ? '-' : (c.field_name || '-');
+                    const oldVal = ct === 'new_asset' ? '-' : (c.old_value || '-');
+                    const newVal = ct === 'new_asset' ? '-' : (c.new_value || '-');
+
+                    const tdTs = document.createElement('td');
+                    tdTs.style.color = '#94a3b8';
+                    tdTs.textContent = ts;
+                    tr.appendChild(tdTs);
+
+                    const tdIp = document.createElement('td');
+                    tdIp.style.color = '#67e8f9';
+                    tdIp.textContent = c.ip || '-';
+                    tr.appendChild(tdIp);
+
+                    const tdType = document.createElement('td');
+                    const badge = document.createElement('span');
+                    badge.className = 'badge';
+                    badge.style.background = color;
+                    badge.textContent = ct;
+                    tdType.appendChild(badge);
+                    tr.appendChild(tdType);
+
+                    const tdField = document.createElement('td');
+                    tdField.textContent = fieldVal;
+                    tr.appendChild(tdField);
+
+                    const tdOld = document.createElement('td');
+                    tdOld.textContent = oldVal;
+                    tr.appendChild(tdOld);
+
+                    const tdNew = document.createElement('td');
+                    tdNew.textContent = newVal;
+                    tr.appendChild(tdNew);
+
+                    tbody.appendChild(tr);
+                }});
+            }}).catch(() => {{
+                const tbody = document.getElementById('changes-body');
+                while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+                const row = document.createElement('tr');
+                const cell = document.createElement('td');
+                cell.colSpan = 6;
+                cell.style.textAlign = 'center';
+                cell.style.color = '#ef4444';
+                cell.textContent = 'Failed to load changes.';
+                row.appendChild(cell);
+                tbody.appendChild(row);
+            }});
+        }}
+
+        // Auto-load changes on page load
+        loadChanges();
     </script>
 </body>
 </html>"""
