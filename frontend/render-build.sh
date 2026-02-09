@@ -26,8 +26,8 @@ fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
 echo "=== npm install ==="
 npm install 2>&1
 
-echo "=== vite build (no sourcemaps for Render) ==="
-VITE_DEMO_MODE=true npx vite build --sourcemap false 2>&1
+echo "=== vite build ==="
+npx vite build 2>&1
 
 echo "=== Build complete ==="
 ls -la dist/
