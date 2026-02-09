@@ -20,7 +20,7 @@ assets.json
 
 # Frontend
 node_modules/
-frontend/dist/
+# frontend/dist/ - committed for Render static deploy
 *.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts

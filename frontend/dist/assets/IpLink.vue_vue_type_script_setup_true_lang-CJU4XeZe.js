@@ -1,0 +1,2 @@
+import{d as a,q as o,l as r,f as n,k as t,U as i,c,H as l,y as p}from"./vendor-DoZ-jnr8.js";import{c as m}from"./utils-CytzSlOG.js";const k=a({__name:"IpLink",props:{ip:{},class:{}},setup(s){const e=s;return(f,u)=>(c(),o(t(i),{to:`/assets/${s.ip}`,class:n(t(m)("font-mono text-sm text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors",e.class))},{default:r(()=>[l(p(s.ip),1)]),_:1},8,["to","class"]))}});export{k as _};
+//# sourceMappingURL=IpLink.vue_vue_type_script_setup_true_lang-CJU4XeZe.js.map
