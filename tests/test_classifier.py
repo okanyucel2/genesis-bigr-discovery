@@ -76,6 +76,17 @@ class TestScoreByVendor:
         score_by_vendor("Apple Inc", scores)
         assert scores.tasinabilir >= 0.4
 
+    def test_zte_router(self):
+        """ZTE should classify as ag_ve_sistemler (home router brand)."""
+        scores = ClassificationScores()
+        score_by_vendor("zte corporation", scores)
+        assert scores.ag_ve_sistemler >= 0.5
+
+    def test_huawei(self):
+        scores = ClassificationScores()
+        score_by_vendor("Huawei Technologies", scores)
+        assert scores.ag_ve_sistemler >= 0.5
+
     def test_unknown(self):
         scores = ClassificationScores()
         score_by_vendor("Unknown Corp", scores)
@@ -194,6 +205,18 @@ class TestClassifyAsset:
         result = classify_asset(asset, do_fingerprint=False)
         assert result.bigr_category == BigrCategory.TASINABILIR
         assert result.confidence_score >= 0.3
+
+    def test_zte_home_router(self):
+        """ZTE router with ports 53,80,443 should be Ag ve Sistemler, not Uygulamalar."""
+        asset = Asset(
+            ip="192.168.1.1",
+            mac="54:1f:8d:d7:a5:a6",
+            vendor="zte corporation",
+            open_ports=[53, 80, 443],
+        )
+        result = classify_asset(asset, do_fingerprint=False)
+        assert result.bigr_category == BigrCategory.AG_VE_SISTEMLER
+        assert result.confidence_score >= 0.4
 
     def test_unclassified_minimal_info(self):
         asset = Asset(ip="10.0.0.200")

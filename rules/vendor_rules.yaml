@@ -25,6 +25,24 @@
   scores:
     ag_ve_sistemler: 0.5
 
+- name: "SonicWall"
+  match:
+    vendor_contains: ["SonicWall"]
+  scores:
+    ag_ve_sistemler: 0.5
+
+- name: "VMware"
+  match:
+    vendor_contains: ["VMware"]
+  scores:
+    ag_ve_sistemler: 0.5
+
+- name: "Home Router Brands"
+  match:
+    vendor_contains: ["ZTE", "Huawei", "TP-Link", "TP-LINK", "Netgear", "ASUS", "ASUSTek", "D-Link", "Ubiquiti", "Synology"]
+  scores:
+    ag_ve_sistemler: 0.5
+
 - name: "Hikvision Camera"
   match:
     vendor_contains: ["Hikvision"]
