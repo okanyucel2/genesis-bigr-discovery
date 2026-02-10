@@ -181,6 +181,9 @@ watch(() => historyExpanded.value, (expanded) => {
             :is-done="tracker.isDone.value"
             :targets="selectedTargets"
             :shield="shieldEnabled"
+            :result="tracker.activeCommand.value?.result"
+            :started-at="tracker.activeCommand.value?.started_at"
+            :completed-at="tracker.activeCommand.value?.completed_at"
             @dismiss="tracker.dismiss()"
           />
 

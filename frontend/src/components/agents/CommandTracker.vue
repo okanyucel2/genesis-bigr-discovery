@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import {
   Clock, Radio, Scan, CheckCircle, XCircle, X,
+  Monitor, AlertTriangle, Timer,
 } from 'lucide-vue-next'
 import type { CommandStep } from '@/composables/useCommandTracker'
 
@@ -11,6 +12,9 @@ const props = defineProps<{
   isDone: boolean
   targets?: string[]
   shield?: boolean
+  result?: Record<string, unknown> | null
+  startedAt?: string | null
+  completedAt?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -36,6 +40,22 @@ const barColor = computed(() => {
   if (props.steps.some(s => s.status === 'failed')) return 'bg-rose-500'
   if (props.isDone) return 'bg-emerald-500'
   return 'bg-cyan-500'
+})
+
+const hasFailed = computed(() => props.steps.some(s => s.status === 'failed'))
+
+const duration = computed(() => {
+  if (!props.startedAt || !props.completedAt) return null
+  const ms = new Date(props.completedAt).getTime() - new Date(props.startedAt).getTime()
+  if (ms < 1000) return '<1s'
+  const s = Math.round(ms / 1000)
+  if (s < 60) return `${s}s`
+  return `${Math.floor(s / 60)}m ${s % 60}s`
+})
+
+const resultErrors = computed(() => {
+  if (!props.result?.errors) return []
+  return props.result.errors as string[]
 })
 </script>
 
@@ -76,10 +96,44 @@ const barColor = computed(() => {
     </div>
 
     <!-- Targets info -->
-    <div v-if="targets?.length" class="targets-info">
+    <div v-if="targets?.length && !isDone" class="targets-info">
       <span class="targets-label">Targets:</span>
       <span class="targets-list">{{ targets.join(', ') }}</span>
       <span v-if="shield" class="shield-badge">Shield</span>
+    </div>
+
+    <!-- Scan report summary (when done) -->
+    <div v-if="isDone && result" class="scan-report">
+      <div class="report-header">
+        <span :class="hasFailed ? 'text-rose-400' : 'text-emerald-400'" class="report-title">
+          {{ hasFailed ? 'Scan Failed' : 'Scan Complete' }}
+        </span>
+        <span v-if="duration" class="report-duration">
+          <Timer :size="11" />
+          {{ duration }}
+        </span>
+      </div>
+      <div class="report-stats">
+        <div class="stat">
+          <Monitor :size="14" class="text-cyan-400" />
+          <span class="stat-value">{{ result.assets_discovered ?? 0 }}</span>
+          <span class="stat-label">devices found</span>
+        </div>
+        <div class="stat">
+          <Scan :size="14" class="text-slate-400" />
+          <span class="stat-value">{{ result.targets_scanned ?? 0 }}</span>
+          <span class="stat-label">subnets scanned</span>
+        </div>
+      </div>
+      <div v-if="resultErrors.length" class="report-errors">
+        <div class="error-header">
+          <AlertTriangle :size="12" />
+          {{ resultErrors.length }} warning{{ resultErrors.length > 1 ? 's' : '' }}
+        </div>
+        <div v-for="(err, i) in resultErrors" :key="i" class="error-line">
+          {{ err }}
+        </div>
+      </div>
     </div>
 
     <!-- Dismiss button (when done) -->
@@ -250,6 +304,83 @@ const barColor = computed(() => {
   border-radius: 4px;
   font-size: 10px;
   font-weight: 600;
+}
+
+/* --- Scan Report --- */
+.scan-report {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(100, 116, 139, 0.15);
+}
+
+.report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.report-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.report-duration {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.6);
+}
+
+.report-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e2e8f0;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 10px;
+  color: rgba(148, 163, 184, 0.5);
+}
+
+.report-errors {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: rgba(248, 113, 113, 0.06);
+  border: 1px solid rgba(248, 113, 113, 0.15);
+  border-radius: 8px;
+}
+
+.error-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fca5a5;
+  margin-bottom: 4px;
+}
+
+.error-line {
+  font-size: 10px;
+  color: rgba(248, 113, 113, 0.7);
+  line-height: 1.4;
+  word-break: break-all;
 }
 
 /* --- Dismiss --- */
