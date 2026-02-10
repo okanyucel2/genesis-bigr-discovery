@@ -8,8 +8,14 @@ const props = defineProps<{
   class?: string
 }>()
 
+// Normalize: backend may send 0-1 or 0-100
+const normalizedScore = computed(() => {
+  const s = props.score
+  return s > 0 && s <= 1 ? Math.round(s * 10000) / 100 : Math.round(s * 100) / 100
+})
+
 const confidenceConfig = computed(() => {
-  const pct = props.score
+  const pct = normalizedScore.value
   if (pct >= 90)
     return { bg: 'bg-emerald-500/20', text: 'text-emerald-400', label: 'High' }
   if (pct >= 70)
@@ -34,6 +40,6 @@ const displayLabel = computed(() => props.level ?? confidenceConfig.value.label)
     "
   >
     <span>{{ displayLabel }}</span>
-    <span class="opacity-75">{{ score }}%</span>
+    <span class="opacity-75">{{ normalizedScore }}%</span>
   </span>
 </template>

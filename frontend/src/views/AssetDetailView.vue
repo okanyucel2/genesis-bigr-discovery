@@ -51,7 +51,7 @@ const quickStats = computed(() => {
     },
     {
       label: 'Confidence',
-      value: `${asset.value.confidence_score}%`,
+      value: `${asset.value.confidence_score > 0 && asset.value.confidence_score <= 1 ? Math.round(asset.value.confidence_score * 10000) / 100 : Math.round(asset.value.confidence_score * 100) / 100}%`,
       icon: Shield,
       color: 'text-emerald-400',
     },
