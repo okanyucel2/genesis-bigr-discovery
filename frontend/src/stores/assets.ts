@@ -18,8 +18,8 @@ export const useAssetsStore = defineStore('assets', () => {
     error.value = null
     try {
       const res = await bigrApi.getAssets(subnet)
-      assets.value = res.data.assets
-      categorySummary.value = res.data.category_summary
+      assets.value = res.data.assets ?? []
+      categorySummary.value = res.data.category_summary ?? {}
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Failed to load assets'
       error.value = message

@@ -77,10 +77,10 @@ def _scan_to_dict(
     else:
         d["duration_seconds"] = None
 
-    if include_assets and scan.scan_assets:
+    if include_assets:
         assets = []
         category_summary: dict[str, int] = {}
-        for sa in scan.scan_assets:
+        for sa in (scan.scan_assets or []):
             asset = sa.asset
             bigr_cat = sa.bigr_category or (asset.bigr_category if asset else "unclassified")
             category_summary[bigr_cat] = category_summary.get(bigr_cat, 0) + 1
