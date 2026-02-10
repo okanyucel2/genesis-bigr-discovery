@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import {
   Clock, Radio, Scan, CheckCircle, XCircle, X,
   Monitor, AlertTriangle, Timer,
@@ -57,6 +57,36 @@ const resultErrors = computed(() => {
   if (!props.result?.errors) return []
   return props.result.errors as string[]
 })
+
+// Live step message from agent progress updates
+const activeStepMessage = computed(() => {
+  if (props.isDone || !props.result?.step) return null
+  return props.result.step as string
+})
+
+// Live elapsed timer
+const elapsed = ref('')
+let elapsedTimer: ReturnType<typeof setInterval> | null = null
+
+function updateElapsed() {
+  if (!props.startedAt || props.isDone) {
+    elapsed.value = ''
+    return
+  }
+  const ms = Date.now() - new Date(props.startedAt).getTime()
+  const s = Math.floor(ms / 1000)
+  if (s < 60) elapsed.value = `${s}s`
+  else elapsed.value = `${Math.floor(s / 60)}m ${s % 60}s`
+}
+
+onMounted(() => {
+  updateElapsed()
+  elapsedTimer = setInterval(updateElapsed, 1000)
+})
+
+onUnmounted(() => {
+  if (elapsedTimer) clearInterval(elapsedTimer)
+})
 </script>
 
 <template>
@@ -95,8 +125,20 @@ const resultErrors = computed(() => {
       </template>
     </div>
 
+    <!-- Live activity (while scanning) -->
+    <div v-if="!isDone && (activeStepMessage || elapsed)" class="activity-bar">
+      <div v-if="activeStepMessage" class="activity-message">
+        <div class="activity-dot" />
+        {{ activeStepMessage }}
+      </div>
+      <span v-if="elapsed" class="activity-elapsed">
+        <Timer :size="11" />
+        {{ elapsed }}
+      </span>
+    </div>
+
     <!-- Targets info -->
-    <div v-if="targets?.length && !isDone" class="targets-info">
+    <div v-if="targets?.length && !isDone && !activeStepMessage" class="targets-info">
       <span class="targets-label">Targets:</span>
       <span class="targets-list">{{ targets.join(', ') }}</span>
       <span v-if="shield" class="shield-badge">Shield</span>
@@ -304,6 +346,50 @@ const resultErrors = computed(() => {
   border-radius: 4px;
   font-size: 10px;
   font-weight: 600;
+}
+
+/* --- Activity Bar --- */
+.activity-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: rgba(34, 211, 238, 0.04);
+  border: 1px solid rgba(34, 211, 238, 0.1);
+  border-radius: 8px;
+}
+
+.activity-message {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: #22d3ee;
+  font-weight: 500;
+}
+
+.activity-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22d3ee;
+  animation: blink 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.activity-elapsed {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.5);
+  font-variant-numeric: tabular-nums;
 }
 
 /* --- Scan Report --- */

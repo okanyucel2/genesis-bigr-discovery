@@ -354,29 +354,49 @@ class AgentDaemon:
         targets = params.get("targets", [])
         shield = params.get("shield", False)
 
-        self._update_command_status(cmd_id, "running")
+        self._update_command_status(cmd_id, "running", {"step": "Starting scan..."})
 
         try:
             scanned = 0
             errors = []
-            for target in targets:
+            for i, target in enumerate(targets):
+                step_prefix = f"[{i + 1}/{len(targets)}] " if len(targets) > 1 else ""
                 self._logger.info("Remote scan: %s (shield=%s)", target, shield)
+
+                # Discovery phase
+                self._update_command_status(
+                    cmd_id, "running",
+                    {"step": f"{step_prefix}Discovery scan: {target}"},
+                )
                 try:
                     scan_result = self._scan_target(target)
+                    asset_count = len(scan_result.get("assets", []))
+                    self._update_command_status(
+                        cmd_id, "running",
+                        {"step": f"{step_prefix}Pushing {asset_count} assets..."},
+                    )
                     self._push_discovery_results(scan_result)
-                    scanned += len(scan_result.get("assets", []))
+                    scanned += asset_count
                     self._logger.info(
-                        "Remote scan pushed %d assets for %s",
-                        len(scan_result.get("assets", [])), target,
+                        "Remote scan pushed %d assets for %s", asset_count, target,
                     )
                 except Exception as exc:
                     self._logger.error("Remote scan failed for %s: %s", target, exc)
                     errors.append(f"{target}: {exc}")
                     continue
 
+                # Shield phase
                 if shield:
+                    self._update_command_status(
+                        cmd_id, "running",
+                        {"step": f"{step_prefix}Shield security scan: {target}"},
+                    )
                     try:
                         shield_result = self._run_shield(target)
+                        self._update_command_status(
+                            cmd_id, "running",
+                            {"step": f"{step_prefix}Pushing shield results..."},
+                        )
                         self._push_shield_results(shield_result)
                         self._logger.info("Remote shield pushed for %s", target)
                     except Exception as exc:
