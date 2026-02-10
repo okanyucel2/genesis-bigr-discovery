@@ -1390,6 +1390,216 @@ def agent_status() -> None:
         pid_path.unlink(missing_ok=True)
 
 
+# ---------------------------------------------------------------------------
+# Threat Intelligence sub-app
+# ---------------------------------------------------------------------------
+
+threat_app = typer.Typer(help="Threat intelligence feed management")
+app.add_typer(threat_app, name="threat")
+
+
+@threat_app.command("sync")
+def threat_sync(
+    feed: Optional[str] = typer.Option(None, "--feed", "-f", help="Sync a specific feed (default: all)"),
+) -> None:
+    """Sync all enabled threat intelligence feeds."""
+    import asyncio
+    import hashlib
+
+    from bigr.core.database import get_session_factory
+    from bigr.core.settings import settings
+    from bigr.threat.ingestor import ThreatIngestor
+
+    hmac_key = settings.THREAT_HMAC_KEY
+    if not hmac_key:
+        hmac_key = hashlib.sha256(b"bigr-threat-default-key").hexdigest()
+
+    ingestor = ThreatIngestor(
+        session_factory=get_session_factory(),
+        hmac_key=hmac_key,
+        otx_api_key=settings.OTX_API_KEY or None,
+        expiry_days=settings.THREAT_EXPIRY_DAYS,
+    )
+
+    if feed:
+        console.print(f"[bold]Syncing feed: {feed}[/bold]")
+        with console.status(f"[bold green]Fetching {feed}..."):
+            result = asyncio.run(ingestor.sync_feed(feed))
+        console.print(f"[green]Done![/green] {result.get('indicators_fetched', 0)} indicators fetched, "
+                       f"{result.get('indicators_processed', 0)} subnets processed.")
+    else:
+        console.print("[bold]Syncing all enabled threat feeds...[/bold]")
+        with console.status("[bold green]Fetching threat intelligence..."):
+            result = asyncio.run(ingestor.sync_all_feeds())
+
+        console.print(f"\n[green]Sync complete![/green]")
+        console.print(f"  Feeds synced: [bold]{result['feeds_synced']}[/bold]")
+        console.print(f"  Total indicators: [bold]{result['total_indicators']}[/bold]")
+
+        if result.get("expired_cleaned", 0) > 0:
+            console.print(f"  Expired cleaned: [bold]{result['expired_cleaned']}[/bold]")
+
+        if result.get("errors"):
+            console.print(f"\n[yellow]Errors ({len(result['errors'])}):[/yellow]")
+            for err in result["errors"]:
+                console.print(f"  [red]-[/red] {err}")
+
+        # Show per-feed details
+        if result.get("details"):
+            table = Table(title="\nFeed Details")
+            table.add_column("Feed", style="cyan")
+            table.add_column("Fetched", justify="right")
+            table.add_column("Processed", justify="right")
+            table.add_column("Status")
+
+            for name, detail in result["details"].items():
+                if "error" in detail:
+                    table.add_row(name, "-", "-", f"[red]{detail['error'][:50]}[/red]")
+                else:
+                    table.add_row(
+                        name,
+                        str(detail.get("indicators_fetched", 0)),
+                        str(detail.get("indicators_processed", 0)),
+                        "[green]OK[/green]",
+                    )
+
+            console.print(table)
+
+
+@threat_app.command("lookup")
+def threat_lookup(
+    ip: str = typer.Argument(..., help="IP address to look up"),
+) -> None:
+    """Look up threat score for an IP address."""
+    import asyncio
+    import hashlib
+
+    from bigr.core.database import get_session_factory
+    from bigr.core.settings import settings
+    from bigr.threat.ingestor import ThreatIngestor
+
+    hmac_key = settings.THREAT_HMAC_KEY
+    if not hmac_key:
+        hmac_key = hashlib.sha256(b"bigr-threat-default-key").hexdigest()
+
+    ingestor = ThreatIngestor(
+        session_factory=get_session_factory(),
+        hmac_key=hmac_key,
+        expiry_days=settings.THREAT_EXPIRY_DAYS,
+    )
+
+    result = asyncio.run(ingestor.lookup_subnet(ip))
+
+    if result is None:
+        console.print(f"[green]Clean[/green] — No threat data for {ip}'s /24 subnet.")
+        return
+
+    score = result["threat_score"]
+    if score >= 0.7:
+        score_style = "red bold"
+        level = "HIGH"
+    elif score >= 0.4:
+        score_style = "yellow"
+        level = "MEDIUM"
+    else:
+        score_style = "dim"
+        level = "LOW"
+
+    console.print(f"\n[bold]Threat Lookup: {ip}[/bold]")
+    console.print(f"  Score: [{score_style}]{score:.4f}[/{score_style}] ({level})")
+    console.print(f"  Sources: {', '.join(result['source_feeds'])}")
+    console.print(f"  Types: {', '.join(result['indicator_types'])}")
+    console.print(f"  Reports: {result['report_count']}")
+    console.print(f"  First seen: {result['first_seen'][:19].replace('T', ' ')}")
+    console.print(f"  Last seen: {result['last_seen'][:19].replace('T', ' ')}")
+    console.print(f"  Expires: {result['expires_at'][:19].replace('T', ' ')}")
+
+
+@threat_app.command("stats")
+def threat_stats() -> None:
+    """Show threat intelligence statistics."""
+    import asyncio
+    import hashlib
+
+    from bigr.core.database import get_session_factory
+    from bigr.core.settings import settings
+    from bigr.threat.ingestor import ThreatIngestor
+
+    hmac_key = settings.THREAT_HMAC_KEY
+    if not hmac_key:
+        hmac_key = hashlib.sha256(b"bigr-threat-default-key").hexdigest()
+
+    ingestor = ThreatIngestor(
+        session_factory=get_session_factory(),
+        hmac_key=hmac_key,
+        expiry_days=settings.THREAT_EXPIRY_DAYS,
+    )
+
+    stats = asyncio.run(ingestor.get_stats())
+
+    console.print(f"\n[bold]Threat Intelligence Statistics[/bold]")
+    console.print(f"  Total indicators: [bold]{stats['total_indicators']}[/bold]")
+    console.print(f"  Active feeds: [bold]{stats['enabled_feeds']}[/bold] / {stats['total_feeds']}")
+    console.print(f"  Avg threat score: [bold]{stats['average_threat_score']:.4f}[/bold]")
+
+    dist = stats.get("score_distribution", {})
+    if dist:
+        table = Table(title="\nScore Distribution")
+        table.add_column("Level", style="bold")
+        table.add_column("Count", justify="right")
+        table.add_row("[red]High (>=0.7)[/red]", str(dist.get("high", 0)))
+        table.add_row("[yellow]Medium (0.4-0.7)[/yellow]", str(dist.get("medium", 0)))
+        table.add_row("[dim]Low (<0.4)[/dim]", str(dist.get("low", 0)))
+        console.print(table)
+
+
+@threat_app.command("feeds")
+def threat_feeds() -> None:
+    """List all registered threat feeds."""
+    import asyncio
+
+    from sqlalchemy import select
+
+    from bigr.core.database import get_session_factory
+    from bigr.threat.models import ThreatFeedDB
+
+    async def _list():
+        factory = get_session_factory()
+        async with factory() as session:
+            stmt = select(ThreatFeedDB).order_by(ThreatFeedDB.name)
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+    feeds = asyncio.run(_list())
+
+    if not feeds:
+        console.print("[yellow]No feeds registered.[/yellow] Run 'bigr threat sync' to initialize feeds.")
+        return
+
+    table = Table(title="\nThreat Intelligence Feeds")
+    table.add_column("Name", style="cyan")
+    table.add_column("Type")
+    table.add_column("Enabled")
+    table.add_column("Last Synced")
+    table.add_column("Entries", justify="right")
+
+    for f in feeds:
+        enabled_str = "[green]Yes[/green]" if f.enabled else "[red]No[/red]"
+        synced = f.last_synced_at or "-"
+        if synced != "-":
+            synced = synced[:19].replace("T", " ")
+
+        table.add_row(
+            f.name,
+            f.feed_type,
+            enabled_str,
+            synced,
+            str(f.entries_count),
+        )
+
+    console.print(table)
+
+
 @app.command()
 def version() -> None:
     """Show version information."""

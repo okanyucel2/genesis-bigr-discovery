@@ -14,10 +14,12 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bigr.agent.routes import router as agent_router
+from bigr.ai.api import router as ai_router
 from bigr.core import services
 from bigr.core.database import get_db
 from bigr.core.settings import settings
 from bigr.shield.api.routes import router as shield_router
+from bigr.threat.api import router as threat_router
 from bigr.topology import build_subnet_topology, build_topology
 
 
@@ -70,6 +72,8 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
 
     app.include_router(shield_router)
     app.include_router(agent_router)
+    app.include_router(ai_router)
+    app.include_router(threat_router)
     _data_path = Path(data_path)
 
     async def _load_data_async(db: AsyncSession) -> dict:
@@ -100,11 +104,14 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
     async def api_data(
         subnet: str | None = None,
         site: str | None = None,
+        network: str | None = None,
         db: AsyncSession = Depends(get_db),
     ):
-        # If site filter is active, use DB-level filtering
-        if site:
-            assets = await services.get_all_assets(db, site_name=site)
+        # If site or network filter is active, use DB-level filtering
+        if site or network:
+            assets = await services.get_all_assets(
+                db, site_name=site, network_id=network,
+            )
             data = {"assets": assets, "total_assets": len(assets)}
         else:
             data = await _load_data_async(db)
