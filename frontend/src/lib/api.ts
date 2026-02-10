@@ -1,6 +1,12 @@
 import axios from 'axios'
 import type { AxiosResponse } from 'axios'
 import type {
+  FirewallStatus,
+  FirewallRulesResponse,
+  FirewallRule,
+  FirewallEventsResponse,
+  FirewallConfig,
+  FirewallDailyStats,
   AssetsResponse,
   AssetDetailResponse,
   ScansResponse,
@@ -199,6 +205,49 @@ export const bigrApi = {
 
   renameNetwork: (networkId: string, friendlyName: string) =>
     client.put(`/api/networks/${networkId}`, { friendly_name: friendlyName }),
+
+  // Firewall
+  getFirewallStatus: () =>
+    client.get<FirewallStatus>('/api/firewall/status'),
+
+  getFirewallRules: (ruleType?: string, activeOnly = true) => {
+    const params: Record<string, string | boolean> = { active_only: activeOnly }
+    if (ruleType) params.rule_type = ruleType
+    return client.get<FirewallRulesResponse>('/api/firewall/rules', { params })
+  },
+
+  addFirewallRule: (rule: Partial<FirewallRule>) =>
+    client.post<{ status: string; rule: FirewallRule; message: string }>('/api/firewall/rules', rule),
+
+  removeFirewallRule: (ruleId: string) =>
+    client.delete<{ status: string; message: string; rule_id: string }>(`/api/firewall/rules/${ruleId}`),
+
+  toggleFirewallRule: (ruleId: string) =>
+    client.put<{ status: string; rule: FirewallRule; message: string }>(`/api/firewall/rules/${ruleId}/toggle`),
+
+  syncFirewallThreats: () =>
+    client.post<{ status: string; rules_created: number; message: string }>('/api/firewall/sync/threats'),
+
+  syncFirewallPorts: () =>
+    client.post<{ status: string; rules_created: number; message: string }>('/api/firewall/sync/ports'),
+
+  getFirewallEvents: (limit = 100, action?: string) => {
+    const params: Record<string, string | number> = { limit }
+    if (action) params.action = action
+    return client.get<FirewallEventsResponse>('/api/firewall/events', { params })
+  },
+
+  getFirewallConfig: () =>
+    client.get<FirewallConfig>('/api/firewall/config'),
+
+  updateFirewallConfig: (config: FirewallConfig) =>
+    client.put<{ status: string; config: FirewallConfig; message: string }>('/api/firewall/config', config),
+
+  getFirewallDailyStats: () =>
+    client.get<FirewallDailyStats>('/api/firewall/stats/daily'),
+
+  installFirewallAdapter: () =>
+    client.post<{ status: string; message: string }>('/api/firewall/adapter/install'),
 
   getAgentShieldFindings: (site?: string, severity?: string) => {
     const params: Record<string, string> = {}

@@ -20,6 +20,7 @@ import {
   Sparkles,
   Users,
   Home,
+  Flame,
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-vue-next'
@@ -49,6 +50,7 @@ const navItems: Array<{ name: string; label: string; icon: typeof LayoutDashboar
   { name: 'notifications', label: 'Bildirimler', icon: Bell, path: '/notifications' },
   { name: 'collective', label: 'Topluluk', icon: Users, path: '/collective' },
   { name: 'family', label: 'Aile', icon: Home, path: '/family' },
+  { name: 'firewall', label: 'Guvenlik Duvari', icon: Flame, path: '/firewall' },
   { name: 'remediation', label: 'Onarim', icon: Wrench, path: '/remediation' },
   { name: 'agents', label: 'Agents', icon: Radio, path: '/agents' },
   { name: 'pricing', label: 'Fiyatlandirma', icon: CreditCard, path: '/pricing', separator: true },

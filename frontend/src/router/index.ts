@@ -80,6 +80,11 @@ const router = createRouter({
       component: () => import('@/views/RemediationView.vue'),
     },
     {
+      path: '/firewall',
+      name: 'firewall',
+      component: () => import('@/views/FirewallView.vue'),
+    },
+    {
       path: '/collective',
       name: 'collective',
       component: () => import('@/views/CollectiveView.vue'),

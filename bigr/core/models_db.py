@@ -326,3 +326,39 @@ class RemediationActionDB(Base):
     executed_at: Mapped[str | None] = mapped_column(String, nullable=True)
     result: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class FirewallRuleDB(Base):
+    """Firewall rule persisted in the database."""
+
+    __tablename__ = "firewall_rules"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    rule_type: Mapped[str] = mapped_column(String, nullable=False)
+    target: Mapped[str] = mapped_column(String, nullable=False)
+    direction: Mapped[str] = mapped_column(String, nullable=False, default="both")
+    protocol: Mapped[str] = mapped_column(String, nullable=False, default="any")
+    source: Mapped[str] = mapped_column(String, nullable=False, default="user")
+    reason: Mapped[str] = mapped_column(String, nullable=False, default="")
+    reason_tr: Mapped[str] = mapped_column(String, nullable=False, default="")
+    is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    expires_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    hit_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class FirewallEventDB(Base):
+    """Logged firewall event (block or allow)."""
+
+    __tablename__ = "firewall_events"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    timestamp: Mapped[str] = mapped_column(String, nullable=False)
+    action: Mapped[str] = mapped_column(String, nullable=False)
+    rule_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    source_ip: Mapped[str] = mapped_column(String, nullable=False)
+    dest_ip: Mapped[str] = mapped_column(String, nullable=False)
+    dest_port: Mapped[int] = mapped_column(Integer, nullable=False)
+    protocol: Mapped[str] = mapped_column(String, nullable=False, default="tcp")
+    process_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    direction: Mapped[str] = mapped_column(String, nullable=False, default="outbound")

@@ -742,6 +742,75 @@ export interface UpdateDeviceRequest {
   owner_name?: string | null
 }
 
+// Firewall types
+export interface FirewallRule {
+  id: string
+  rule_type: string
+  target: string
+  direction: string
+  protocol: string
+  source: string
+  reason: string
+  reason_tr: string
+  is_active: boolean
+  created_at: string
+  expires_at: string | null
+  hit_count: number
+}
+
+export interface FirewallRulesResponse {
+  rules: FirewallRule[]
+  total: number
+}
+
+export interface FirewallEvent {
+  id: string
+  timestamp: string
+  action: string
+  rule_id: string | null
+  source_ip: string
+  dest_ip: string
+  dest_port: number
+  protocol: string
+  process_name: string | null
+  direction: string
+}
+
+export interface FirewallEventsResponse {
+  events: FirewallEvent[]
+  total: number
+}
+
+export interface FirewallStatus {
+  is_enabled: boolean
+  platform: string
+  engine: string
+  total_rules: number
+  active_rules: number
+  blocked_today: number
+  allowed_today: number
+  last_updated: string
+  protection_level: string
+}
+
+export interface FirewallConfig {
+  enabled: boolean
+  default_action: string
+  block_known_threats: boolean
+  block_high_risk_ports: boolean
+  log_allowed: boolean
+  auto_sync_threats: boolean
+  protection_level: string
+}
+
+export interface FirewallDailyStats {
+  date: string
+  blocked: number
+  allowed: number
+  total: number
+  block_rate: number
+}
+
 // GET /api/shield-findings
 export interface AgentShieldFinding {
   id: number
