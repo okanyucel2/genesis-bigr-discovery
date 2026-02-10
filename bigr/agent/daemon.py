@@ -224,8 +224,8 @@ class AgentDaemon:
         return {
             "target": result.target,
             "scan_method": result.scan_method,
-            "started_at": result.started_at,
-            "completed_at": result.completed_at,
+            "started_at": result.started_at.isoformat() if result.started_at else None,
+            "completed_at": result.completed_at.isoformat() if result.completed_at else None,
             "is_root": result.is_root,
             "assets": [a.to_dict() for a in result.assets],
         }
@@ -237,10 +237,12 @@ class AgentDaemon:
 
         orchestrator = ShieldOrchestrator()
         report = orchestrator.run(target)
+        started = getattr(report, "started_at", None)
+        completed = getattr(report, "completed_at", None)
         return {
             "target": target,
-            "started_at": report.started_at if hasattr(report, "started_at") else "",
-            "completed_at": report.completed_at if hasattr(report, "completed_at") else "",
+            "started_at": started.isoformat() if hasattr(started, "isoformat") else str(started or ""),
+            "completed_at": completed.isoformat() if hasattr(completed, "isoformat") else str(completed or ""),
             "modules_run": [m.module_name for m in report.results] if hasattr(report, "results") else [],
             "findings": [f.to_dict() for f in report.findings] if hasattr(report, "findings") else [],
         }
