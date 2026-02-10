@@ -18,6 +18,8 @@ import {
   Bell,
   Settings,
   Sparkles,
+  Users,
+  Home,
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-vue-next'
@@ -45,6 +47,8 @@ const navItems: Array<{ name: string; label: string; icon: typeof LayoutDashboar
   { name: 'shield', label: 'Shield', icon: Shield, path: '/shield', separator: true },
   { name: 'shield-findings', label: 'Findings', icon: ShieldAlert, path: '/shield-findings' },
   { name: 'notifications', label: 'Bildirimler', icon: Bell, path: '/notifications' },
+  { name: 'collective', label: 'Topluluk', icon: Users, path: '/collective' },
+  { name: 'family', label: 'Aile', icon: Home, path: '/family' },
   { name: 'remediation', label: 'Onarim', icon: Wrench, path: '/remediation' },
   { name: 'agents', label: 'Agents', icon: Radio, path: '/agents' },
   { name: 'pricing', label: 'Fiyatlandirma', icon: CreditCard, path: '/pricing', separator: true },

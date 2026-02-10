@@ -80,6 +80,16 @@ const router = createRouter({
       component: () => import('@/views/RemediationView.vue'),
     },
     {
+      path: '/collective',
+      name: 'collective',
+      component: () => import('@/views/CollectiveView.vue'),
+    },
+    {
+      path: '/family',
+      name: 'family',
+      component: () => import('@/views/FamilyView.vue'),
+    },
+    {
       path: '/agents',
       name: 'agents',
       component: () => import('@/views/AgentsView.vue'),

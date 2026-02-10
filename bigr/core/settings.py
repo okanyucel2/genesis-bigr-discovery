@@ -20,6 +20,15 @@ class Settings(BaseSettings):
     ABUSEIPDB_API_KEY: str = ""  # AbuseIPDB API key (free tier: 1000/day)
     ABUSEIPDB_DAILY_LIMIT: int = 1000  # Daily API call limit (free=1000, basic=10000)
 
+    # Family Shield settings
+    FAMILY_MAX_DEVICES: int = 5  # Max devices for Family Shield plan
+
+    # Collective Intelligence ("Waze Effect") settings
+    COLLECTIVE_ENABLED: bool = True  # Enable collective signal sharing
+    COLLECTIVE_EPSILON: float = 1.0  # Differential privacy budget (lower = more private)
+    COLLECTIVE_K_ANONYMITY: int = 3  # Min reporters before signal is shared
+    COLLECTIVE_SIGNAL_TTL_HOURS: int = 72  # Auto-expiry for collective signals
+
     model_config = {"env_prefix": "", "case_sensitive": True}
 
 

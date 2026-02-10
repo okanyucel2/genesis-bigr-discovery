@@ -15,6 +15,7 @@ from bigr.core.database import Base, get_database_url
 # Import all models so Base.metadata is populated
 import bigr.core.models_db  # noqa: F401
 import bigr.threat.models  # noqa: F401
+# collective_signals is in bigr.core.models_db (CollectiveSignalDB)
 
 config = context.config
 if config.config_file_name is not None:

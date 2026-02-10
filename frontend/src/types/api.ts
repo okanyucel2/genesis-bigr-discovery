@@ -638,6 +638,110 @@ export interface SampleNotificationsResponse {
   count: number
 }
 
+// GET /api/collective/threats
+export interface CollectiveSignalReport {
+  subnet_hash: string
+  signal_type: string
+  reporter_count: number
+  avg_severity: number
+  first_seen: string
+  last_seen: string
+  confidence: number
+  is_verified: boolean
+}
+
+export interface CollectiveThreatsResponse {
+  threats: CollectiveSignalReport[]
+  total: number
+  min_confidence: number
+}
+
+// GET /api/collective/stats
+export interface CollectiveStats {
+  total_signals: number
+  active_agents: number
+  verified_threats: number
+  subnets_monitored: number
+  community_protection_score: number
+  last_updated: string
+}
+
+// GET /api/collective/contribution
+export interface ContributionStatus {
+  signals_contributed: number
+  signals_received: number
+  is_contributing: boolean
+  opt_in: boolean
+  privacy_level: string
+}
+
+// GET /api/collective/feed
+export interface CollectiveFeedResponse {
+  signals: CollectiveSignalReport[]
+  total: number
+}
+
+// Family Shield types
+export interface FamilyDevice {
+  id: string
+  name: string
+  device_type: string
+  icon: string
+  owner_name: string | null
+  is_online: boolean
+  last_seen: string | null
+  safety_score: number
+  safety_level: string
+  open_threats: number
+  ip: string | null
+  network_name: string | null
+}
+
+export interface FamilyOverview {
+  family_name: string
+  plan_id: string
+  devices: FamilyDevice[]
+  max_devices: number
+  total_threats: number
+  avg_safety_score: number
+  safety_level: string
+  devices_online: number
+  last_scan: string | null
+}
+
+export interface FamilyAlert {
+  id: string
+  device_id: string
+  device_name: string
+  alert_type: string
+  severity: string
+  message: string
+  timestamp: string
+  is_read: boolean
+}
+
+export interface FamilyTimelineEntry {
+  id: string
+  device_id: string
+  device_name: string
+  device_icon: string
+  event_type: string
+  message: string
+  timestamp: string
+}
+
+export interface AddDeviceRequest {
+  device_name: string
+  device_type?: string
+  owner_name?: string | null
+}
+
+export interface UpdateDeviceRequest {
+  name?: string | null
+  device_type?: string | null
+  owner_name?: string | null
+}
+
 // GET /api/shield-findings
 export interface AgentShieldFinding {
   id: number

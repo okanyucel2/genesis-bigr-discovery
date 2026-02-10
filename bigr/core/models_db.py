@@ -276,6 +276,40 @@ class AgentCommandDB(Base):
     result: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON
 
 
+class FamilyDeviceDB(Base):
+    """Device registered under a Family Shield subscription."""
+
+    __tablename__ = "family_devices"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    subscription_id: Mapped[str] = mapped_column(
+        String, ForeignKey("subscriptions.id"), nullable=False
+    )
+    agent_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("agents.id"), nullable=True
+    )
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    device_type: Mapped[str] = mapped_column(String, nullable=False, default="other")
+    owner_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    added_at: Mapped[str] = mapped_column(String, nullable=False)
+    is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+
+class CollectiveSignalDB(Base):
+    """Anonymized threat signal from the collective network."""
+
+    __tablename__ = "collective_signals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    subnet_hash: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    signal_type: Mapped[str] = mapped_column(String, nullable=False)
+    severity: Mapped[float] = mapped_column(Float, nullable=False)
+    port: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    agent_hash: Mapped[str] = mapped_column(String, nullable=False)
+    reported_at: Mapped[str] = mapped_column(String, nullable=False)
+    is_noised: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+
 class RemediationActionDB(Base):
     """Tracked remediation action (executed or pending)."""
 

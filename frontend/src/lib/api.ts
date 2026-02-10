@@ -43,6 +43,16 @@ import type {
   HumanizeResponse,
   HumanizeBatchResponse,
   SampleNotificationsResponse,
+  CollectiveThreatsResponse,
+  CollectiveStats,
+  ContributionStatus,
+  CollectiveFeedResponse,
+  FamilyOverview,
+  FamilyDevice,
+  FamilyAlert,
+  FamilyTimelineEntry,
+  AddDeviceRequest,
+  UpdateDeviceRequest,
 } from '@/types/api'
 import type { ShieldScanResponse, ShieldFindingsResponse, ShieldModulesResponse } from '@/types/shield'
 import {
@@ -315,4 +325,55 @@ export const bigrApi = {
 
   getSampleNotifications: () =>
     client.get<SampleNotificationsResponse>('/api/language/sample-notifications'),
+
+  // Collective Intelligence
+  getCollectiveThreats: (minConfidence = 0.5) =>
+    client.get<CollectiveThreatsResponse>('/api/collective/threats', {
+      params: { min_confidence: minConfidence },
+    }),
+
+  getCollectiveStats: () =>
+    client.get<CollectiveStats>('/api/collective/stats'),
+
+  getContributionStatus: (agentHash = '') =>
+    client.get<ContributionStatus>('/api/collective/contribution', {
+      params: { agent_hash: agentHash },
+    }),
+
+  getCollectiveFeed: (limit = 20) =>
+    client.get<CollectiveFeedResponse>('/api/collective/feed', {
+      params: { limit },
+    }),
+
+  // Family Shield
+  getFamilyOverview: (subscriptionId: string) =>
+    client.get<FamilyOverview>('/api/family/overview', {
+      params: { subscription_id: subscriptionId },
+    }),
+
+  getFamilyDevices: (subscriptionId: string) =>
+    client.get<FamilyDevice[]>('/api/family/devices', {
+      params: { subscription_id: subscriptionId },
+    }),
+
+  addFamilyDevice: (subscriptionId: string, request: AddDeviceRequest) =>
+    client.post<FamilyDevice>('/api/family/devices', request, {
+      params: { subscription_id: subscriptionId },
+    }),
+
+  updateFamilyDevice: (deviceId: string, request: UpdateDeviceRequest) =>
+    client.put<FamilyDevice>(`/api/family/devices/${deviceId}`, request),
+
+  removeFamilyDevice: (deviceId: string) =>
+    client.delete(`/api/family/devices/${deviceId}`),
+
+  getFamilyAlerts: (subscriptionId: string, limit = 50) =>
+    client.get<FamilyAlert[]>('/api/family/alerts', {
+      params: { subscription_id: subscriptionId, limit },
+    }),
+
+  getFamilyTimeline: (subscriptionId: string, limit = 30) =>
+    client.get<FamilyTimelineEntry[]>('/api/family/timeline', {
+      params: { subscription_id: subscriptionId, limit },
+    }),
 }
