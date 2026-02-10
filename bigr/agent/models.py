@@ -50,3 +50,18 @@ class IngestShieldRequest(BaseModel):
     completed_at: str | None = None
     modules_run: list[str] = Field(default_factory=list)
     findings: list[dict] = Field(default_factory=list)
+
+
+class CreateCommandRequest(BaseModel):
+    """POST /api/agents/{agent_id}/commands — dashboard triggers a remote scan."""
+
+    command_type: str = Field(default="scan_now", max_length=64)
+    targets: list[str] = Field(default_factory=list, description="Subnet CIDRs to scan. Empty = use agent's registered subnets.")
+    shield: bool = Field(default=True, description="Run shield security modules after discovery.")
+
+
+class CommandStatusUpdate(BaseModel):
+    """PATCH /api/agents/commands/{command_id} — agent reports progress."""
+
+    status: str = Field(..., pattern="^(ack|running|completed|failed)$")
+    result: dict | None = None

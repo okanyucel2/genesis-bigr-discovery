@@ -266,16 +266,108 @@ class AgentDaemon:
         resp.raise_for_status()
 
     def _send_heartbeat(self) -> None:
-        """POST /api/agents/heartbeat."""
+        """POST /api/agents/heartbeat. If pending commands, fetch and execute."""
         try:
             resp = self._client.post(
                 f"{self._api_url}/api/agents/heartbeat",
                 json={"status": "online"},
             )
             resp.raise_for_status()
+            data = resp.json()
             self._logger.info("Heartbeat sent.")
+
+            # Check for pending remote commands
+            if data.get("pending_commands", 0) > 0:
+                self._logger.info(
+                    "%d pending command(s) — fetching...", data["pending_commands"],
+                )
+                self._execute_remote_commands()
         except Exception as exc:
             self._logger.warning("Heartbeat failed: %s", exc)
+
+    def _execute_remote_commands(self) -> None:
+        """Fetch and execute pending commands from the cloud API."""
+        try:
+            resp = self._client.get(f"{self._api_url}/api/agents/commands")
+            resp.raise_for_status()
+            commands = resp.json().get("commands", [])
+        except Exception as exc:
+            self._logger.warning("Failed to fetch commands: %s", exc)
+            return
+
+        for cmd in commands:
+            cmd_id = cmd["id"]
+            cmd_type = cmd["command_type"]
+            params = cmd.get("params", {})
+            self._logger.info("Executing command %s (%s)", cmd_id, cmd_type)
+
+            # ACK
+            self._update_command_status(cmd_id, "ack")
+
+            if cmd_type == "scan_now":
+                self._execute_scan_command(cmd_id, params)
+            else:
+                self._logger.warning("Unknown command type: %s", cmd_type)
+                self._update_command_status(cmd_id, "failed", {"error": f"Unknown command: {cmd_type}"})
+
+    def _execute_scan_command(self, cmd_id: str, params: dict) -> None:
+        """Execute a scan_now command: scan targets and push results."""
+        targets = params.get("targets", [])
+        shield = params.get("shield", False)
+
+        self._update_command_status(cmd_id, "running")
+
+        scanned = 0
+        errors = []
+        for target in targets:
+            self._logger.info("Remote scan: %s (shield=%s)", target, shield)
+            try:
+                scan_result = self._scan_target(target)
+                self._push_discovery_results(scan_result)
+                scanned += len(scan_result.get("assets", []))
+                self._logger.info(
+                    "Remote scan pushed %d assets for %s",
+                    len(scan_result.get("assets", [])), target,
+                )
+            except Exception as exc:
+                self._logger.error("Remote scan failed for %s: %s", target, exc)
+                errors.append(f"{target}: {exc}")
+                continue
+
+            if shield:
+                try:
+                    shield_result = self._run_shield(target)
+                    self._push_shield_results(shield_result)
+                    self._logger.info("Remote shield pushed for %s", target)
+                except Exception as exc:
+                    self._logger.error("Remote shield failed for %s: %s", target, exc)
+                    errors.append(f"shield({target}): {exc}")
+
+        result = {"assets_discovered": scanned, "targets_scanned": len(targets)}
+        if errors:
+            result["errors"] = errors
+            if scanned == 0:
+                self._update_command_status(cmd_id, "failed", result)
+            else:
+                self._update_command_status(cmd_id, "completed", result)
+        else:
+            self._update_command_status(cmd_id, "completed", result)
+
+    def _update_command_status(
+        self, command_id: str, cmd_status: str, result: dict | None = None,
+    ) -> None:
+        """PATCH command status back to cloud API."""
+        try:
+            body: dict = {"status": cmd_status}
+            if result is not None:
+                body["result"] = result
+            resp = self._client.patch(
+                f"{self._api_url}/api/agents/commands/{command_id}",
+                json=body,
+            )
+            resp.raise_for_status()
+        except Exception as exc:
+            self._logger.warning("Failed to update command %s: %s", command_id, exc)
 
     def _check_for_update(self) -> None:
         """Check cloud API for newer agent version and auto-update if available."""

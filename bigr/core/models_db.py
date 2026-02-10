@@ -211,3 +211,23 @@ class ShieldFindingDB(Base):
     raw_data: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON
 
     scan: Mapped[ShieldScanDB] = relationship("ShieldScanDB", back_populates="findings")
+
+
+class AgentCommandDB(Base):
+    """Remote command queued for an agent (e.g. 'scan_now')."""
+
+    __tablename__ = "agent_commands"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    agent_id: Mapped[str] = mapped_column(
+        String, ForeignKey("agents.id"), nullable=False
+    )
+    command_type: Mapped[str] = mapped_column(String, nullable=False)  # scan_now, etc.
+    params: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON
+    status: Mapped[str] = mapped_column(
+        String, nullable=False, default="pending"
+    )  # pending/ack/running/completed/failed
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    started_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    result: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON

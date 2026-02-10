@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
-import { Radio, Wifi, MapPin, Clock, RefreshCw } from 'lucide-vue-next'
+import { ref, onMounted, computed } from 'vue'
+import { Radio, Wifi, MapPin, Clock, RefreshCw, Play } from 'lucide-vue-next'
 import { useAgents } from '@/composables/useAgents'
+import AgentDetailModal from '@/components/agents/AgentDetailModal.vue'
+import type { Agent } from '@/types/api'
+import { bigrApi } from '@/lib/api'
 
 const { agents, loading, error, fetchAgents } = useAgents()
+
+const selectedAgent = ref<Agent | null>(null)
+const quickScanning = ref<string | null>(null) // agent id being quick-scanned
 
 const onlineCount = computed(() => agents.value.filter(a => a.status === 'online').length)
 const totalCount = computed(() => agents.value.length)
@@ -33,6 +39,24 @@ function timeAgo(iso: string | null): string {
   const hours = Math.floor(mins / 60)
   if (hours < 24) return `${hours}h ago`
   return `${Math.floor(hours / 24)}d ago`
+}
+
+async function quickScan(agent: Agent, event: Event) {
+  event.stopPropagation()
+  if (quickScanning.value) return
+  if (!agent.subnets.length) {
+    // No subnets — open modal instead
+    selectedAgent.value = agent
+    return
+  }
+  quickScanning.value = agent.id
+  try {
+    await bigrApi.createAgentCommand(agent.id)
+  } catch {
+    // Silently fail quick scan — user can use modal for details
+  } finally {
+    quickScanning.value = null
+  }
 }
 
 onMounted(fetchAgents)
@@ -77,7 +101,8 @@ onMounted(fetchAgents)
       <div
         v-for="agent in agents"
         :key="agent.id"
-        class="glass-card rounded-xl p-5 transition-colors hover:border-cyan-500/30"
+        class="glass-card cursor-pointer rounded-xl p-5 transition-all hover:border-cyan-500/30 hover:shadow-lg hover:shadow-cyan-500/5"
+        @click="selectedAgent = agent"
       >
         <div class="flex items-start justify-between">
           <div class="flex items-center gap-3">
@@ -109,11 +134,36 @@ onMounted(fetchAgents)
             <span>{{ agent.subnets.join(', ') }}</span>
           </div>
 
-          <div v-if="agent.version" class="text-xs text-slate-500">
-            v{{ agent.version }}
+          <div class="flex items-center justify-between">
+            <div v-if="agent.version" class="text-xs text-slate-500">
+              v{{ agent.version }}
+            </div>
+            <button
+              v-if="agent.status === 'online'"
+              :disabled="quickScanning === agent.id"
+              :class="[
+                'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
+                quickScanning === agent.id
+                  ? 'bg-cyan-500/20 text-cyan-300'
+                  : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 hover:text-cyan-300',
+              ]"
+              @click="quickScan(agent, $event)"
+            >
+              <Play v-if="quickScanning !== agent.id" class="h-3 w-3" />
+              <div v-else class="h-3 w-3 animate-spin rounded-full border border-cyan-400 border-t-transparent" />
+              {{ quickScanning === agent.id ? 'Queued' : 'Scan Now' }}
+            </button>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Agent detail modal -->
+    <AgentDetailModal
+      v-if="selectedAgent"
+      :agent="selectedAgent"
+      @close="selectedAgent = null"
+      @scan-triggered="fetchAgents"
+    />
   </div>
 </template>

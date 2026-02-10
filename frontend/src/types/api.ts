@@ -323,6 +323,35 @@ export interface SitesResponse {
   sites: SiteSummary[]
 }
 
+// Agent commands
+export interface AgentCommand {
+  id: string
+  command_type: string
+  params: {
+    targets: string[]
+    shield: boolean
+  }
+  status: string // 'pending' | 'ack' | 'running' | 'completed' | 'failed'
+  created_at: string
+  started_at: string | null
+  completed_at: string | null
+  result: Record<string, unknown> | null
+}
+
+export interface AgentCommandsResponse {
+  commands: AgentCommand[]
+  count: number
+}
+
+export interface CreateCommandResponse {
+  status: string
+  command_id: string
+  agent_id: string
+  command_type: string
+  targets: string[]
+  shield: boolean
+}
+
 // GET /api/shield-findings
 export interface AgentShieldFinding {
   id: number

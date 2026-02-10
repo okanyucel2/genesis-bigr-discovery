@@ -15,6 +15,8 @@ import type {
   CertificatesResponse,
   HealthResponse,
   AgentsResponse,
+  AgentCommandsResponse,
+  CreateCommandResponse,
   SitesResponse,
   ShieldFindingsListResponse,
 } from '@/types/api'
@@ -143,6 +145,19 @@ export const bigrApi = {
 
   getSites: () =>
     client.get<SitesResponse>('/api/sites'),
+
+  createAgentCommand: (agentId: string, targets?: string[], shield?: boolean) =>
+    client.post<CreateCommandResponse>(`/api/agents/${agentId}/commands`, {
+      command_type: 'scan_now',
+      targets: targets || [],
+      shield: shield ?? true,
+    }),
+
+  getAgentCommands: (agentId: string, status?: string) => {
+    const params: Record<string, string> = {}
+    if (status) params.status = status
+    return client.get<AgentCommandsResponse>(`/api/agents/${agentId}/commands`, { params })
+  },
 
   getAgentShieldFindings: (site?: string, severity?: string) => {
     const params: Record<string, string> = {}
