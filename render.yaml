@@ -20,7 +20,7 @@ services:
     name: bigr-discovery
     runtime: static
     region: frankfurt
-    buildCommand: "cd frontend && npm ci && npm run build"
+    buildCommand: "cd frontend && bash render-build.sh"
     staticPublishPath: frontend/dist
     headers:
       - path: /*
