@@ -246,19 +246,18 @@ class AgentDaemon:
     @staticmethod
     def _run_shield(target: str) -> dict:
         """Run shield security modules on a target."""
+        import asyncio
+
+        from bigr.shield.models import ScanDepth
         from bigr.shield.orchestrator import ShieldOrchestrator
 
-        orchestrator = ShieldOrchestrator()
-        report = orchestrator.run(target)
-        started = getattr(report, "started_at", None)
-        completed = getattr(report, "completed_at", None)
-        return {
-            "target": target,
-            "started_at": started.isoformat() if hasattr(started, "isoformat") else str(started or ""),
-            "completed_at": completed.isoformat() if hasattr(completed, "isoformat") else str(completed or ""),
-            "modules_run": [m.module_name for m in report.results] if hasattr(report, "results") else [],
-            "findings": [f.to_dict() for f in report.findings] if hasattr(report, "findings") else [],
-        }
+        async def _execute() -> dict:
+            orchestrator = ShieldOrchestrator()
+            scan = await orchestrator.create_scan(target, depth=ScanDepth.STANDARD)
+            result = await orchestrator.run_scan(scan.id)
+            return result.to_dict()
+
+        return asyncio.run(_execute())
 
     # ------------------------------------------------------------------
     # Push to cloud
