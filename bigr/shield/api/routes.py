@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 
 from bigr.shield.models import ScanDepth
 from bigr.shield.orchestrator import ShieldOrchestrator
@@ -11,16 +14,16 @@ router = APIRouter(prefix="/api/shield", tags=["shield"])
 orchestrator = ShieldOrchestrator()
 
 
-@router.post("/scan")
+@router.post("/scan", status_code=202)
 async def start_scan(
     target: str,
     depth: str = "quick",
     modules: list[str] | None = None,
-) -> dict:
-    """Start a new Shield scan.
+) -> JSONResponse:
+    """Start a new Shield scan (async).
 
-    The scan is created and queued. Use GET /api/shield/scan/{scan_id} to
-    poll for results, or use POST /api/shield/quick for inline results.
+    Returns immediately with scan ID. Use GET /api/shield/scan/{scan_id}
+    to poll for status and results.
     """
     try:
         scan_depth = ScanDepth(depth)
@@ -34,14 +37,10 @@ async def start_scan(
         target=target, depth=scan_depth, modules=modules
     )
 
-    # Run the scan immediately (non-blocking in production, inline here)
-    try:
-        await orchestrator.run_scan(scan.id)
-    except Exception as exc:
-        # Scan failed but we still return the scan object with FAILED status
-        pass
+    # Run scan in background — return immediately so frontend can poll
+    asyncio.create_task(orchestrator.run_scan(scan.id))
 
-    return scan.to_dict()
+    return JSONResponse(status_code=202, content=scan.to_dict())
 
 
 @router.get("/scan/{scan_id}")
