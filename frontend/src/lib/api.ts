@@ -18,7 +18,12 @@ import type {
   AgentCommandsResponse,
   CreateCommandResponse,
   SitesResponse,
+  NetworksResponse,
   ShieldFindingsListResponse,
+  OnboardingStartResponse,
+  OnboardingStatusResponse,
+  OnboardingNameResponse,
+  OnboardingCompleteResponse,
 } from '@/types/api'
 import type { ShieldScanResponse, ShieldFindingsResponse, ShieldModulesResponse } from '@/types/shield'
 import {
@@ -65,11 +70,12 @@ function mockResponse<T>(data: T): Promise<AxiosResponse<T>> {
 }
 
 export const bigrApi = {
-  getAssets: (subnet?: string, site?: string) => {
+  getAssets: (subnet?: string, site?: string, network?: string) => {
     if (DEMO_MODE) return mockResponse(mockAssets(subnet))
     const params: Record<string, string> = {}
     if (subnet) params.subnet = subnet
     if (site) params.site = site
+    if (network) params.network = network
     return client.get<AssetsResponse>('/api/data', { params })
   },
 
@@ -159,6 +165,12 @@ export const bigrApi = {
     return client.get<AgentCommandsResponse>(`/api/agents/${agentId}/commands`, { params })
   },
 
+  getNetworks: () =>
+    client.get<NetworksResponse>('/api/networks'),
+
+  renameNetwork: (networkId: string, friendlyName: string) =>
+    client.put(`/api/networks/${networkId}`, { friendly_name: friendlyName }),
+
   getAgentShieldFindings: (site?: string, severity?: string) => {
     const params: Record<string, string> = {}
     if (site) params.site = site
@@ -186,4 +198,24 @@ export const bigrApi = {
     DEMO_MODE
       ? mockResponse<ShieldModulesResponse>(mockShieldModules())
       : client.get<ShieldModulesResponse>('/api/shield/modules'),
+
+  // Onboarding
+  startOnboarding: () =>
+    client.post<OnboardingStartResponse>('/api/onboarding/start'),
+
+  getOnboardingStatus: () =>
+    client.get<OnboardingStatusResponse>('/api/onboarding/status'),
+
+  nameNetwork: (networkId: string, name: string, type: string) =>
+    client.post<OnboardingNameResponse>('/api/onboarding/name-network', {
+      network_id: networkId,
+      name,
+      type,
+    }),
+
+  completeOnboarding: () =>
+    client.post<OnboardingCompleteResponse>('/api/onboarding/complete'),
+
+  resetOnboarding: () =>
+    client.post('/api/onboarding/reset'),
 }

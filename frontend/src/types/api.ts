@@ -323,6 +323,24 @@ export interface SitesResponse {
   sites: SiteSummary[]
 }
 
+// GET /api/networks
+export interface NetworkSummary {
+  id: string
+  fingerprint_hash: string
+  gateway_mac: string | null
+  gateway_ip: string | null
+  ssid: string | null
+  friendly_name: string | null
+  agent_id: string | null
+  first_seen: string
+  last_seen: string
+  asset_count: number
+}
+
+export interface NetworksResponse {
+  networks: NetworkSummary[]
+}
+
 // Agent commands
 export interface AgentCommand {
   id: string
@@ -350,6 +368,57 @@ export interface CreateCommandResponse {
   command_type: string
   targets: string[]
   shield: boolean
+}
+
+// POST /api/onboarding/start
+export interface OnboardingStartResponse {
+  status: string
+  network_id: string | null
+  ssid: string | null
+  gateway_ip: string | null
+  gateway_mac: string | null
+  safety_score: number
+  risk_factors: string[]
+  safety_message: string
+  safety_detail: string
+  known_network: boolean
+  open_ports: number[]
+  device_count: number
+}
+
+// GET /api/onboarding/status
+export interface OnboardingStatusResponse {
+  step: string
+  completed_steps: string[]
+  network_info: OnboardingStartResponse | null
+  network_name: string | null
+  network_type: string | null
+  safety_score: number | null
+  is_complete: boolean
+}
+
+// POST /api/onboarding/name-network
+export interface OnboardingNameResponse {
+  status: string
+  network_id: string
+  name: string
+  type: string
+  updated: boolean
+  message: string
+}
+
+// POST /api/onboarding/complete
+export interface OnboardingCompleteResponse {
+  status: string
+  message: string
+  motto: string
+  network?: {
+    ssid: string | null
+    name: string | null
+    type: string | null
+    safety_score: number
+    risk_count: number
+  }
 }
 
 // GET /api/shield-findings

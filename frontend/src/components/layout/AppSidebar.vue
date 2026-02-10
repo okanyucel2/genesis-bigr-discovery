@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   Radio,
   Settings,
+  Sparkles,
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-vue-next'
@@ -29,6 +30,7 @@ defineEmits<{
 const route = useRoute()
 
 const navItems: Array<{ name: string; label: string; icon: typeof LayoutDashboard; path: string; separator?: boolean }> = [
+  { name: 'onboarding', label: 'Hosgeldin', icon: Sparkles, path: '/onboarding' },
   { name: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/' },
   { name: 'assets', label: 'Assets', icon: Server, path: '/assets' },
   { name: 'topology', label: 'Topology', icon: Network, path: '/topology' },

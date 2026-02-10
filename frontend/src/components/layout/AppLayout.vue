@@ -1,13 +1,21 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
 
+const route = useRoute()
 const sidebarCollapsed = ref(false)
+
+const hideLayout = computed(() => route.meta.hideLayout === true)
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden bg-[var(--bg-space-deep)]">
+  <!-- Full-screen mode (onboarding etc.) -->
+  <RouterView v-if="hideLayout" />
+
+  <!-- Normal layout with sidebar + header -->
+  <div v-else class="flex h-screen overflow-hidden bg-[var(--bg-space-deep)]">
     <AppSidebar :collapsed="sidebarCollapsed" @toggle="sidebarCollapsed = !sidebarCollapsed" />
     <div class="flex flex-1 flex-col overflow-hidden">
       <AppHeader />

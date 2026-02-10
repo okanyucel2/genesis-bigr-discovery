@@ -9,6 +9,12 @@ const router = createRouter({
       component: () => import('@/views/DashboardView.vue'),
     },
     {
+      path: '/onboarding',
+      name: 'onboarding',
+      component: () => import('@/views/OnboardingView.vue'),
+      meta: { hideLayout: true },
+    },
+    {
       path: '/assets',
       name: 'assets',
       component: () => import('@/views/AssetsView.vue'),
