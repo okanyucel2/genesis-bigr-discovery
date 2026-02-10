@@ -172,6 +172,18 @@ class AgentDaemon:
 
     def _run_single_cycle(self) -> None:
         """Execute one scan cycle: drain queue, scan each target, push results."""
+        # Detect current network fingerprint (may return None)
+        from bigr.agent.network_fingerprint import detect_network_fingerprint
+
+        fingerprint = detect_network_fingerprint()
+        if fingerprint:
+            self._logger.info(
+                "Network: %s (SSID=%s, GW=%s)",
+                fingerprint.fingerprint_hash[:12],
+                fingerprint.ssid or "wired",
+                fingerprint.gateway_ip,
+            )
+
         # Drain any queued items from previous failures
         if self._queue.count() > 0:
             self._logger.info("Draining %d queued items...", self._queue.count())
@@ -185,6 +197,10 @@ class AgentDaemon:
             except Exception as exc:
                 self._logger.error("Scan failed for %s: %s", target, exc)
                 continue
+
+            # Inject network fingerprint before pushing
+            if fingerprint:
+                scan_result["network_fingerprint"] = fingerprint.to_dict()
 
             try:
                 self._push_discovery_results(scan_result)

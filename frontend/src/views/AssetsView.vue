@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
 import { useAssetsStore } from '@/stores/assets'
+import { useUiStore } from '@/stores/ui'
 import AssetFilters from '@/components/assets/AssetFilters.vue'
 import AssetTable from '@/components/assets/AssetTable.vue'
 import LoadingState from '@/components/shared/LoadingState.vue'
 
 const store = useAssetsStore()
+const ui = useUiStore()
+
+watch(() => ui.selectedNetwork, () => {
+  store.fetchAssets(undefined, undefined, ui.selectedNetwork ?? undefined)
+})
 
 onMounted(() => {
   if (store.assets.length === 0) {
-    store.fetchAssets()
+    store.fetchAssets(undefined, undefined, ui.selectedNetwork ?? undefined)
   }
 })
 </script>

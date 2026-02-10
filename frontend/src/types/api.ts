@@ -421,6 +421,139 @@ export interface OnboardingCompleteResponse {
   }
 }
 
+// GET /api/subscription/plans
+export interface PlanInfo {
+  id: string
+  name: string
+  name_tr: string
+  price_usd: number
+  max_devices: number
+  ai_tiers: string[]
+  features: string[]
+  features_tr: string[]
+}
+
+export interface PlansResponse {
+  plans: PlanInfo[]
+  total: number
+}
+
+// GET /api/subscription/current
+export interface SubscriptionInfo {
+  device_id: string
+  plan_id: string
+  plan: PlanInfo
+  is_active: boolean
+  activated_at: string
+  expires_at: string | null
+}
+
+// POST /api/subscription/activate
+export interface ActivatePlanResponse {
+  status: string
+  message: string
+  subscription: SubscriptionInfo
+}
+
+// GET /api/subscription/usage
+export interface UsageInfo {
+  device_id: string
+  plan_id: string
+  ai_queries_l0: number
+  ai_queries_l1: number
+  ai_queries_l2: number
+  devices_active: number
+  devices_max: number
+  period_start: string
+  period_end: string
+}
+
+// GET /api/subscription/tier-access
+export interface TierAccessInfo {
+  plan_id: string
+  allowed_tiers: string[]
+  max_tier: string
+  can_use_l1: boolean
+  can_use_l2: boolean
+}
+
+// GET /api/remediation/plan
+export interface RemediationAction {
+  id: string
+  title: string
+  title_tr: string
+  description: string
+  description_tr: string
+  severity: string
+  action_type: string
+  target_ip: string | null
+  target_port: number | null
+  auto_fixable: boolean
+  estimated_impact: string
+}
+
+export interface RemediationPlan {
+  asset_ip: string | null
+  total_actions: number
+  critical_count: number
+  auto_fixable_count: number
+  actions: RemediationAction[]
+  generated_at: string
+  ai_tier_used: string
+}
+
+export interface RemediationHistoryEntry {
+  id: string
+  asset_ip: string
+  action_type: string
+  title: string
+  severity: string
+  status: string
+  executed_at: string | null
+  result: string | null
+  created_at: string
+}
+
+export interface RemediationHistoryResponse {
+  history: RemediationHistoryEntry[]
+  total: number
+}
+
+export interface RemediationExecuteResponse {
+  status: string
+  message: string
+  action_id: string
+  command_id?: string
+  agent_id?: string
+}
+
+// GET /api/deadman/status
+export interface DeadManSwitchConfig {
+  enabled: boolean
+  timeout_minutes: number
+  alert_email: string | null
+  alert_webhook: string | null
+}
+
+export interface DeadManStatus {
+  agent_id: string
+  agent_name: string
+  last_heartbeat: string | null
+  minutes_since_heartbeat: number | null
+  is_alive: boolean
+  alert_triggered: boolean
+  config: DeadManSwitchConfig
+}
+
+export interface DeadManStatusResponse {
+  statuses: DeadManStatus[]
+  total_agents: number
+  alive_count: number
+  alert_count: number
+  config: DeadManSwitchConfig
+  summary_tr: string
+}
+
 // GET /api/shield-findings
 export interface AgentShieldFinding {
   id: number

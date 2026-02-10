@@ -31,6 +31,15 @@ class AgentHeartbeatRequest(BaseModel):
     subnets: list[str] | None = None
 
 
+class NetworkFingerprintPayload(BaseModel):
+    """Network fingerprint sent by agent alongside scan results."""
+
+    fingerprint_hash: str = Field(..., min_length=1, max_length=128)
+    gateway_ip: str | None = None
+    gateway_mac: str | None = None
+    ssid: str | None = None
+
+
 class IngestDiscoveryRequest(BaseModel):
     """POST /api/ingest/discovery body — mirrors save_scan_async dict shape."""
 
@@ -40,6 +49,7 @@ class IngestDiscoveryRequest(BaseModel):
     completed_at: str | None = None
     is_root: bool = False
     assets: list[dict] = Field(default_factory=list)
+    network_fingerprint: NetworkFingerprintPayload | None = None
 
 
 class IngestShieldRequest(BaseModel):
@@ -65,3 +75,9 @@ class CommandStatusUpdate(BaseModel):
 
     status: str = Field(..., pattern="^(ack|running|completed|failed)$")
     result: dict | None = None
+
+
+class UpdateNetworkRequest(BaseModel):
+    """PUT /api/networks/{id} — rename a network."""
+
+    friendly_name: str = Field(..., min_length=1, max_length=256)

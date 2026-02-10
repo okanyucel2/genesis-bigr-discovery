@@ -24,6 +24,17 @@ import type {
   OnboardingStatusResponse,
   OnboardingNameResponse,
   OnboardingCompleteResponse,
+  PlansResponse,
+  SubscriptionInfo,
+  ActivatePlanResponse,
+  UsageInfo,
+  TierAccessInfo,
+  RemediationPlan,
+  RemediationHistoryResponse,
+  RemediationExecuteResponse,
+  DeadManStatusResponse,
+  DeadManStatus,
+  DeadManSwitchConfig,
 } from '@/types/api'
 import type { ShieldScanResponse, ShieldFindingsResponse, ShieldModulesResponse } from '@/types/shield'
 import {
@@ -218,4 +229,57 @@ export const bigrApi = {
 
   resetOnboarding: () =>
     client.post('/api/onboarding/reset'),
+
+  // Subscription & Pricing
+  getPlans: () =>
+    client.get<PlansResponse>('/api/subscription/plans'),
+
+  getCurrentSubscription: (deviceId?: string) => {
+    const params: Record<string, string> = {}
+    if (deviceId) params.device_id = deviceId
+    return client.get<SubscriptionInfo>('/api/subscription/current', { params })
+  },
+
+  activatePlan: (planId: string, deviceId?: string) =>
+    client.post<ActivatePlanResponse>('/api/subscription/activate', {
+      plan_id: planId,
+      device_id: deviceId || undefined,
+    }),
+
+  getUsage: (deviceId?: string) => {
+    const params: Record<string, string> = {}
+    if (deviceId) params.device_id = deviceId
+    return client.get<UsageInfo>('/api/subscription/usage', { params })
+  },
+
+  getTierAccess: (deviceId?: string) => {
+    const params: Record<string, string> = {}
+    if (deviceId) params.device_id = deviceId
+    return client.get<TierAccessInfo>('/api/subscription/tier-access', { params })
+  },
+
+  // Remediation
+  getRemediationPlan: (ip?: string) =>
+    ip
+      ? client.get<RemediationPlan>(`/api/remediation/plan/${ip}`)
+      : client.get<RemediationPlan>('/api/remediation/plan'),
+
+  executeRemediation: (actionId: string) =>
+    client.post<RemediationExecuteResponse>(`/api/remediation/execute/${actionId}`),
+
+  getRemediationHistory: () =>
+    client.get<RemediationHistoryResponse>('/api/remediation/history'),
+
+  // Dead Man Switch
+  getDeadManStatus: () =>
+    client.get<DeadManStatusResponse>('/api/deadman/status'),
+
+  getDeadManAgentStatus: (agentId: string) =>
+    client.get<DeadManStatus>(`/api/deadman/status/${agentId}`),
+
+  updateDeadManConfig: (config: DeadManSwitchConfig) =>
+    client.put('/api/deadman/config', config),
+
+  forceDeadManCheck: () =>
+    client.post('/api/deadman/check'),
 }

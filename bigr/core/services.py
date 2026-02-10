@@ -19,6 +19,7 @@ from bigr.core.models_db import (
     AssetChangeDB,
     AssetDB,
     CertificateDB,
+    NetworkDB,
     ScanAssetDB,
     ScanDB,
     SubnetDB,
@@ -140,15 +141,21 @@ async def get_latest_scan(
 
 
 async def get_all_assets(
-    session: AsyncSession, *, site_name: str | None = None
+    session: AsyncSession,
+    *,
+    site_name: str | None = None,
+    network_id: str | None = None,
 ) -> list[dict]:
     """Return all known assets from the living inventory.
 
     If *site_name* is provided, only assets from that site are returned.
+    If *network_id* is provided, only assets from that network are returned.
     """
     stmt = select(AssetDB).order_by(desc(AssetDB.last_seen))
     if site_name:
         stmt = stmt.where(AssetDB.site_name == site_name)
+    if network_id:
+        stmt = stmt.where(AssetDB.network_id == network_id)
     result = await session.execute(stmt)
     return [
         {
@@ -171,6 +178,7 @@ async def get_all_assets(
             "switch_port_index": a.switch_port_index,
             "agent_id": a.agent_id,
             "site_name": a.site_name,
+            "network_id": a.network_id,
         }
         for a in result.scalars().all()
     ]
@@ -427,17 +435,20 @@ async def save_scan_async(
         is_root=int(scan_result.get("is_root", False)),
         agent_id=scan_result.get("agent_id"),
         site_name=scan_result.get("site_name"),
+        network_id=scan_result.get("network_id"),
     )
     session.add(scan)
     await session.flush()
 
     _agent_id = scan_result.get("agent_id")
     _site_name = scan_result.get("site_name")
+    _network_id = scan_result.get("network_id")
 
     for asset_data in scan_result.get("assets", []):
         asset_id = await _upsert_asset_async(
             session, asset_data, scan_id, now_iso,
             agent_id=_agent_id, site_name=_site_name,
+            network_id=_network_id,
         )
 
         sa = ScanAssetDB(
@@ -462,6 +473,7 @@ async def _upsert_asset_async(
     *,
     agent_id: str | None = None,
     site_name: str | None = None,
+    network_id: str | None = None,
 ) -> str:
     """Insert or update an asset. Detects and logs changes. Returns asset_id."""
     ip = asset_data["ip"]
@@ -492,6 +504,7 @@ async def _upsert_asset_async(
             last_seen=asset_data.get("last_seen", now_iso),
             agent_id=agent_id,
             site_name=site_name,
+            network_id=network_id,
         )
         session.add(new_asset)
         await session.flush()
@@ -539,6 +552,8 @@ async def _upsert_asset_async(
     existing.confidence_score = asset_data.get("confidence_score", 0.0)
     existing.scan_method = asset_data.get("scan_method", "passive")
     existing.last_seen = asset_data.get("last_seen", now_iso)
+    if network_id:
+        existing.network_id = network_id
 
     return asset_id
 
@@ -638,3 +653,108 @@ async def save_certificate_async(
         ))
 
     await session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Network operations
+# ---------------------------------------------------------------------------
+
+async def resolve_network(
+    session: AsyncSession,
+    fingerprint: dict,
+    agent_id: str | None = None,
+) -> str:
+    """Resolve a network fingerprint to a network_id (upsert).
+
+    If the fingerprint_hash already exists, update last_seen and return id.
+    If new, auto-generate a friendly name and insert. Returns network id.
+    """
+    fp_hash = fingerprint["fingerprint_hash"]
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    stmt = select(NetworkDB).where(NetworkDB.fingerprint_hash == fp_hash)
+    existing = (await session.execute(stmt)).scalar_one_or_none()
+
+    if existing:
+        existing.last_seen = now_iso
+        if agent_id:
+            existing.agent_id = agent_id
+        # Update gateway info if provided (may change on DHCP renewal)
+        if fingerprint.get("gateway_ip"):
+            existing.gateway_ip = fingerprint["gateway_ip"]
+        if fingerprint.get("gateway_mac"):
+            existing.gateway_mac = fingerprint["gateway_mac"]
+        if fingerprint.get("ssid"):
+            existing.ssid = fingerprint["ssid"]
+        return existing.id
+
+    # New network — auto-generate friendly name
+    ssid = fingerprint.get("ssid")
+    gw_ip = fingerprint.get("gateway_ip")
+    if ssid and gw_ip:
+        friendly_name = f"{ssid} ({gw_ip})"
+    elif ssid:
+        friendly_name = ssid
+    elif gw_ip:
+        friendly_name = f"({gw_ip})"
+    else:
+        friendly_name = f"Network {fp_hash[:8]}"
+
+    network_id = str(uuid.uuid4())
+    network = NetworkDB(
+        id=network_id,
+        fingerprint_hash=fp_hash,
+        gateway_mac=fingerprint.get("gateway_mac"),
+        gateway_ip=gw_ip,
+        ssid=ssid,
+        friendly_name=friendly_name,
+        agent_id=agent_id,
+        first_seen=now_iso,
+        last_seen=now_iso,
+        asset_count=0,
+    )
+    session.add(network)
+    await session.flush()
+    return network_id
+
+
+async def get_networks_summary(session: AsyncSession) -> list[dict]:
+    """Return all known networks with asset counts."""
+    stmt = select(NetworkDB).order_by(desc(NetworkDB.last_seen))
+    result = await session.execute(stmt)
+    networks = []
+    for n in result.scalars().all():
+        # Count assets linked to this network
+        count_stmt = select(func.count(AssetDB.id)).where(
+            AssetDB.network_id == n.id
+        )
+        asset_count = (await session.execute(count_stmt)).scalar() or 0
+
+        networks.append({
+            "id": n.id,
+            "fingerprint_hash": n.fingerprint_hash,
+            "gateway_mac": n.gateway_mac,
+            "gateway_ip": n.gateway_ip,
+            "ssid": n.ssid,
+            "friendly_name": n.friendly_name,
+            "agent_id": n.agent_id,
+            "first_seen": n.first_seen,
+            "last_seen": n.last_seen,
+            "asset_count": asset_count,
+        })
+    return networks
+
+
+async def update_network_name(
+    session: AsyncSession, network_id: str, friendly_name: str
+) -> dict | None:
+    """Rename a network. Returns updated network dict or None if not found."""
+    network = await session.get(NetworkDB, network_id)
+    if not network:
+        return None
+    network.friendly_name = friendly_name
+    await session.commit()
+    return {
+        "id": network.id,
+        "friendly_name": network.friendly_name,
+    }

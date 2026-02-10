@@ -18,6 +18,7 @@ import CategoryCard from '@/components/dashboard/CategoryCard.vue'
 import CategoryPieChart from '@/components/charts/CategoryPieChart.vue'
 import RecentChanges from '@/components/dashboard/RecentChanges.vue'
 import SiteFilter from '@/components/dashboard/SiteFilter.vue'
+import NetworkFilter from '@/components/dashboard/NetworkFilter.vue'
 import { useUiStore } from '@/stores/ui'
 
 const ui = useUiStore()
@@ -58,8 +59,9 @@ async function loadDashboard() {
   error.value = null
   try {
     const site = ui.selectedSite ?? undefined
+    const network = ui.selectedNetwork ?? undefined
     const [assetsRes, changesRes, complianceRes] = await Promise.all([
-      bigrApi.getAssets(undefined, site),
+      bigrApi.getAssets(undefined, site, network),
       bigrApi.getChanges(50, site),
       bigrApi.getCompliance(),
     ])
@@ -75,6 +77,7 @@ async function loadDashboard() {
 }
 
 watch(() => ui.selectedSite, () => loadDashboard())
+watch(() => ui.selectedNetwork, () => loadDashboard())
 
 onMounted(() => {
   loadDashboard()
@@ -93,6 +96,7 @@ onMounted(() => {
       </div>
       <div class="flex items-center gap-3">
         <SiteFilter />
+        <NetworkFilter />
         <button
           class="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-200"
           :disabled="loading"

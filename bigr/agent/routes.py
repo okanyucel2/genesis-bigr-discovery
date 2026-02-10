@@ -20,6 +20,7 @@ from bigr.agent.models import (
     CreateCommandRequest,
     IngestDiscoveryRequest,
     IngestShieldRequest,
+    UpdateNetworkRequest,
 )
 from bigr.core import services
 from bigr.core.database import get_db
@@ -185,6 +186,16 @@ async def ingest_discovery(
     Delegates to ``save_scan_async`` with agent_id and site_name injected.
     """
     _check_rate_limit(agent)
+
+    # Resolve network fingerprint if provided
+    network_id = None
+    if body.network_fingerprint:
+        network_id = await services.resolve_network(
+            db,
+            body.network_fingerprint.model_dump(),
+            agent_id=agent.id,
+        )
+
     scan_dict = {
         "target": body.target,
         "scan_method": body.scan_method,
@@ -194,6 +205,7 @@ async def ingest_discovery(
         "assets": body.assets,
         "agent_id": agent.id,
         "site_name": agent.site_name,
+        "network_id": network_id,
     }
     scan_id = await services.save_scan_async(db, scan_dict)
 
@@ -512,3 +524,28 @@ async def list_agent_commands(
         })
 
     return {"commands": commands, "count": len(commands)}
+
+
+# ------------------------------------------------------------------
+# Network management
+# ------------------------------------------------------------------
+
+
+@router.get("/api/networks")
+async def list_networks(db: AsyncSession = Depends(get_db)) -> dict:
+    """List all known networks with asset counts."""
+    networks = await services.get_networks_summary(db)
+    return {"networks": networks}
+
+
+@router.put("/api/networks/{network_id}")
+async def rename_network(
+    network_id: str,
+    body: UpdateNetworkRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Rename a network's friendly name."""
+    result = await services.update_network_name(db, network_id, body.friendly_name)
+    if not result:
+        raise HTTPException(status_code=404, detail="Network not found.")
+    return {"status": "ok", **result}

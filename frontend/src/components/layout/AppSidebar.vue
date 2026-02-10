@@ -13,6 +13,8 @@ import {
   Shield,
   ShieldAlert,
   Radio,
+  CreditCard,
+  Wrench,
   Settings,
   Sparkles,
   ChevronsLeft,
@@ -41,7 +43,9 @@ const navItems: Array<{ name: string; label: string; icon: typeof LayoutDashboar
   { name: 'certificates', label: 'Certificates', icon: Lock, path: '/certificates' },
   { name: 'shield', label: 'Shield', icon: Shield, path: '/shield', separator: true },
   { name: 'shield-findings', label: 'Findings', icon: ShieldAlert, path: '/shield-findings' },
+  { name: 'remediation', label: 'Onarim', icon: Wrench, path: '/remediation' },
   { name: 'agents', label: 'Agents', icon: Radio, path: '/agents' },
+  { name: 'pricing', label: 'Fiyatlandirma', icon: CreditCard, path: '/pricing', separator: true },
   { name: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ]
 

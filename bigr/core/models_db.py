@@ -15,6 +15,27 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from bigr.core.database import Base
 
 
+class NetworkDB(Base):
+    """Known network identity (fingerprinted by gateway MAC + SSID)."""
+
+    __tablename__ = "networks"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    fingerprint_hash: Mapped[str] = mapped_column(
+        String, nullable=False, unique=True
+    )
+    gateway_mac: Mapped[str | None] = mapped_column(String, nullable=True)
+    gateway_ip: Mapped[str | None] = mapped_column(String, nullable=True)
+    ssid: Mapped[str | None] = mapped_column(String, nullable=True)
+    friendly_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    agent_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("agents.id"), nullable=True
+    )
+    first_seen: Mapped[str] = mapped_column(String, nullable=False)
+    last_seen: Mapped[str] = mapped_column(String, nullable=False)
+    asset_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
 class AgentDB(Base):
     """Remote agent registration."""
 
@@ -47,6 +68,9 @@ class ScanDB(Base):
         String, ForeignKey("agents.id"), nullable=True
     )
     site_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    network_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("networks.id"), nullable=True
+    )
 
     scan_assets: Mapped[list[ScanAssetDB]] = relationship(
         "ScanAssetDB", back_populates="scan", cascade="all, delete-orphan"
@@ -82,6 +106,9 @@ class AssetDB(Base):
         String, ForeignKey("agents.id"), nullable=True
     )
     site_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    network_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("networks.id"), nullable=True
+    )
 
     scan_assets: Mapped[list[ScanAssetDB]] = relationship(
         "ScanAssetDB", back_populates="asset", cascade="all, delete-orphan"
@@ -213,6 +240,22 @@ class ShieldFindingDB(Base):
     scan: Mapped[ShieldScanDB] = relationship("ShieldScanDB", back_populates="findings")
 
 
+class SubscriptionDB(Base):
+    """User subscription for plan-gated features (pricing tiers)."""
+
+    __tablename__ = "subscriptions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    device_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    plan_id: Mapped[str] = mapped_column(String, nullable=False, default="free")
+    activated_at: Mapped[str] = mapped_column(String, nullable=False)
+    expires_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    stripe_customer_id: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # Future Stripe integration
+
+
 class AgentCommandDB(Base):
     """Remote command queued for an agent (e.g. 'scan_now')."""
 
@@ -231,3 +274,21 @@ class AgentCommandDB(Base):
     started_at: Mapped[str | None] = mapped_column(String, nullable=True)
     completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
     result: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON
+
+
+class RemediationActionDB(Base):
+    """Tracked remediation action (executed or pending)."""
+
+    __tablename__ = "remediation_actions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    asset_ip: Mapped[str] = mapped_column(String, nullable=False)
+    action_type: Mapped[str] = mapped_column(String, nullable=False)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    severity: Mapped[str] = mapped_column(String, nullable=False, default="medium")
+    status: Mapped[str] = mapped_column(
+        String, nullable=False, default="pending"
+    )  # pending/executing/completed/failed
+    executed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)

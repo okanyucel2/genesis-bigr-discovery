@@ -70,9 +70,19 @@ const router = createRouter({
       component: () => import('@/views/ShieldFindingsView.vue'),
     },
     {
+      path: '/remediation',
+      name: 'remediation',
+      component: () => import('@/views/RemediationView.vue'),
+    },
+    {
       path: '/agents',
       name: 'agents',
       component: () => import('@/views/AgentsView.vue'),
+    },
+    {
+      path: '/pricing',
+      name: 'pricing',
+      component: () => import('@/views/PricingView.vue'),
     },
     {
       path: '/settings',

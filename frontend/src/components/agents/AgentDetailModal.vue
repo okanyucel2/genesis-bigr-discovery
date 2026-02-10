@@ -2,9 +2,9 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
   X, Play, Clock, MapPin, Wifi, Shield,
-  AlertCircle, Loader2, ChevronDown, ChevronUp,
+  AlertCircle, Loader2, ChevronDown, ChevronUp, Radio,
 } from 'lucide-vue-next'
-import type { Agent, AgentCommand } from '@/types/api'
+import type { Agent, AgentCommand, NetworkSummary } from '@/types/api'
 import { bigrApi } from '@/lib/api'
 import { useCommandTracker } from '@/composables/useCommandTracker'
 import CommandTracker from './CommandTracker.vue'
@@ -31,6 +31,11 @@ const scanError = ref<string | null>(null)
 const commands = ref<AgentCommand[]>([])
 const loadingHistory = ref(false)
 const historyExpanded = ref(false)
+
+// Known networks
+const knownNetworks = ref<NetworkSummary[]>([])
+const networksExpanded = ref(false)
+const loadingNetworks = ref(false)
 
 // Close on Escape
 function onKeydown(e: KeyboardEvent) {
@@ -90,6 +95,19 @@ async function fetchHistory() {
   }
 }
 
+async function fetchNetworks() {
+  loadingNetworks.value = true
+  try {
+    const { data } = await bigrApi.getNetworks()
+    // Filter to networks seen by this agent
+    knownNetworks.value = data.networks.filter(n => n.agent_id === props.agent.id)
+  } catch {
+    // silent
+  } finally {
+    loadingNetworks.value = false
+  }
+}
+
 function statusBadge(status: string): { color: string; label: string } {
   switch (status) {
     case 'pending': return { color: 'bg-amber-500/20 text-amber-400 border-amber-500/30', label: 'Pending' }
@@ -117,6 +135,12 @@ const hasTargets = computed(() => selectedTargets.value.length > 0)
 watch(() => historyExpanded.value, (expanded) => {
   if (expanded && commands.value.length === 0) {
     fetchHistory()
+  }
+})
+
+watch(() => networksExpanded.value, (expanded) => {
+  if (expanded && knownNetworks.value.length === 0) {
+    fetchNetworks()
   }
 })
 </script>
@@ -263,6 +287,51 @@ watch(() => historyExpanded.value, (expanded) => {
             <Play v-else class="h-4 w-4" />
             {{ scanning ? 'Triggering scan...' : 'Trigger Scan' }}
           </button>
+        </div>
+
+        <!-- Known Networks (collapsible) -->
+        <div class="border-t border-slate-700/50">
+          <button
+            class="flex w-full items-center justify-between px-6 py-3 text-sm text-slate-400 transition-colors hover:text-slate-300"
+            @click="networksExpanded = !networksExpanded"
+          >
+            <span class="flex items-center gap-1.5">
+              <Radio class="h-3.5 w-3.5" />
+              Known Networks
+            </span>
+            <ChevronUp v-if="networksExpanded" class="h-4 w-4" />
+            <ChevronDown v-else class="h-4 w-4" />
+          </button>
+
+          <div v-if="networksExpanded" class="max-h-40 overflow-y-auto px-6 pb-4">
+            <div v-if="loadingNetworks" class="flex justify-center py-4">
+              <Loader2 class="h-5 w-5 animate-spin text-slate-500" />
+            </div>
+            <div v-else-if="!knownNetworks.length" class="py-3 text-center text-sm text-slate-500">
+              No networks detected yet
+            </div>
+            <div v-else class="space-y-2">
+              <div
+                v-for="net in knownNetworks"
+                :key="net.id"
+                class="flex items-center justify-between rounded-lg border border-slate-700/40 bg-slate-800/30 px-3 py-2 text-xs"
+              >
+                <div class="flex items-center gap-2">
+                  <Wifi class="h-3.5 w-3.5 text-cyan-400" />
+                  <span class="font-medium text-slate-200">
+                    {{ net.friendly_name || net.fingerprint_hash.slice(0, 8) }}
+                  </span>
+                  <span v-if="net.ssid" class="text-slate-500">
+                    {{ net.ssid }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-2 text-slate-500">
+                  <span>{{ net.asset_count }} assets</span>
+                  <span>{{ timeAgo(net.last_seen) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Command history (collapsible) -->

@@ -13,11 +13,11 @@ export const useAssetsStore = defineStore('assets', () => {
   const searchQuery = ref('')
   const selectedCategory = ref<BigrCategory | null>(null)
 
-  async function fetchAssets(subnet?: string) {
+  async function fetchAssets(subnet?: string, site?: string, network?: string) {
     loading.value = true
     error.value = null
     try {
-      const res = await bigrApi.getAssets(subnet)
+      const res = await bigrApi.getAssets(subnet, site, network)
       assets.value = res.data.assets ?? []
       categorySummary.value = res.data.category_summary ?? {}
     } catch (e: unknown) {
