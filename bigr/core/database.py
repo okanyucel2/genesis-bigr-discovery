@@ -70,6 +70,8 @@ def get_engine(url: str | None = None) -> AsyncEngine:
     if "asyncpg" in db_url:
         kwargs["pool_size"] = 5
         kwargs["max_overflow"] = 10
+        kwargs["pool_pre_ping"] = True  # Detect stale Neon connections
+        kwargs["pool_recycle"] = 300  # Recycle every 5 min (Neon idle timeout)
         # SSL for Neon
         if "neon.tech" in db_url:
             import ssl

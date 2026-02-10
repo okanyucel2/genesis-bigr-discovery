@@ -1,0 +1,241 @@
+# .github/workflows/neon-branch.yml
+#
+# Neon Database Branch Management for Pull Requests (P0.82)
+# Creates isolated database branch per PR, runs migrations, cleans up on close.
+#
+# Required Secrets:
+#   NEON_API_KEY:      API key from console.neon.tech
+#   NEON_PROJECT_ID:   Shared Neon project ID
+#   RENDER_API_KEY:    (Optional) For triggering Render preview deploys
+#   RENDER_SERVICE_ID: (Optional) Render backend service ID
+#
+# BİGR Discovery Configuration:
+#   Backend path: . (root)
+#   Migration tool: Alembic
+#   Database: bigr_discovery (in shared Neon project)
+#
+# Security Note:
+#   PR numbers are always numeric (safe). No user-controlled input in shell commands.
+
+name: Neon Branch Management
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+env:
+  NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+  BRANCH_NAME: pr-${{ github.event.pull_request.number }}
+  PARENT_BRANCH: main
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CREATE BRANCH - Runs on PR open/reopen
+  # ═══════════════════════════════════════════════════════════════════════════
+  create-branch:
+    name: Create Neon Branch
+    if: github.event.action == 'opened' || github.event.action == 'reopened'
+    runs-on: ubuntu-latest
+    outputs:
+      db_url: ${{ steps.create.outputs.db_url }}
+      db_url_pooled: ${{ steps.create.outputs.db_url_pooled }}
+      branch_id: ${{ steps.create.outputs.branch_id }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Neon Branch
+        id: create
+        uses: neondatabase/create-branch-action@v5
+        with:
+          project_id: ${{ env.NEON_PROJECT_ID }}
+          branch_name: ${{ env.BRANCH_NAME }}
+          parent: ${{ env.PARENT_BRANCH }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          suspend_timeout: 300
+
+      - name: Mask Secrets
+        env:
+          DB_URL: ${{ steps.create.outputs.db_url }}
+          DB_URL_POOLED: ${{ steps.create.outputs.db_url_pooled }}
+          BRANCH_ID: ${{ steps.create.outputs.branch_id }}
+        run: |
+          echo "::add-mask::$DB_URL"
+          echo "::add-mask::$DB_URL_POOLED"
+          echo "Branch created: $BRANCH_NAME (ID: $BRANCH_ID)"
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        env:
+          BRANCH_ID: ${{ steps.create.outputs.branch_id }}
+        with:
+          script: |
+            const branchName = process.env.BRANCH_NAME;
+            const branchId = process.env.BRANCH_ID;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Neon Database Branch Created\n\n| Property | Value |\n|----------|-------|\n| Branch | \`${branchName}\` |\n| ID | \`${branchId}\` |\n| Parent | \`main\` |\n| Auto-suspend | 5 min idle |\n\nMigrations will run automatically.\n\n---\n_Powered by [Neon](https://neon.tech) + BİGR CI_`
+            });
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # RUN MIGRATIONS - After branch creation or on code changes
+  # ═══════════════════════════════════════════════════════════════════════════
+  run-migrations:
+    name: Run Alembic Migrations
+    needs: [create-branch]
+    if: |
+      always() &&
+      (needs.create-branch.result == 'success' || github.event.action == 'synchronize') &&
+      github.event.action != 'closed'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get Branch Connection String
+        id: get-connection
+        uses: neondatabase/create-branch-action@v5
+        with:
+          project_id: ${{ env.NEON_PROJECT_ID }}
+          branch_name: ${{ env.BRANCH_NAME }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Mask Connection Strings
+        env:
+          DB_URL: ${{ steps.get-connection.outputs.db_url }}
+          DB_URL_POOLED: ${{ steps.get-connection.outputs.db_url_pooled }}
+        run: |
+          echo "::add-mask::$DB_URL"
+          echo "::add-mask::$DB_URL_POOLED"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run Migration
+        env:
+          DATABASE_URL: ${{ steps.get-connection.outputs.db_url }}
+        run: |
+          echo "Running Alembic migrations on branch $BRANCH_NAME..."
+          alembic current || echo "No migrations applied yet"
+          alembic upgrade head
+          echo "Migrations complete."
+          alembic current
+
+      - name: Comment Migration Status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branchName = process.env.BRANCH_NAME;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Migration Status\n\n**Branch:** \`${branchName}\`\n**Status:** Migrations applied successfully.\n\n---\n_Alembic migrations ran on Neon branch_`
+            });
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TRIGGER RENDER PREVIEW - Pass DATABASE_URL to preview environment
+  # ═══════════════════════════════════════════════════════════════════════════
+  trigger-render:
+    name: Trigger Render Preview
+    needs: [run-migrations]
+    if: success() && github.event.action != 'closed'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check Render Secrets
+        id: check-secrets
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          if [ -z "$RENDER_API_KEY" ] || [ -z "$RENDER_SERVICE_ID" ]; then
+            echo "has_secrets=false" >> $GITHUB_OUTPUT
+            echo "Render secrets not configured, skipping"
+          else
+            echo "has_secrets=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get Branch Connection String
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        id: get-connection
+        uses: neondatabase/create-branch-action@v5
+        with:
+          project_id: ${{ env.NEON_PROJECT_ID }}
+          branch_name: ${{ env.BRANCH_NAME }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Update Render DATABASE_URL
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          DATABASE_URL: ${{ steps.get-connection.outputs.db_url_pooled }}
+        run: |
+          echo "::add-mask::$DATABASE_URL"
+          curl -s -X PUT \
+            "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/env-vars/DATABASE_URL" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"value\": \"${DATABASE_URL}\"}"
+          echo "Render DATABASE_URL updated"
+
+      - name: Trigger Render Deploy
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          curl -s -X POST \
+            "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache": "do_not_clear"}'
+          echo "Render deploy triggered"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DELETE BRANCH - Cleanup on PR close/merge
+  # ═══════════════════════════════════════════════════════════════════════════
+  delete-branch:
+    name: Delete Neon Branch
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Delete Neon Branch
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ env.NEON_PROJECT_ID }}
+          branch: ${{ env.BRANCH_NAME }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Comment Cleanup
+        uses: actions/github-script@v7
+        env:
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+        with:
+          script: |
+            const merged = process.env.PR_MERGED === 'true';
+            const status = merged
+              ? 'PR merged - changes in production'
+              : 'PR closed - no database changes applied';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Neon Branch Cleanup\n\n**Status:** ${status}\n**Branch deleted:** \`${process.env.BRANCH_NAME}\`\n\n---\n_Automatic cleanup by Neon integration_`
+            });

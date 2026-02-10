@@ -1,0 +1,126 @@
+# .github/workflows/neon-cleanup.yml
+#
+# Cleanup orphaned Neon branches (stale PRs, failed deletions)
+# Runs daily to stay within 10-branch limit on Launch plan.
+#
+# Required Secrets:
+#   NEON_API_KEY:    API key from console.neon.tech
+#   NEON_PROJECT_ID: Shared Neon project ID
+#
+# Safety:
+#   Only deletes branches starting with "pr-"
+#   Never touches "main" or production branches
+#   7-day age threshold by default
+
+name: Neon Branch Cleanup
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      max_age_days:
+        description: 'Maximum branch age in days'
+        required: false
+        default: '7'
+        type: string
+      dry_run:
+        description: 'Dry run - list but do not delete'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+
+jobs:
+  cleanup:
+    name: Cleanup Stale Branches
+    runs-on: ubuntu-latest
+    env:
+      MAX_BRANCH_AGE_DAYS: ${{ inputs.max_age_days || '7' }}
+      DRY_RUN: ${{ inputs.dry_run || 'false' }}
+
+    steps:
+      - name: Validate Secrets
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          if [ -z "$NEON_API_KEY" ] || [ -z "$NEON_PROJECT_ID" ]; then
+            echo "Error: NEON_API_KEY or NEON_PROJECT_ID not configured"
+            exit 1
+          fi
+
+      - name: List All Branches
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          curl -s \
+            "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches" \
+            -H "Authorization: Bearer ${NEON_API_KEY}" \
+            -H "Content-Type: application/json" > /tmp/branches.json
+
+          echo "=== Current Branches ==="
+          jq -r '.branches[] | "\(.name) | Created: \(.created_at) | ID: \(.id)"' /tmp/branches.json
+          TOTAL=$(jq '.branches | length' /tmp/branches.json)
+          echo "Total: $TOTAL"
+
+      - name: Identify Stale PR Branches
+        id: stale
+        run: |
+          CUTOFF=$(date -d "-${MAX_BRANCH_AGE_DAYS} days" -Iseconds 2>/dev/null || date -v-${MAX_BRANCH_AGE_DAYS}d +%Y-%m-%dT%H:%M:%S)
+          echo "Cutoff: $CUTOFF"
+
+          STALE=$(jq -r --arg cutoff "$CUTOFF" '
+            .branches[]
+            | select(.name | startswith("pr-"))
+            | select(.created_at < $cutoff)
+            | "\(.id)|\(.name)|\(.created_at)"
+          ' /tmp/branches.json)
+
+          if [ -z "$STALE" ]; then
+            echo "No stale branches found"
+            echo "has_stale=false" >> $GITHUB_OUTPUT
+          else
+            echo "=== Stale Branches ==="
+            echo "$STALE" | while IFS='|' read -r id name created; do
+              echo "  - $name (created: $created)"
+            done
+            echo "$STALE" | cut -d'|' -f1 > /tmp/stale_ids.txt
+            echo "has_stale=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Branch Usage Warning
+        run: |
+          PR_COUNT=$(jq '[.branches[] | select(.name | startswith("pr-"))] | length' /tmp/branches.json)
+          echo "PR branches: $PR_COUNT / 10"
+          if [ "$PR_COUNT" -ge 8 ]; then
+            echo "::warning::Approaching 10-branch limit ($PR_COUNT/10)"
+          fi
+
+      - name: Delete Stale Branches
+        if: steps.stale.outputs.has_stale == 'true' && env.DRY_RUN != 'true'
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          DELETED=0
+          while read -r BRANCH_ID; do
+            [ -z "$BRANCH_ID" ] && continue
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+              "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${BRANCH_ID}" \
+              -H "Authorization: Bearer ${NEON_API_KEY}")
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+              echo "Deleted: $BRANCH_ID"
+              DELETED=$((DELETED + 1))
+            else
+              echo "Failed: $BRANCH_ID (HTTP $HTTP_CODE)"
+            fi
+            sleep 1
+          done < /tmp/stale_ids.txt
+          echo "Deleted $DELETED branches"
+
+      - name: Dry Run Summary
+        if: steps.stale.outputs.has_stale == 'true' && env.DRY_RUN == 'true'
+        run: |
+          echo "=== DRY RUN - Would delete ==="
+          cat /tmp/stale_ids.txt

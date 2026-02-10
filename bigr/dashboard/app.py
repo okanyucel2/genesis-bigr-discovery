@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,6 +49,24 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         yield
 
     app = FastAPI(title="BİGR Discovery Dashboard", lifespan=lifespan)
+
+    # CORS — allow frontend on separate domain (Render Static Site, etc.)
+    allowed_origins = [
+        origin.strip()
+        for origin in os.environ.get("CORS_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
+    if settings.DEBUG:
+        allowed_origins.append("http://localhost:5173")
+    if allowed_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=allowed_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
     app.include_router(shield_router)
     _data_path = Path(data_path)
 
