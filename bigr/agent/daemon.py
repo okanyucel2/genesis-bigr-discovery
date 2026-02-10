@@ -142,10 +142,15 @@ class AgentDaemon:
     # ------------------------------------------------------------------
 
     def _run_loop(self) -> None:
+        cycle_count = 0
         try:
             while self._running:
                 self._run_single_cycle()
                 self._send_heartbeat()
+                cycle_count += 1
+                # Check for updates every 12 cycles (~1 hour at 5min interval)
+                if cycle_count % 12 == 0:
+                    self._check_for_update()
                 time.sleep(self._interval)
         except KeyboardInterrupt:
             self._logger.info("Keyboard interrupt.")
@@ -271,3 +276,25 @@ class AgentDaemon:
             self._logger.info("Heartbeat sent.")
         except Exception as exc:
             self._logger.warning("Heartbeat failed: %s", exc)
+
+    def _check_for_update(self) -> None:
+        """Check cloud API for newer agent version and auto-update if available."""
+        try:
+            from bigr.agent.updater import check_for_update, perform_update
+
+            update_info = check_for_update(self._api_url, self._token)
+            if update_info and update_info.get("update_available"):
+                self._logger.info(
+                    "Update available: %s -> %s",
+                    update_info["local_version"],
+                    update_info["latest_version"],
+                )
+                if perform_update():
+                    self._logger.info(
+                        "Updated to %s. Restart the agent to apply.",
+                        update_info["latest_version"],
+                    )
+                else:
+                    self._logger.warning("Auto-update failed.")
+        except Exception as exc:
+            self._logger.debug("Update check failed: %s", exc)

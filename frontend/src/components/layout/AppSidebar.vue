@@ -11,6 +11,8 @@ import {
   AlertTriangle,
   Lock,
   Shield,
+  ShieldAlert,
+  Radio,
   Settings,
   ChevronsLeft,
   ChevronsRight,
@@ -36,6 +38,8 @@ const navItems: Array<{ name: string; label: string; icon: typeof LayoutDashboar
   { name: 'risk', label: 'Risk', icon: AlertTriangle, path: '/risk' },
   { name: 'certificates', label: 'Certificates', icon: Lock, path: '/certificates' },
   { name: 'shield', label: 'Shield', icon: Shield, path: '/shield', separator: true },
+  { name: 'shield-findings', label: 'Findings', icon: ShieldAlert, path: '/shield-findings' },
+  { name: 'agents', label: 'Agents', icon: Radio, path: '/agents' },
   { name: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ]
 

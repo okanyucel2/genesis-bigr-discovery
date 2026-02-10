@@ -16,6 +16,7 @@ import type {
   HealthResponse,
   AgentsResponse,
   SitesResponse,
+  ShieldFindingsListResponse,
 } from '@/types/api'
 import type { ShieldScanResponse, ShieldFindingsResponse, ShieldModulesResponse } from '@/types/shield'
 import {
@@ -80,10 +81,12 @@ export const bigrApi = {
       ? mockResponse(mockScans())
       : client.get<ScansResponse>('/api/scans'),
 
-  getChanges: (limit = 50) =>
-    DEMO_MODE
-      ? mockResponse(mockChanges())
-      : client.get<ChangesResponse>('/api/changes', { params: { limit } }),
+  getChanges: (limit = 50, site?: string) => {
+    if (DEMO_MODE) return mockResponse(mockChanges())
+    const params: Record<string, string | number> = { limit }
+    if (site) params.site = site
+    return client.get<ChangesResponse>('/api/changes', { params })
+  },
 
   getSubnets: () =>
     DEMO_MODE
@@ -140,6 +143,13 @@ export const bigrApi = {
 
   getSites: () =>
     client.get<SitesResponse>('/api/sites'),
+
+  getAgentShieldFindings: (site?: string, severity?: string) => {
+    const params: Record<string, string> = {}
+    if (site) params.site = site
+    if (severity) params.severity = severity
+    return client.get<ShieldFindingsListResponse>('/api/shield-findings', { params })
+  },
 
   // Shield
   startShieldScan: (target: string, depth?: string, modules?: string[]) =>

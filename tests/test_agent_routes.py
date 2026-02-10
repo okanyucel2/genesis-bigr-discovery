@@ -98,6 +98,46 @@ class TestAgentRegistration:
         assert resp.status_code == 403
 
 
+class TestTokenRotation:
+    async def test_rotate_returns_new_token(self, client: AsyncClient):
+        _, old_token = await _register_agent(client)
+        resp = await client.post(
+            "/api/agents/rotate-token",
+            headers={"Authorization": f"Bearer {old_token}"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "token" in data
+        assert data["token"] != old_token
+        assert len(data["token"]) == 64
+
+    async def test_old_token_invalid_after_rotation(self, client: AsyncClient):
+        _, old_token = await _register_agent(client)
+        resp = await client.post(
+            "/api/agents/rotate-token",
+            headers={"Authorization": f"Bearer {old_token}"},
+        )
+        new_token = resp.json()["token"]
+        # Old token should no longer work
+        resp2 = await client.post(
+            "/api/agents/heartbeat",
+            json={"status": "online"},
+            headers={"Authorization": f"Bearer {old_token}"},
+        )
+        assert resp2.status_code in (401, 403)
+        # New token should work
+        resp3 = await client.post(
+            "/api/agents/heartbeat",
+            json={"status": "online"},
+            headers={"Authorization": f"Bearer {new_token}"},
+        )
+        assert resp3.status_code == 200
+
+    async def test_rotate_requires_auth(self, client: AsyncClient):
+        resp = await client.post("/api/agents/rotate-token")
+        assert resp.status_code in (401, 403)
+
+
 class TestAgentHeartbeat:
     async def test_heartbeat_updates_last_seen(self, client: AsyncClient):
         agent_id, token = await _register_agent(client)

@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///~/.bigr/bigr.db"
     DEBUG: bool = False
     AGENT_REGISTRATION_SECRET: str = ""
+    ALERT_WEBHOOK_URL: str = ""  # Optional webhook for agent/finding alerts
 
     model_config = {"env_prefix": "", "case_sensitive": True}
 

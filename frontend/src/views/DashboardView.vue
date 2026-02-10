@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import {
   Server,
   ShieldCheck,
@@ -17,6 +17,10 @@ import StatCard from '@/components/dashboard/StatCard.vue'
 import CategoryCard from '@/components/dashboard/CategoryCard.vue'
 import CategoryPieChart from '@/components/charts/CategoryPieChart.vue'
 import RecentChanges from '@/components/dashboard/RecentChanges.vue'
+import SiteFilter from '@/components/dashboard/SiteFilter.vue'
+import { useUiStore } from '@/stores/ui'
+
+const ui = useUiStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -53,9 +57,10 @@ async function loadDashboard() {
   loading.value = true
   error.value = null
   try {
+    const site = ui.selectedSite ?? undefined
     const [assetsRes, changesRes, complianceRes] = await Promise.all([
-      bigrApi.getAssets(),
-      bigrApi.getChanges(50),
+      bigrApi.getAssets(undefined, site),
+      bigrApi.getChanges(50, site),
       bigrApi.getCompliance(),
     ])
     assetsData.value = assetsRes.data
@@ -68,6 +73,8 @@ async function loadDashboard() {
     loading.value = false
   }
 }
+
+watch(() => ui.selectedSite, () => loadDashboard())
 
 onMounted(() => {
   loadDashboard()
@@ -84,14 +91,17 @@ onMounted(() => {
           Asset discovery and classification overview
         </p>
       </div>
-      <button
-        class="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-200"
-        :disabled="loading"
-        @click="loadDashboard"
-      >
-        <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': loading }" />
-        Refresh
-      </button>
+      <div class="flex items-center gap-3">
+        <SiteFilter />
+        <button
+          class="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-200"
+          :disabled="loading"
+          @click="loadDashboard"
+        >
+          <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': loading }" />
+          Refresh
+        </button>
+      </div>
     </div>
 
     <!-- Loading State -->

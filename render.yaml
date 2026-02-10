@@ -12,6 +12,8 @@ services:
         sync: false  # Set manually (Neon connection string)
       - key: CORS_ORIGINS
         sync: false  # Set to frontend URL, e.g. https://bigr-discovery.onrender.com
+      - key: AGENT_REGISTRATION_SECRET
+        sync: false  # Set manually — agents must provide this to register
       - key: PYTHON_VERSION
         value: "3.12.0"
 

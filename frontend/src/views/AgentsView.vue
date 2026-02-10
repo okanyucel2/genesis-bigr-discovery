@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, computed } from 'vue'
-import { Radio, Wifi, WifiOff, MapPin, Clock, RefreshCw } from 'lucide-vue-next'
+import { Radio, Wifi, MapPin, Clock, RefreshCw } from 'lucide-vue-next'
 import { useAgents } from '@/composables/useAgents'
 
 const { agents, loading, error, fetchAgents } = useAgents()

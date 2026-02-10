@@ -59,6 +59,11 @@ const router = createRouter({
       component: () => import('@/views/ShieldView.vue'),
     },
     {
+      path: '/shield-findings',
+      name: 'shield-findings',
+      component: () => import('@/views/ShieldFindingsView.vue'),
+    },
+    {
       path: '/agents',
       name: 'agents',
       component: () => import('@/views/AgentsView.vue'),

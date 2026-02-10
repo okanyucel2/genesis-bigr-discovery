@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Globe } from 'lucide-vue-next'
 import type { SiteSummary } from '@/types/api'
 import { bigrApi } from '@/lib/api'

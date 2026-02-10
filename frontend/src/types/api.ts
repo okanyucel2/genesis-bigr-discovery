@@ -322,3 +322,25 @@ export interface SiteSummary {
 export interface SitesResponse {
   sites: SiteSummary[]
 }
+
+// GET /api/shield-findings
+export interface AgentShieldFinding {
+  id: number
+  scan_id: string
+  module: string
+  severity: string
+  title: string | null
+  detail: string | null
+  target_ip: string | null
+  remediation: string | null
+  target: string
+  site_name: string | null
+  agent_id: string | null
+  scanned_at: string
+}
+
+export interface ShieldFindingsListResponse {
+  findings: AgentShieldFinding[]
+  total: number
+  severity_counts: Record<string, number>
+}
