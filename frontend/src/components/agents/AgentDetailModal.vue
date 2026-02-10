@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
-  X, Play, Clock, MapPin, Wifi, Shield, CheckCircle,
+  X, Play, Clock, MapPin, Wifi, Shield,
   AlertCircle, Loader2, ChevronDown, ChevronUp,
 } from 'lucide-vue-next'
 import type { Agent, AgentCommand } from '@/types/api'
 import { bigrApi } from '@/lib/api'
+import { useCommandTracker } from '@/composables/useCommandTracker'
+import CommandTracker from './CommandTracker.vue'
 
 const props = defineProps<{
   agent: Agent
@@ -16,11 +18,14 @@ const emit = defineEmits<{
   scanTriggered: []
 }>()
 
+// Command tracker
+const tracker = useCommandTracker(props.agent.id)
+
 // Scan config
 const selectedTargets = ref<string[]>([...props.agent.subnets])
 const shieldEnabled = ref(true)
 const scanning = ref(false)
-const scanResult = ref<{ ok: boolean; message: string } | null>(null)
+const scanError = ref<string | null>(null)
 
 // Command history
 const commands = ref<AgentCommand[]>([])
@@ -52,25 +57,20 @@ function toggleTarget(subnet: string) {
 async function triggerScan() {
   if (selectedTargets.value.length === 0) return
   scanning.value = true
-  scanResult.value = null
+  scanError.value = null
   try {
     const { data } = await bigrApi.createAgentCommand(
       props.agent.id,
       selectedTargets.value,
       shieldEnabled.value,
     )
-    scanResult.value = {
-      ok: true,
-      message: `Scan queued (${data.targets.length} target${data.targets.length > 1 ? 's' : ''})`,
-    }
+    // Start tracking the command
+    tracker.trackCommandById(data.command_id)
     emit('scanTriggered')
     // Refresh history
     await fetchHistory()
   } catch (err: any) {
-    scanResult.value = {
-      ok: false,
-      message: err.response?.data?.detail || err.message || 'Failed to trigger scan',
-    }
+    scanError.value = err.response?.data?.detail || err.message || 'Failed to trigger scan'
   } finally {
     scanning.value = false
   }
@@ -171,8 +171,19 @@ watch(() => historyExpanded.value, (expanded) => {
             </div>
           </div>
 
-          <!-- Target selection -->
-          <div>
+          <!-- Live command tracker (PhaseTimeline-inspired) -->
+          <CommandTracker
+            v-if="tracker.isTracking.value"
+            :steps="tracker.steps.value"
+            :progress-percent="tracker.progressPercent.value"
+            :is-done="tracker.isDone.value"
+            :targets="selectedTargets"
+            :shield="shieldEnabled"
+            @dismiss="tracker.dismiss()"
+          />
+
+          <!-- Target selection (hidden while tracking) -->
+          <div v-if="!tracker.isTracking.value">
             <label class="mb-2 block text-xs font-medium uppercase tracking-wider text-slate-400">
               Scan Targets
             </label>
@@ -197,8 +208,8 @@ watch(() => historyExpanded.value, (expanded) => {
             </p>
           </div>
 
-          <!-- Shield toggle -->
-          <div class="flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-800/30 px-4 py-3">
+          <!-- Shield toggle (hidden while tracking) -->
+          <div v-if="!tracker.isTracking.value" class="flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-800/30 px-4 py-3">
             <div class="flex items-center gap-2.5">
               <Shield class="h-4 w-4 text-cyan-400" />
               <div>
@@ -222,23 +233,18 @@ watch(() => historyExpanded.value, (expanded) => {
             </button>
           </div>
 
-          <!-- Result feedback -->
+          <!-- Error feedback -->
           <div
-            v-if="scanResult"
-            :class="[
-              'flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm',
-              scanResult.ok
-                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                : 'border-rose-500/30 bg-rose-500/10 text-rose-400',
-            ]"
+            v-if="scanError"
+            class="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-400"
           >
-            <CheckCircle v-if="scanResult.ok" class="h-4 w-4 flex-shrink-0" />
-            <AlertCircle v-else class="h-4 w-4 flex-shrink-0" />
-            {{ scanResult.message }}
+            <AlertCircle class="h-4 w-4 flex-shrink-0" />
+            {{ scanError }}
           </div>
 
-          <!-- Scan button -->
+          <!-- Scan button (hidden while tracking) -->
           <button
+            v-if="!tracker.isTracking.value"
             :disabled="scanning || !hasTargets"
             :class="[
               'flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all',
