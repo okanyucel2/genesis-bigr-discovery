@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: bigr-discovery-api
+    runtime: python
+    region: frankfurt
+    plan: starter
+    buildCommand: "pip install -e . && alembic upgrade head"
+    startCommand: "uvicorn bigr.dashboard.app:create_app --host 0.0.0.0 --port $PORT --factory"
+    envVars:
+      - key: DATABASE_URL
+        sync: false  # Set manually (Neon connection string)
+      - key: PYTHON_VERSION
+        value: "3.12"

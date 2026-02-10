@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -484,7 +484,7 @@ class TestRiskApi:
         self.app = create_app(data_path="nonexistent.json")
         self.client = TestClient(self.app)
 
-    @patch("bigr.dashboard.app.get_all_assets", return_value=_SAMPLE_ASSETS)
+    @patch("bigr.core.services.get_all_assets", new_callable=AsyncMock, return_value=_SAMPLE_ASSETS)
     def test_api_risk(self, mock_assets):
         """/api/risk should return JSON with risk data."""
         response = self.client.get("/api/risk")
@@ -494,7 +494,7 @@ class TestRiskApi:
         assert "average_risk" in data
         assert "max_risk" in data
 
-    @patch("bigr.dashboard.app.get_all_assets", return_value=_SAMPLE_ASSETS)
+    @patch("bigr.core.services.get_all_assets", new_callable=AsyncMock, return_value=_SAMPLE_ASSETS)
     def test_risk_page(self, mock_assets):
         """/risk should return an HTML page."""
         response = self.client.get("/risk")

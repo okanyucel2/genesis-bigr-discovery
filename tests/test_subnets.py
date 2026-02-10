@@ -339,15 +339,10 @@ class TestDashboardSubnets:
     @pytest.mark.asyncio
     async def test_api_subnets_endpoint(self, tmp_path: Path):
         """GET /api/subnets should return registered subnets."""
+        from unittest.mock import AsyncMock, patch
+
         from httpx import ASGITransport, AsyncClient
 
-        # Set up DB with subnets
-        db = tmp_path / "test.db"
-        init_db(db)
-        add_subnet("10.0.0.0/24", label="Server VLAN", vlan_id=100, db_path=db)
-        add_subnet("192.168.1.0/24", label="Office", db_path=db)
-
-        # Create sample data file
         import json
 
         data = {
@@ -362,14 +357,20 @@ class TestDashboardSubnets:
 
         from bigr.dashboard.app import create_app
 
-        dashboard_app = create_app(data_path=str(json_path), db_path=db)
+        mock_subnets = [
+            {"cidr": "10.0.0.0/24", "label": "Server VLAN", "vlan_id": 100, "last_scanned": None, "asset_count": 0},
+            {"cidr": "192.168.1.0/24", "label": "Office", "vlan_id": None, "last_scanned": None, "asset_count": 0},
+        ]
+
+        dashboard_app = create_app(data_path=str(json_path))
         transport = ASGITransport(app=dashboard_app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/subnets")
-            assert resp.status_code == 200
-            result = resp.json()
-            assert "subnets" in result
-            assert len(result["subnets"]) == 2
+        with patch("bigr.core.services.get_subnets_async", new_callable=AsyncMock, return_value=mock_subnets):
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                resp = await client.get("/api/subnets")
+                assert resp.status_code == 200
+                result = resp.json()
+                assert "subnets" in result
+                assert len(result["subnets"]) == 2
 
     @pytest.mark.asyncio
     async def test_api_data_filter_by_subnet(self, tmp_path: Path):

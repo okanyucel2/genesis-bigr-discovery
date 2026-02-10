@@ -85,8 +85,9 @@ async def test_api_health(app):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/api/health")
         assert resp.status_code == 200
-        assert resp.json()["status"] == "ok"
-        assert resp.json()["exists"] is True
+        body = resp.json()
+        assert body["status"] in ("ok", "degraded")
+        assert body["data_file_exists"] is True
 
 
 @pytest.mark.asyncio

@@ -585,28 +585,30 @@ class TestCertsApi:
 
     def test_api_certificates(self, tmp_path):
         """GET /api/certificates returns JSON with certificates."""
+        from unittest.mock import AsyncMock, patch
+
         from fastapi.testclient import TestClient
 
         from bigr.dashboard.app import create_app
-        from bigr.db import init_db, save_certificate
 
-        db_path = tmp_path / "test.db"
-        init_db(db_path)
-        save_certificate(
-            CertificateInfo(ip="10.0.0.1", port=443, cn="api-test.com", days_until_expiry=45),
-            db_path=db_path,
-        )
-
-        # Create a minimal data file so the app doesn't fail
         data_path = tmp_path / "assets.json"
         data_path.write_text('{"assets":[],"category_summary":{},"total_assets":0}')
 
-        app = create_app(data_path=str(data_path), db_path=db_path)
+        mock_certs = [{
+            "id": 1, "ip": "10.0.0.1", "port": 443, "cn": "api-test.com",
+            "issuer": None, "issuer_org": None, "valid_from": None, "valid_to": None,
+            "serial": None, "key_size": None, "key_algorithm": None,
+            "is_self_signed": False, "is_expired": False, "days_until_expiry": 45,
+            "san": [], "last_checked": "2026-01-01T00:00:00Z",
+        }]
+
+        app = create_app(data_path=str(data_path))
         client = TestClient(app)
 
-        resp = client.get("/api/certificates")
-        assert resp.status_code == 200
-        body = resp.json()
-        assert "certificates" in body
-        assert len(body["certificates"]) == 1
-        assert body["certificates"][0]["cn"] == "api-test.com"
+        with patch("bigr.core.services.get_certificates_async", new_callable=AsyncMock, return_value=mock_certs):
+            resp = client.get("/api/certificates")
+            assert resp.status_code == 200
+            body = resp.json()
+            assert "certificates" in body
+            assert len(body["certificates"]) == 1
+            assert body["certificates"][0]["cn"] == "api-test.com"

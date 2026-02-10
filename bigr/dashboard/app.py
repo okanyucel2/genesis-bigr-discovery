@@ -4,21 +4,16 @@ from __future__ import annotations
 
 import ipaddress
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from bigr.db import (
-    get_all_assets,
-    get_asset_history,
-    get_latest_scan,
-    get_scan_list,
-    get_subnets,
-    get_tags,
-)
-from bigr.diff import get_changes_from_db
-from bigr.scanner.switch_map import get_switches
+from bigr.core import services
+from bigr.core.database import get_db
+from bigr.core.settings import settings
 from bigr.shield.api.routes import router as shield_router
 from bigr.topology import build_subnet_topology, build_topology
 
@@ -36,20 +31,32 @@ def _ip_in_subnet(ip: str, network, subnet_cidr: str | None = None) -> bool:
 
 
 def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> FastAPI:
-    """Create dashboard FastAPI app."""
-    app = FastAPI(title="BİGR Discovery Dashboard")
+    """Create dashboard FastAPI app.
+
+    The ``db_path`` parameter is kept for backward compatibility with CLI usage.
+    When running on Render, ``DATABASE_URL`` env var is used instead.
+    """
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # Run Alembic migrations on PostgreSQL at startup
+        if "postgresql" in (settings.DATABASE_URL or ""):
+            import subprocess
+
+            subprocess.run(["alembic", "upgrade", "head"], check=True)
+        yield
+
+    app = FastAPI(title="BİGR Discovery Dashboard", lifespan=lifespan)
     app.include_router(shield_router)
     _data_path = Path(data_path)
-    _db_path = db_path
 
-    def _load_data() -> dict:
-        """Load scan data from file, falling back to database."""
+    async def _load_data_async(db: AsyncSession) -> dict:
+        """Load scan data from file, falling back to async database."""
         if _data_path.exists():
             with _data_path.open(encoding="utf-8") as f:
                 return json.load(f)
-        # Fall back to latest scan from database
         try:
-            latest = get_latest_scan()
+            latest = await services.get_latest_scan(db)
             if latest:
                 return latest
         except Exception:
@@ -57,16 +64,22 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         return {"assets": [], "category_summary": {}, "total_assets": 0}
 
     @app.get("/", response_class=HTMLResponse)
-    async def dashboard(request: Request):
-        data = _load_data()
+    async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
+        data = await _load_data_async(db)
+        # Pre-load tags so the sync _render_dashboard doesn't need DB access
+        try:
+            tagged = await services.get_tags_async(db)
+            data["_tagged_ips"] = {t["ip"] for t in tagged}
+        except Exception:
+            data["_tagged_ips"] = set()
         return HTMLResponse(content=_render_dashboard(data))
 
     @app.get("/api/data", response_class=JSONResponse)
-    async def api_data(subnet: str | None = None):
-        data = _load_data()
+    async def api_data(subnet: str | None = None, db: AsyncSession = Depends(get_db)):
+        data = await _load_data_async(db)
         # Enrich assets with manual_override flag
         try:
-            tagged = get_tags(db_path=_db_path)
+            tagged = await services.get_tags_async(db)
             tagged_ips = {t["ip"] for t in tagged}
         except Exception:
             tagged_ips = set()
@@ -85,66 +98,66 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         return data
 
     @app.get("/api/subnets", response_class=JSONResponse)
-    async def api_subnets():
+    async def api_subnets(db: AsyncSession = Depends(get_db)):
         """Return all registered subnets."""
         try:
-            subnet_list = get_subnets(db_path=_db_path)
+            subnet_list = await services.get_subnets_async(db)
             return {"subnets": subnet_list}
         except Exception:
             return {"subnets": []}
 
     @app.get("/api/scans", response_class=JSONResponse)
-    async def api_scans():
+    async def api_scans(db: AsyncSession = Depends(get_db)):
         """Return scan history from the database."""
         try:
-            scans = get_scan_list(limit=50)
+            scans = await services.get_scan_list(db, limit=50)
             return {"scans": scans}
         except Exception:
             return {"scans": []}
 
     @app.get("/api/assets/{ip}", response_class=JSONResponse)
-    async def api_asset_detail(ip: str):
+    async def api_asset_detail(ip: str, db: AsyncSession = Depends(get_db)):
         """Return single asset details and scan history."""
         try:
-            all_assets = get_all_assets()
+            all_assets = await services.get_all_assets(db)
             asset = next((a for a in all_assets if a["ip"] == ip), None)
             if asset is None:
                 return JSONResponse({"error": "Asset not found"}, status_code=404)
-            history = get_asset_history(ip=ip)
+            history = await services.get_asset_history(db, ip=ip)
             return {"asset": asset, "history": history}
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, status_code=500)
 
     @app.get("/api/changes", response_class=JSONResponse)
-    async def api_changes(limit: int = 50):
+    async def api_changes(limit: int = 50, db: AsyncSession = Depends(get_db)):
         """Return recent asset changes from the database."""
         try:
-            changes = get_changes_from_db(limit=limit)
+            changes = await services.get_changes_async(db, limit=limit)
             return {"changes": changes}
         except Exception:
             return {"changes": []}
 
     @app.get("/api/switches", response_class=JSONResponse)
-    async def api_switches():
+    async def api_switches(db: AsyncSession = Depends(get_db)):
         """Return all registered switches."""
         try:
-            switch_list = get_switches(db_path=_db_path)
+            switch_list = await services.get_switches_async(db)
             return {"switches": switch_list}
         except Exception:
             return {"switches": []}
 
     @app.get("/api/topology", response_class=JSONResponse)
-    async def api_topology():
+    async def api_topology(db: AsyncSession = Depends(get_db)):
         """Return network topology graph data."""
-        data = _load_data()
+        data = await _load_data_async(db)
         assets = data.get("assets", [])
         graph = build_topology(assets)
         return graph.to_dict()
 
     @app.get("/api/topology/subnet/{cidr:path}", response_class=JSONResponse)
-    async def api_topology_subnet(cidr: str):
+    async def api_topology_subnet(cidr: str, db: AsyncSession = Depends(get_db)):
         """Return topology for a specific subnet."""
-        data = _load_data()
+        data = await _load_data_async(db)
         assets = data.get("assets", [])
         graph = build_subnet_topology(assets, cidr)
         return graph.to_dict()
@@ -155,29 +168,27 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         return HTMLResponse(content=_render_topology_page())
 
     @app.get("/api/certificates", response_class=JSONResponse)
-    async def api_certificates():
+    async def api_certificates(db: AsyncSession = Depends(get_db)):
         """Return all discovered TLS certificates."""
-        from bigr.db import get_certificates
-
         try:
-            cert_list = get_certificates(db_path=_db_path)
+            cert_list = await services.get_certificates_async(db)
             return {"certificates": cert_list}
         except Exception:
             return {"certificates": []}
 
     @app.get("/api/compliance", response_class=JSONResponse)
-    async def api_compliance():
+    async def api_compliance(db: AsyncSession = Depends(get_db)):
         """Return compliance metrics."""
         from bigr.compliance import calculate_compliance, calculate_subnet_compliance
 
-        data = _load_data()
+        data = await _load_data_async(db)
         assets = data.get("assets", [])
 
         report = calculate_compliance(assets)
 
         # Calculate subnet compliance if subnets are registered
         try:
-            subnet_list = get_subnets(db_path=_db_path)
+            subnet_list = await services.get_subnets_async(db)
             if subnet_list:
                 report.subnet_compliance = calculate_subnet_compliance(assets, subnet_list)
         except Exception:
@@ -186,22 +197,27 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         return report.to_dict()
 
     @app.get("/compliance", response_class=HTMLResponse)
-    async def compliance_page():
+    async def compliance_page(db: AsyncSession = Depends(get_db)):
         """Serve compliance dashboard with charts."""
         from bigr.compliance import calculate_compliance
 
-        data = _load_data()
+        data = await _load_data_async(db)
         assets = data.get("assets", [])
         report = calculate_compliance(assets)
         return HTMLResponse(content=_render_compliance_page(report))
 
     @app.get("/api/analytics", response_class=JSONResponse)
-    async def api_analytics(days: int = 30):
-        """Return analytics data."""
+    async def api_analytics(days: int = 30, db: AsyncSession = Depends(get_db)):
+        """Return analytics data.
+
+        Note: Analytics still uses the sync bigr.analytics module which
+        reads directly from SQLite. For PostgreSQL, this will need a
+        future async rewrite. The db session is accepted for consistency.
+        """
         from bigr.analytics import get_full_analytics
 
         try:
-            result = get_full_analytics(days=days, db_path=_db_path)
+            result = get_full_analytics(days=days, db_path=None)
             return result.to_dict()
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, status_code=500)
@@ -212,18 +228,18 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         return HTMLResponse(content=_render_analytics_page())
 
     @app.get("/api/risk", response_class=JSONResponse)
-    async def api_risk():
+    async def api_risk(db: AsyncSession = Depends(get_db)):
         """Return risk assessment data."""
         from bigr.risk.scorer import assess_network_risk
 
         try:
-            all_assets = get_all_assets(db_path=_db_path)
+            all_assets = await services.get_all_assets(db)
         except Exception:
             all_assets = []
 
         # Fall back to file-based data if DB has no assets
         if not all_assets:
-            data = _load_data()
+            data = await _load_data_async(db)
             all_assets = data.get("assets", [])
 
         asset_dicts = []
@@ -243,17 +259,17 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         return report.to_dict()
 
     @app.get("/risk", response_class=HTMLResponse)
-    async def risk_page():
+    async def risk_page(db: AsyncSession = Depends(get_db)):
         """Serve risk assessment dashboard page."""
         from bigr.risk.scorer import assess_network_risk
 
         try:
-            all_assets = get_all_assets(db_path=_db_path)
+            all_assets = await services.get_all_assets(db)
         except Exception:
             all_assets = []
 
         if not all_assets:
-            data = _load_data()
+            data = await _load_data_async(db)
             all_assets = data.get("assets", [])
 
         asset_dicts = []
@@ -273,7 +289,7 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         return HTMLResponse(content=_render_risk_page(report))
 
     @app.get("/api/vulnerabilities", response_class=JSONResponse)
-    async def api_vulnerabilities():
+    async def api_vulnerabilities(db: AsyncSession = Depends(get_db)):
         """Return vulnerability scan results for all known assets."""
         from bigr.vuln.cve_db import get_cve_stats, init_cve_db
         from bigr.vuln.matcher import scan_all_vulnerabilities
@@ -281,21 +297,21 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
 
         try:
             # Initialize and seed CVE DB if needed
-            init_cve_db(_db_path)
-            stats = get_cve_stats(db_path=_db_path)
+            init_cve_db(None)
+            stats = get_cve_stats(db_path=None)
             if stats["total"] == 0:
-                seed_cve_database(db_path=_db_path)
+                seed_cve_database(db_path=None)
 
             # Get assets
-            data = _load_data()
+            data = await _load_data_async(db)
             assets = data.get("assets", [])
 
-            summaries = scan_all_vulnerabilities(assets, db_path=_db_path)
+            summaries = scan_all_vulnerabilities(assets, db_path=None)
             return {
                 "summaries": [s.to_dict() for s in summaries],
                 "total_assets_scanned": len(assets),
                 "total_vulnerable": len(summaries),
-                "cve_db_stats": get_cve_stats(db_path=_db_path),
+                "cve_db_stats": get_cve_stats(db_path=None),
             }
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, status_code=500)
@@ -306,8 +322,27 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         return HTMLResponse(content=_render_vulnerabilities_page())
 
     @app.get("/api/health")
-    async def health():
-        return {"status": "ok", "data_file": str(_data_path), "exists": _data_path.exists()}
+    async def health(db: AsyncSession = Depends(get_db)):
+        """Deep health check with DB connectivity."""
+        db_status = "unknown"
+        db_type = "unknown"
+        try:
+            from sqlalchemy import text
+
+            result = await db.execute(text("SELECT 1"))
+            result.scalar()
+            db_status = "connected"
+            dialect = db.bind.dialect.name if db.bind else "unknown"
+            db_type = dialect
+        except Exception as exc:
+            db_status = f"error: {exc}"
+
+        return {
+            "status": "ok" if db_status == "connected" else "degraded",
+            "database": {"status": db_status, "type": db_type},
+            "data_file": str(_data_path),
+            "data_file_exists": _data_path.exists(),
+        }
 
     return app
 
@@ -342,12 +377,8 @@ def _render_dashboard(data: dict) -> str:
                 <div class="card-label">{info['label']}</div>
             </div>"""
 
-    # Determine which IPs have manual overrides
-    try:
-        tagged = get_tags()
-        tagged_ips = {t["ip"] for t in tagged}
-    except Exception:
-        tagged_ips = set()
+    # Use pre-loaded tagged IPs from route handler (avoids sync DB call)
+    tagged_ips = data.get("_tagged_ips", set())
 
     # Build asset table rows
     rows_html = ""
