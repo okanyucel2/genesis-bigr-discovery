@@ -39,6 +39,8 @@ function onKeydown(e: KeyboardEvent) {
 
 onMounted(() => {
   document.addEventListener('keydown', onKeydown)
+  // Auto-resume tracking if there's an active command
+  tracker.resumeIfActive()
 })
 
 onBeforeUnmount(() => {

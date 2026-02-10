@@ -130,6 +130,23 @@ export function useCommandTracker(agentId: string) {
     }
   }
 
+  async function resumeIfActive() {
+    try {
+      const { data } = await bigrApi.getAgentCommands(agentId)
+      commands.value = data.commands
+      // Find most recent non-completed command
+      const active = data.commands.find(
+        (c: AgentCommand) => c.status === 'pending' || c.status === 'ack' || c.status === 'running',
+      )
+      if (active) {
+        activeCommand.value = active
+        startPolling()
+      }
+    } catch {
+      // silent
+    }
+  }
+
   function dismiss() {
     stopPolling()
     activeCommand.value = null
@@ -148,6 +165,7 @@ export function useCommandTracker(agentId: string) {
     fetchCommands,
     trackCommand,
     trackCommandById,
+    resumeIfActive,
     dismiss,
   }
 }

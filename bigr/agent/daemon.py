@@ -141,6 +141,8 @@ class AgentDaemon:
     # Main loop
     # ------------------------------------------------------------------
 
+    _COMMAND_POLL_INTERVAL = 10  # Check for remote commands every 10s between cycles
+
     def _run_loop(self) -> None:
         cycle_count = 0
         try:
@@ -151,11 +153,22 @@ class AgentDaemon:
                 # Check for updates every 12 cycles (~1 hour at 5min interval)
                 if cycle_count % 12 == 0:
                     self._check_for_update()
-                time.sleep(self._interval)
+                # Sleep in small chunks, polling for remote commands in between
+                self._interruptible_sleep(self._interval)
         except KeyboardInterrupt:
             self._logger.info("Keyboard interrupt.")
         finally:
             self.stop()
+
+    def _interruptible_sleep(self, total_seconds: int) -> None:
+        """Sleep in small chunks, checking for remote commands between chunks."""
+        elapsed = 0
+        while elapsed < total_seconds and self._running:
+            chunk = min(self._COMMAND_POLL_INTERVAL, total_seconds - elapsed)
+            time.sleep(chunk)
+            elapsed += chunk
+            if elapsed < total_seconds and self._running:
+                self._poll_and_execute_commands()
 
     def _run_single_cycle(self) -> None:
         """Execute one scan cycle: drain queue, scan each target, push results."""
@@ -286,6 +299,31 @@ class AgentDaemon:
                 self._execute_remote_commands()
         except Exception as exc:
             self._logger.warning("Heartbeat failed: %s", exc)
+
+    def _poll_and_execute_commands(self) -> None:
+        """Lightweight check for pending commands between scan cycles."""
+        try:
+            resp = self._client.get(f"{self._api_url}/api/agents/commands")
+            resp.raise_for_status()
+            commands = resp.json().get("commands", [])
+            if commands:
+                self._logger.info(
+                    "%d pending command(s) detected between cycles", len(commands),
+                )
+                for cmd in commands:
+                    cmd_id = cmd["id"]
+                    cmd_type = cmd["command_type"]
+                    params = cmd.get("params", {})
+                    self._logger.info("Executing command %s (%s)", cmd_id, cmd_type)
+                    self._update_command_status(cmd_id, "ack")
+                    if cmd_type == "scan_now":
+                        self._execute_scan_command(cmd_id, params)
+                    else:
+                        self._update_command_status(
+                            cmd_id, "failed", {"error": f"Unknown command: {cmd_type}"},
+                        )
+        except Exception:
+            pass  # Silent — this is a background poll
 
     def _execute_remote_commands(self) -> None:
         """Fetch and execute pending commands from the cloud API."""
