@@ -356,41 +356,47 @@ class AgentDaemon:
 
         self._update_command_status(cmd_id, "running")
 
-        scanned = 0
-        errors = []
-        for target in targets:
-            self._logger.info("Remote scan: %s (shield=%s)", target, shield)
-            try:
-                scan_result = self._scan_target(target)
-                self._push_discovery_results(scan_result)
-                scanned += len(scan_result.get("assets", []))
-                self._logger.info(
-                    "Remote scan pushed %d assets for %s",
-                    len(scan_result.get("assets", [])), target,
-                )
-            except Exception as exc:
-                self._logger.error("Remote scan failed for %s: %s", target, exc)
-                errors.append(f"{target}: {exc}")
-                continue
-
-            if shield:
+        try:
+            scanned = 0
+            errors = []
+            for target in targets:
+                self._logger.info("Remote scan: %s (shield=%s)", target, shield)
                 try:
-                    shield_result = self._run_shield(target)
-                    self._push_shield_results(shield_result)
-                    self._logger.info("Remote shield pushed for %s", target)
+                    scan_result = self._scan_target(target)
+                    self._push_discovery_results(scan_result)
+                    scanned += len(scan_result.get("assets", []))
+                    self._logger.info(
+                        "Remote scan pushed %d assets for %s",
+                        len(scan_result.get("assets", [])), target,
+                    )
                 except Exception as exc:
-                    self._logger.error("Remote shield failed for %s: %s", target, exc)
-                    errors.append(f"shield({target}): {exc}")
+                    self._logger.error("Remote scan failed for %s: %s", target, exc)
+                    errors.append(f"{target}: {exc}")
+                    continue
 
-        result = {"assets_discovered": scanned, "targets_scanned": len(targets)}
-        if errors:
-            result["errors"] = errors
-            if scanned == 0:
-                self._update_command_status(cmd_id, "failed", result)
+                if shield:
+                    try:
+                        shield_result = self._run_shield(target)
+                        self._push_shield_results(shield_result)
+                        self._logger.info("Remote shield pushed for %s", target)
+                    except Exception as exc:
+                        self._logger.error("Remote shield failed for %s: %s", target, exc)
+                        errors.append(f"shield({target}): {exc}")
+
+            result = {"assets_discovered": scanned, "targets_scanned": len(targets)}
+            if errors:
+                result["errors"] = errors
+                if scanned == 0:
+                    self._update_command_status(cmd_id, "failed", result)
+                else:
+                    self._update_command_status(cmd_id, "completed", result)
             else:
                 self._update_command_status(cmd_id, "completed", result)
-        else:
-            self._update_command_status(cmd_id, "completed", result)
+        except Exception as exc:
+            self._logger.error("Command %s crashed: %s", cmd_id, exc)
+            self._update_command_status(
+                cmd_id, "failed", {"error": f"Unexpected error: {exc}"},
+            )
 
     def _update_command_status(
         self, command_id: str, cmd_status: str, result: dict | None = None,
