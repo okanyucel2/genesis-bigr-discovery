@@ -19,6 +19,8 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from bigr.threat.feeds.abusech import AbuseCHFeedParser
+from bigr.threat.feeds.abuseipdb import AbuseIPDBClient
+from bigr.threat.feeds.abuseipdb_feed import AbuseIPDBFeedParser
 from bigr.threat.feeds.alienvault import AlienVaultOTXParser
 from bigr.threat.feeds.cins import CINSArmyParser
 from bigr.threat.feeds.firehol import FireHOLParser
@@ -35,6 +37,7 @@ FEED_WEIGHTS: dict[str, float] = {
     "abusech_urlhaus": 0.8,
     "alienvault_otx": 0.75,
     "cins_army": 0.7,
+    "abuseipdb": 0.85,
 }
 
 # Indicator type severity weights
@@ -70,17 +73,33 @@ class ThreatIngestor:
         hmac_key: str,
         otx_api_key: str | None = None,
         expiry_days: int = DEFAULT_EXPIRY_DAYS,
+        abuseipdb_api_key: str | None = None,
+        abuseipdb_daily_limit: int = 1000,
     ):
         self.session_factory = session_factory
         self.hmac_key = hmac_key
         self.otx_api_key = otx_api_key
         self.expiry_days = expiry_days
+        self.abuseipdb_api_key = abuseipdb_api_key
 
         # Initialize parsers
         self._firehol = FireHOLParser()
         self._abusech = AbuseCHFeedParser()
         self._alienvault = AlienVaultOTXParser(api_key=otx_api_key)
         self._cins = CINSArmyParser()
+
+        # AbuseIPDB (only if API key is set)
+        self._abuseipdb: AbuseIPDBFeedParser | None = None
+        self._abuseipdb_client: AbuseIPDBClient | None = None
+        if abuseipdb_api_key:
+            self._abuseipdb = AbuseIPDBFeedParser(
+                api_key=abuseipdb_api_key,
+                daily_limit=abuseipdb_daily_limit,
+            )
+            self._abuseipdb_client = AbuseIPDBClient(
+                api_key=abuseipdb_api_key,
+                daily_limit=abuseipdb_daily_limit,
+            )
 
     async def sync_all_feeds(self) -> dict:
         """Run all enabled feeds. Returns summary stats.
@@ -370,6 +389,11 @@ class ThreatIngestor:
             return await self._alienvault.fetch(client=client)
         elif feed_name == "cins_army":
             return await self._cins.fetch(client=client)
+        elif feed_name == "abuseipdb":
+            if self._abuseipdb is not None:
+                return await self._abuseipdb.fetch(client=client)
+            logger.warning("AbuseIPDB feed requested but no API key configured")
+            return []
         else:
             logger.warning("Unknown feed: %s", feed_name)
             return []
@@ -383,6 +407,7 @@ class ThreatIngestor:
             + AbuseCHFeedParser.get_feed_configs()
             + AlienVaultOTXParser.get_feed_configs()
             + CINSArmyParser.get_feed_configs()
+            + AbuseIPDBFeedParser.get_feed_configs()
         )
 
         for config in all_configs:
@@ -507,3 +532,18 @@ class ThreatIngestor:
                     "low": low_threat,
                 },
             }
+
+    async def enrich_with_abuseipdb(self, ip: str) -> dict | None:
+        """Enrich an IP with AbuseIPDB reputation data.
+
+        Convenience method that queries AbuseIPDB for a single IP.
+
+        Args:
+            ip: The IP address to look up.
+
+        Returns:
+            AbuseIPDB result dict or None if unavailable.
+        """
+        if self._abuseipdb_client is None:
+            return None
+        return await self._abuseipdb_client.check_ip(ip)

@@ -554,6 +554,90 @@ export interface DeadManStatusResponse {
   summary_tr: string
 }
 
+// GET /api/threat/abuseipdb/check/{ip}
+export interface AbuseIPDBCheck {
+  ip: string
+  is_public: boolean
+  abuse_confidence_score: number
+  total_reports: number
+  num_distinct_users: number
+  last_reported_at: string | null
+  country_code: string | null
+  isp: string | null
+  usage_type: string | null
+  bigr_threat_score: number
+}
+
+// GET /api/threat/abuseipdb/status
+export interface AbuseIPDBStatus {
+  enabled: boolean
+  api_key_set: boolean
+  remaining_calls: number
+  daily_limit: number
+  cache_size: number
+}
+
+// GET /api/threat/abuseipdb/blacklist
+export interface AbuseIPDBBlacklistEntry {
+  ip: string
+  confidence: number
+  country: string | null
+}
+
+export interface AbuseIPDBBlacklistResponse {
+  entries: AbuseIPDBBlacklistEntry[]
+  count: number
+  confidence_minimum: number
+}
+
+// GET /api/threat/abuseipdb/enrichment/{ip}
+export interface AbuseIPDBEnrichment {
+  ip: string
+  combined_threat_score: number
+  sources: string[]
+  abuseipdb: AbuseIPDBCheck | null
+  local_threat: Record<string, unknown> | null
+  status: string
+}
+
+// Language Engine — Human-friendly notifications
+export interface HumanNotification {
+  id: string
+  title: string
+  body: string
+  severity: string
+  icon: string
+  action_label: string | null
+  action_type: string | null
+  original_alert_type: string
+  original_message: string
+  generated_by: string
+  created_at: string
+}
+
+export interface HumanizeRequest {
+  alert_type: string
+  severity: string
+  ip?: string
+  message: string
+  details?: Record<string, unknown>
+  device_name?: string
+}
+
+export interface HumanizeResponse {
+  notification: HumanNotification
+}
+
+export interface HumanizeBatchResponse {
+  notifications: HumanNotification[]
+  count: number
+}
+
+export interface SampleNotificationsResponse {
+  samples: HumanNotification[]
+  count: number
+}
+
 // GET /api/shield-findings
 export interface AgentShieldFinding {
   id: number

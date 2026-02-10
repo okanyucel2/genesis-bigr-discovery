@@ -35,6 +35,14 @@ import type {
   DeadManStatusResponse,
   DeadManStatus,
   DeadManSwitchConfig,
+  AbuseIPDBCheck,
+  AbuseIPDBStatus,
+  AbuseIPDBBlacklistResponse,
+  AbuseIPDBEnrichment,
+  HumanizeRequest,
+  HumanizeResponse,
+  HumanizeBatchResponse,
+  SampleNotificationsResponse,
 } from '@/types/api'
 import type { ShieldScanResponse, ShieldFindingsResponse, ShieldModulesResponse } from '@/types/shield'
 import {
@@ -282,4 +290,29 @@ export const bigrApi = {
 
   forceDeadManCheck: () =>
     client.post('/api/deadman/check'),
+
+  // AbuseIPDB
+  checkAbuseIPDB: (ip: string) =>
+    client.get<AbuseIPDBCheck>(`/api/threat/abuseipdb/check/${ip}`),
+
+  getAbuseIPDBStatus: () =>
+    client.get<AbuseIPDBStatus>('/api/threat/abuseipdb/status'),
+
+  getAbuseIPDBBlacklist: (confidenceMinimum = 90, limit = 1000) =>
+    client.get<AbuseIPDBBlacklistResponse>('/api/threat/abuseipdb/blacklist', {
+      params: { confidence_minimum: confidenceMinimum, limit },
+    }),
+
+  enrichAsset: (ip: string) =>
+    client.get<AbuseIPDBEnrichment>(`/api/threat/abuseipdb/enrichment/${ip}`),
+
+  // Language Engine — Notification Humanizer
+  humanizeAlert: (request: HumanizeRequest) =>
+    client.post<HumanizeResponse>('/api/language/humanize', request),
+
+  humanizeBatch: (requests: HumanizeRequest[]) =>
+    client.post<HumanizeBatchResponse>('/api/language/humanize/batch', requests),
+
+  getSampleNotifications: () =>
+    client.get<SampleNotificationsResponse>('/api/language/sample-notifications'),
 }

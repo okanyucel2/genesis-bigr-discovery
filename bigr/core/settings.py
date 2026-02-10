@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     THREAT_EXPIRY_DAYS: int = 90  # Auto-expiry for threat indicators (GDPR/KVKK)
     OTX_API_KEY: str = ""  # AlienVault OTX API key (optional, free registration)
 
+    # AbuseIPDB settings (commercial threat intelligence)
+    ABUSEIPDB_API_KEY: str = ""  # AbuseIPDB API key (free tier: 1000/day)
+    ABUSEIPDB_DAILY_LIMIT: int = 1000  # Daily API call limit (free=1000, basic=10000)
+
     model_config = {"env_prefix": "", "case_sensitive": True}
 
 

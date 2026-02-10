@@ -70,6 +70,11 @@ const router = createRouter({
       component: () => import('@/views/ShieldFindingsView.vue'),
     },
     {
+      path: '/notifications',
+      name: 'notifications',
+      component: () => import('@/views/NotificationsView.vue'),
+    },
+    {
       path: '/remediation',
       name: 'remediation',
       component: () => import('@/views/RemediationView.vue'),

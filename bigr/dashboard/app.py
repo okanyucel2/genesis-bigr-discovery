@@ -18,10 +18,12 @@ from bigr.ai.api import router as ai_router
 from bigr.core import services
 from bigr.core.database import get_db
 from bigr.core.settings import settings
+from bigr.language.api import router as language_router
 from bigr.onboarding.api import router as onboarding_router
 from bigr.shield.api.routes import router as shield_router
 from bigr.subscription.api import router as subscription_router
 from bigr.remediation.api import router as remediation_router
+from bigr.threat.abuseipdb_api import router as abuseipdb_router
 from bigr.threat.api import router as threat_router
 from bigr.topology import build_subnet_topology, build_topology
 
@@ -76,7 +78,9 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
     app.include_router(shield_router)
     app.include_router(agent_router)
     app.include_router(ai_router)
+    app.include_router(language_router)
     app.include_router(threat_router)
+    app.include_router(abuseipdb_router)
     app.include_router(onboarding_router)
     app.include_router(remediation_router)
     app.include_router(subscription_router)
