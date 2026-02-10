@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { Radio, Wifi, MapPin, Clock, RefreshCw, Play } from 'lucide-vue-next'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { Radio, Wifi, MapPin, Clock, RefreshCw, Play, Check, X as XIcon } from 'lucide-vue-next'
 import { useAgents } from '@/composables/useAgents'
 import AgentDetailModal from '@/components/agents/AgentDetailModal.vue'
 import type { Agent } from '@/types/api'
@@ -9,7 +9,10 @@ import { bigrApi } from '@/lib/api'
 const { agents, loading, error, fetchAgents } = useAgents()
 
 const selectedAgent = ref<Agent | null>(null)
-const quickScanning = ref<string | null>(null) // agent id being quick-scanned
+
+// Track active scans per agent: 'queued' | 'scanning' | 'done' | 'failed'
+const scanStates = ref<Record<string, { status: string; commandId: string }>>({})
+let pollTimers: Record<string, ReturnType<typeof setInterval>> = {}
 
 const onlineCount = computed(() => agents.value.filter(a => a.status === 'online').length)
 const totalCount = computed(() => agents.value.length)
@@ -41,25 +44,73 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(hours / 24)}d ago`
 }
 
+function scanButtonLabel(agentId: string): string {
+  const state = scanStates.value[agentId]
+  if (!state) return 'Scan Now'
+  switch (state.status) {
+    case 'queued': return 'Queued'
+    case 'scanning': return 'Scanning...'
+    case 'done': return 'Done'
+    case 'failed': return 'Failed'
+    default: return 'Scan Now'
+  }
+}
+
+function isScanActive(agentId: string): boolean {
+  const state = scanStates.value[agentId]
+  return !!state && (state.status === 'queued' || state.status === 'scanning')
+}
+
+function pollCommandStatus(agentId: string, commandId: string) {
+  const timer = setInterval(async () => {
+    try {
+      const { data } = await bigrApi.getAgentCommands(agentId)
+      const cmd = data.commands.find(c => c.id === commandId)
+      if (!cmd) return
+      if (cmd.status === 'ack' || cmd.status === 'running') {
+        scanStates.value[agentId] = { status: 'scanning', commandId }
+      } else if (cmd.status === 'completed') {
+        scanStates.value[agentId] = { status: 'done', commandId }
+        clearInterval(timer)
+        delete pollTimers[agentId]
+        setTimeout(() => { delete scanStates.value[agentId] }, 4000)
+      } else if (cmd.status === 'failed') {
+        scanStates.value[agentId] = { status: 'failed', commandId }
+        clearInterval(timer)
+        delete pollTimers[agentId]
+        setTimeout(() => { delete scanStates.value[agentId] }, 4000)
+      }
+    } catch {
+      // silent
+    }
+  }, 3000)
+  pollTimers[agentId] = timer
+}
+
 async function quickScan(agent: Agent, event: Event) {
   event.stopPropagation()
-  if (quickScanning.value) return
+  if (isScanActive(agent.id)) return
   if (!agent.subnets.length) {
-    // No subnets — open modal instead
     selectedAgent.value = agent
     return
   }
-  quickScanning.value = agent.id
+  scanStates.value[agent.id] = { status: 'queued', commandId: '' }
   try {
-    await bigrApi.createAgentCommand(agent.id)
+    const { data } = await bigrApi.createAgentCommand(agent.id)
+    scanStates.value[agent.id] = { status: 'queued', commandId: data.command_id }
+    pollCommandStatus(agent.id, data.command_id)
   } catch {
-    // Silently fail quick scan — user can use modal for details
-  } finally {
-    quickScanning.value = null
+    scanStates.value[agent.id] = { status: 'failed', commandId: '' }
+    setTimeout(() => { delete scanStates.value[agent.id] }, 3000)
   }
 }
 
 onMounted(fetchAgents)
+
+onUnmounted(() => {
+  Object.values(pollTimers).forEach(clearInterval)
+  pollTimers = {}
+})
 </script>
 
 <template>
@@ -140,18 +191,24 @@ onMounted(fetchAgents)
             </div>
             <button
               v-if="agent.status === 'online'"
-              :disabled="quickScanning === agent.id"
+              :disabled="isScanActive(agent.id)"
               :class="[
                 'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
-                quickScanning === agent.id
-                  ? 'bg-cyan-500/20 text-cyan-300'
-                  : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 hover:text-cyan-300',
+                scanStates[agent.id]?.status === 'done'
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : scanStates[agent.id]?.status === 'failed'
+                    ? 'bg-rose-500/20 text-rose-400'
+                    : isScanActive(agent.id)
+                      ? 'bg-cyan-500/20 text-cyan-300'
+                      : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 hover:text-cyan-300',
               ]"
               @click="quickScan(agent, $event)"
             >
-              <Play v-if="quickScanning !== agent.id" class="h-3 w-3" />
-              <div v-else class="h-3 w-3 animate-spin rounded-full border border-cyan-400 border-t-transparent" />
-              {{ quickScanning === agent.id ? 'Queued' : 'Scan Now' }}
+              <Check v-if="scanStates[agent.id]?.status === 'done'" class="h-3 w-3" />
+              <XIcon v-else-if="scanStates[agent.id]?.status === 'failed'" class="h-3 w-3" />
+              <div v-else-if="isScanActive(agent.id)" class="h-3 w-3 animate-spin rounded-full border border-cyan-400 border-t-transparent" />
+              <Play v-else class="h-3 w-3" />
+              {{ scanButtonLabel(agent.id) }}
             </button>
           </div>
         </div>
