@@ -14,6 +14,8 @@ import type {
   VulnerabilitiesResponse,
   CertificatesResponse,
   HealthResponse,
+  AgentsResponse,
+  SitesResponse,
 } from '@/types/api'
 import type { ShieldScanResponse, ShieldFindingsResponse, ShieldModulesResponse } from '@/types/shield'
 import {
@@ -60,10 +62,13 @@ function mockResponse<T>(data: T): Promise<AxiosResponse<T>> {
 }
 
 export const bigrApi = {
-  getAssets: (subnet?: string) =>
-    DEMO_MODE
-      ? mockResponse(mockAssets(subnet))
-      : client.get<AssetsResponse>('/api/data', { params: subnet ? { subnet } : {} }),
+  getAssets: (subnet?: string, site?: string) => {
+    if (DEMO_MODE) return mockResponse(mockAssets(subnet))
+    const params: Record<string, string> = {}
+    if (subnet) params.subnet = subnet
+    if (site) params.site = site
+    return client.get<AssetsResponse>('/api/data', { params })
+  },
 
   getAssetDetail: (ip: string) =>
     DEMO_MODE
@@ -129,6 +134,12 @@ export const bigrApi = {
     DEMO_MODE
       ? mockResponse(mockHealth())
       : client.get<HealthResponse>('/api/health'),
+
+  getAgents: () =>
+    client.get<AgentsResponse>('/api/agents'),
+
+  getSites: () =>
+    client.get<SitesResponse>('/api/sites'),
 
   // Shield
   startShieldScan: (target: string, depth?: string, modules?: string[]) =>

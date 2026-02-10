@@ -1236,6 +1236,160 @@ def vuln_search(
     console.print(f"\n[bold]{len(results)}[/bold] CVEs found.")
 
 
+# ---------------------------------------------------------------------------
+# Agent sub-app
+# ---------------------------------------------------------------------------
+
+agent_app = typer.Typer(help="Remote agent management (register, start, stop, status)")
+app.add_typer(agent_app, name="agent")
+
+
+@agent_app.command("register")
+def agent_register(
+    api_url: str = typer.Option(..., "--api-url", help="Cloud API base URL"),
+    name: str = typer.Option(..., "--name", help="Agent name"),
+    site: str = typer.Option("", "--site", help="Site name"),
+    secret: Optional[str] = typer.Option(None, "--secret", help="Registration secret"),
+    config_path: Optional[str] = typer.Option(None, "--config", hidden=True),
+) -> None:
+    """Register this agent with the cloud API and save credentials locally."""
+    import httpx
+
+    from bigr.agent.config import AgentConfig
+
+    body: dict = {"name": name, "site_name": site}
+    if secret:
+        body["secret"] = secret
+
+    try:
+        resp = httpx.post(f"{api_url.rstrip('/')}/api/agents/register", json=body, timeout=30.0)
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        console.print(f"[red]Registration failed:[/red] {exc.response.status_code} — {exc.response.text}")
+        raise typer.Exit(1)
+    except httpx.RequestError as exc:
+        console.print(f"[red]Connection error:[/red] {exc}")
+        raise typer.Exit(1)
+
+    data = resp.json()
+    agent_id = data["agent_id"]
+    token = data["token"]
+
+    # Save to config
+    cfg_path = Path(config_path) if config_path else None
+    cfg = AgentConfig(
+        api_url=api_url.rstrip("/"),
+        token=token,
+        agent_id=agent_id,
+        name=name,
+        site_name=site,
+    )
+    saved = cfg.save(cfg_path)
+
+    console.print(f"[green]Registered![/green] Agent ID: {agent_id}")
+    console.print(f"Config saved to: {saved}")
+    console.print("[dim]Token stored in config. Keep this file secure.[/dim]")
+
+
+@agent_app.command("start")
+def agent_start(
+    targets: list[str] = typer.Argument(None, help="Target subnet(s) to scan"),
+    api_url: Optional[str] = typer.Option(None, "--api-url", help="Cloud API URL (overrides config)"),
+    token: Optional[str] = typer.Option(None, "--token", help="Bearer token (overrides config)"),
+    interval: str = typer.Option("5m", "--interval", "-i", help="Scan interval (e.g. 5m, 1h)"),
+    shield: bool = typer.Option(False, "--shield", help="Also run shield security modules"),
+    config_path: Optional[str] = typer.Option(None, "--config", hidden=True),
+) -> None:
+    """Start the agent daemon to scan and push results to cloud."""
+    from bigr.agent.config import AgentConfig
+    from bigr.agent.daemon import AgentDaemon
+    from bigr.config import parse_interval
+
+    cfg_path = Path(config_path) if config_path else None
+    cfg = AgentConfig.load(cfg_path)
+
+    resolved_url = api_url or cfg.api_url
+    resolved_token = token or cfg.token
+    resolved_targets = list(targets) if targets else cfg.targets
+
+    if not resolved_url:
+        console.print("[red]Error:[/red] No API URL. Use --api-url or run 'bigr agent register' first.")
+        raise typer.Exit(1)
+    if not resolved_token:
+        console.print("[red]Error:[/red] No token. Use --token or run 'bigr agent register' first.")
+        raise typer.Exit(1)
+    if not resolved_targets:
+        console.print("[red]Error:[/red] No targets. Provide subnet(s) as arguments.")
+        raise typer.Exit(1)
+
+    interval_sec = parse_interval(interval)
+    console.print(f"[green]Starting agent[/green] → {resolved_url}")
+    console.print(f"  Targets: {', '.join(resolved_targets)}")
+    console.print(f"  Interval: {interval_sec}s | Shield: {'Yes' if shield else 'No'}")
+
+    daemon = AgentDaemon(
+        api_url=resolved_url,
+        token=resolved_token,
+        targets=resolved_targets,
+        interval_seconds=interval_sec,
+        shield=shield,
+    )
+    try:
+        daemon.start()
+    except RuntimeError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Agent stopped.[/yellow]")
+
+
+@agent_app.command("stop")
+def agent_stop() -> None:
+    """Stop the running agent daemon."""
+    pid_path = Path.home() / ".bigr" / "agent.pid"
+    if not pid_path.exists():
+        console.print("[yellow]No agent is running.[/yellow]")
+        return
+
+    try:
+        pid = int(pid_path.read_text().strip())
+    except (ValueError, OSError):
+        console.print("[yellow]Invalid PID file.[/yellow]")
+        pid_path.unlink(missing_ok=True)
+        return
+
+    try:
+        os.kill(pid, signal.SIGTERM)
+        console.print(f"[green]Stopped agent[/green] (PID {pid}).")
+    except OSError as exc:
+        console.print(f"[red]Error stopping agent:[/red] {exc}")
+        pid_path.unlink(missing_ok=True)
+
+
+@agent_app.command("status")
+def agent_status() -> None:
+    """Check agent daemon status."""
+    pid_path = Path.home() / ".bigr" / "agent.pid"
+    if not pid_path.exists():
+        console.print("[yellow]Agent is not running.[/yellow]")
+        return
+
+    try:
+        pid = int(pid_path.read_text().strip())
+    except (ValueError, OSError):
+        console.print("[yellow]Invalid PID file. Cleaning up.[/yellow]")
+        pid_path.unlink(missing_ok=True)
+        return
+
+    from bigr.agent.daemon import _is_process_alive
+
+    if _is_process_alive(pid):
+        console.print(f"[green]Agent is running[/green] (PID {pid}).")
+    else:
+        console.print("[yellow]Agent is not running (stale PID).[/yellow]")
+        pid_path.unlink(missing_ok=True)
+
+
 @app.command()
 def version() -> None:
     """Show version information."""

@@ -139,9 +139,16 @@ async def get_latest_scan(
     return _scan_to_dict(result, include_assets=True)
 
 
-async def get_all_assets(session: AsyncSession) -> list[dict]:
-    """Return all known assets from the living inventory."""
+async def get_all_assets(
+    session: AsyncSession, *, site_name: str | None = None
+) -> list[dict]:
+    """Return all known assets from the living inventory.
+
+    If *site_name* is provided, only assets from that site are returned.
+    """
     stmt = select(AssetDB).order_by(desc(AssetDB.last_seen))
+    if site_name:
+        stmt = stmt.where(AssetDB.site_name == site_name)
     result = await session.execute(stmt)
     return [
         {
@@ -162,6 +169,8 @@ async def get_all_assets(session: AsyncSession) -> list[dict]:
             "switch_host": a.switch_host,
             "switch_port": a.switch_port,
             "switch_port_index": a.switch_port_index,
+            "agent_id": a.agent_id,
+            "site_name": a.site_name,
         }
         for a in result.scalars().all()
     ]
@@ -338,15 +347,17 @@ async def get_expiring_certs_async(
 
 
 async def get_changes_async(
-    session: AsyncSession, limit: int = 50
+    session: AsyncSession, limit: int = 50, *, site_name: str | None = None
 ) -> list[dict]:
-    """Return recent asset changes."""
+    """Return recent asset changes, optionally filtered by site."""
     stmt = (
         select(AssetChangeDB, AssetDB)
         .join(AssetDB, AssetDB.id == AssetChangeDB.asset_id)
         .order_by(desc(AssetChangeDB.detected_at), desc(AssetChangeDB.id))
         .limit(limit)
     )
+    if site_name:
+        stmt = stmt.where(AssetDB.site_name == site_name)
     result = await session.execute(stmt)
     return [
         {
@@ -363,6 +374,30 @@ async def get_changes_async(
         }
         for change, asset in result.all()
     ]
+
+
+async def get_sites_summary(session: AsyncSession) -> list[dict]:
+    """Return a summary of all known sites with asset counts."""
+    from bigr.core.models_db import AgentDB
+
+    # Get distinct site_names from assets
+    stmt = (
+        select(
+            AssetDB.site_name,
+            func.count(AssetDB.id).label("asset_count"),
+        )
+        .group_by(AssetDB.site_name)
+        .order_by(AssetDB.site_name)
+    )
+    result = await session.execute(stmt)
+    sites = []
+    for row in result.all():
+        site = row.site_name or "(local)"
+        sites.append({
+            "site_name": site,
+            "asset_count": row.asset_count,
+        })
+    return sites
 
 
 # ---------------------------------------------------------------------------
@@ -390,12 +425,20 @@ async def save_scan_async(
         completed_at=scan_result.get("completed_at"),
         total_assets=len(scan_result.get("assets", [])),
         is_root=int(scan_result.get("is_root", False)),
+        agent_id=scan_result.get("agent_id"),
+        site_name=scan_result.get("site_name"),
     )
     session.add(scan)
     await session.flush()
 
+    _agent_id = scan_result.get("agent_id")
+    _site_name = scan_result.get("site_name")
+
     for asset_data in scan_result.get("assets", []):
-        asset_id = await _upsert_asset_async(session, asset_data, scan_id, now_iso)
+        asset_id = await _upsert_asset_async(
+            session, asset_data, scan_id, now_iso,
+            agent_id=_agent_id, site_name=_site_name,
+        )
 
         sa = ScanAssetDB(
             scan_id=scan_id,
@@ -416,6 +459,9 @@ async def _upsert_asset_async(
     asset_data: dict,
     scan_id: str,
     now_iso: str,
+    *,
+    agent_id: str | None = None,
+    site_name: str | None = None,
 ) -> str:
     """Insert or update an asset. Detects and logs changes. Returns asset_id."""
     ip = asset_data["ip"]
@@ -444,6 +490,8 @@ async def _upsert_asset_async(
             scan_method=asset_data.get("scan_method", "passive"),
             first_seen=asset_data.get("first_seen", now_iso),
             last_seen=asset_data.get("last_seen", now_iso),
+            agent_id=agent_id,
+            site_name=site_name,
         )
         session.add(new_asset)
         await session.flush()

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 
 export const useUiStore = defineStore('ui', () => {
   const sidebarCollapsed = ref(false)
+  const selectedSite = ref<string | null>(null)
 
   function toggleSidebar() {
     sidebarCollapsed.value = !sidebarCollapsed.value
@@ -12,9 +13,15 @@ export const useUiStore = defineStore('ui', () => {
     sidebarCollapsed.value = collapsed
   }
 
+  function setSelectedSite(site: string | null) {
+    selectedSite.value = site
+  }
+
   return {
     sidebarCollapsed,
+    selectedSite,
     toggleSidebar,
     setSidebarCollapsed,
+    setSelectedSite,
   }
 })

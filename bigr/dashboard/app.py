@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bigr.agent.routes import router as agent_router
 from bigr.core import services
 from bigr.core.database import get_db
 from bigr.core.settings import settings
@@ -68,6 +69,7 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         )
 
     app.include_router(shield_router)
+    app.include_router(agent_router)
     _data_path = Path(data_path)
 
     async def _load_data_async(db: AsyncSession) -> dict:
@@ -95,8 +97,17 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         return HTMLResponse(content=_render_dashboard(data))
 
     @app.get("/api/data", response_class=JSONResponse)
-    async def api_data(subnet: str | None = None, db: AsyncSession = Depends(get_db)):
-        data = await _load_data_async(db)
+    async def api_data(
+        subnet: str | None = None,
+        site: str | None = None,
+        db: AsyncSession = Depends(get_db),
+    ):
+        # If site filter is active, use DB-level filtering
+        if site:
+            assets = await services.get_all_assets(db, site_name=site)
+            data = {"assets": assets, "total_assets": len(assets)}
+        else:
+            data = await _load_data_async(db)
         # Enrich assets with manual_override flag
         try:
             tagged = await services.get_tags_async(db)
@@ -149,13 +160,26 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
             return JSONResponse({"error": str(exc)}, status_code=500)
 
     @app.get("/api/changes", response_class=JSONResponse)
-    async def api_changes(limit: int = 50, db: AsyncSession = Depends(get_db)):
+    async def api_changes(
+        limit: int = 50,
+        site: str | None = None,
+        db: AsyncSession = Depends(get_db),
+    ):
         """Return recent asset changes from the database."""
         try:
-            changes = await services.get_changes_async(db, limit=limit)
+            changes = await services.get_changes_async(db, limit=limit, site_name=site)
             return {"changes": changes}
         except Exception:
             return {"changes": []}
+
+    @app.get("/api/sites", response_class=JSONResponse)
+    async def api_sites(db: AsyncSession = Depends(get_db)):
+        """Return summary of all known sites with asset counts."""
+        try:
+            sites = await services.get_sites_summary(db)
+            return {"sites": sites}
+        except Exception:
+            return {"sites": []}
 
     @app.get("/api/switches", response_class=JSONResponse)
     async def api_switches(db: AsyncSession = Depends(get_db)):

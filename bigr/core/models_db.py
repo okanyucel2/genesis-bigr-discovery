@@ -15,6 +15,24 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from bigr.core.database import Base
 
 
+class AgentDB(Base):
+    """Remote agent registration."""
+
+    __tablename__ = "agents"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    site_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    location: Mapped[str | None] = mapped_column(String, nullable=True)
+    token_hash: Mapped[str] = mapped_column(String, nullable=False)
+    is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    registered_at: Mapped[str] = mapped_column(String, nullable=False)
+    last_seen: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="offline")
+    version: Mapped[str | None] = mapped_column(String, nullable=True)
+    subnets: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON array
+
+
 class ScanDB(Base):
     __tablename__ = "scans"
 
@@ -25,6 +43,10 @@ class ScanDB(Base):
     completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
     total_assets: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_root: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    agent_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("agents.id"), nullable=True
+    )
+    site_name: Mapped[str | None] = mapped_column(String, nullable=True)
 
     scan_assets: Mapped[list[ScanAssetDB]] = relationship(
         "ScanAssetDB", back_populates="scan", cascade="all, delete-orphan"
@@ -56,6 +78,10 @@ class AssetDB(Base):
     switch_host: Mapped[str | None] = mapped_column(String, nullable=True)
     switch_port: Mapped[str | None] = mapped_column(String, nullable=True)
     switch_port_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    agent_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("agents.id"), nullable=True
+    )
+    site_name: Mapped[str | None] = mapped_column(String, nullable=True)
 
     scan_assets: Mapped[list[ScanAssetDB]] = relationship(
         "ScanAssetDB", back_populates="asset", cascade="all, delete-orphan"
@@ -145,3 +171,43 @@ class CertificateDB(Base):
     days_until_expiry: Mapped[int | None] = mapped_column(Integer, nullable=True)
     san: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_checked: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class ShieldScanDB(Base):
+    """Shield security scan from a remote agent."""
+
+    __tablename__ = "shield_scans"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    agent_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("agents.id"), nullable=True
+    )
+    site_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    target: Mapped[str] = mapped_column(String, nullable=False)
+    started_at: Mapped[str] = mapped_column(String, nullable=False)
+    completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    modules_run: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON array
+
+    findings: Mapped[list[ShieldFindingDB]] = relationship(
+        "ShieldFindingDB", back_populates="scan", cascade="all, delete-orphan"
+    )
+
+
+class ShieldFindingDB(Base):
+    """Individual finding from a shield scan."""
+
+    __tablename__ = "shield_findings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    scan_id: Mapped[str] = mapped_column(
+        String, ForeignKey("shield_scans.id"), nullable=False
+    )
+    module: Mapped[str] = mapped_column(String, nullable=False)
+    severity: Mapped[str] = mapped_column(String, nullable=False, default="info")
+    title: Mapped[str | None] = mapped_column(String, nullable=True)
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target_ip: Mapped[str | None] = mapped_column(String, nullable=True)
+    remediation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_data: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON
+
+    scan: Mapped[ShieldScanDB] = relationship("ShieldScanDB", back_populates="findings")

@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///~/.bigr/bigr.db"
     DEBUG: bool = False
+    AGENT_REGISTRATION_SECRET: str = ""
 
     model_config = {"env_prefix": "", "case_sensitive": True}
 

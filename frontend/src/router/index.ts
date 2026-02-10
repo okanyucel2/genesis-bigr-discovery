@@ -59,6 +59,11 @@ const router = createRouter({
       component: () => import('@/views/ShieldView.vue'),
     },
     {
+      path: '/agents',
+      name: 'agents',
+      component: () => import('@/views/AgentsView.vue'),
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),

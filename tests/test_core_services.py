@@ -133,6 +133,7 @@ class TestGetAllAssets:
             "bigr_category", "confidence_score", "scan_method",
             "first_seen", "last_seen", "manual_category", "manual_note",
             "is_ignored", "switch_host", "switch_port", "switch_port_index",
+            "agent_id", "site_name",
         }
         assert set(result[0].keys()) == expected_keys
 

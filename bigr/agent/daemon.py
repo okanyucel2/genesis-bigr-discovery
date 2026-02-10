@@ -1,0 +1,273 @@
+"""Agent daemon — scan + push cycle with heartbeat and PID management.
+
+Reuses the WatcherDaemon pattern from bigr/watcher.py but pushes results
+to a remote cloud API via httpx instead of saving locally.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import time
+from datetime import datetime, timezone
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+
+import httpx
+
+from bigr.agent.queue import OfflineQueue
+
+_DEFAULT_DIR = Path.home() / ".bigr"
+
+
+def _is_process_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except (OSError, ProcessLookupError):
+        return False
+
+
+class AgentDaemon:
+    """Remote agent daemon that scans locally and pushes to cloud API.
+
+    Parameters
+    ----------
+    api_url:
+        Base URL of the cloud BİGR Discovery API (e.g. https://bigr-api.onrender.com).
+    token:
+        Bearer token for authenticating with the cloud API.
+    targets:
+        List of subnet CIDRs to scan (e.g. ["192.168.1.0/24"]).
+    interval_seconds:
+        Seconds between scan cycles.
+    shield:
+        If True, also run shield security modules after discovery.
+    bigr_dir:
+        Base directory for PID/log files (default: ~/.bigr).
+    """
+
+    def __init__(
+        self,
+        api_url: str,
+        token: str,
+        targets: list[str],
+        interval_seconds: int = 300,
+        shield: bool = False,
+        bigr_dir: Path | None = None,
+    ) -> None:
+        self._api_url = api_url.rstrip("/")
+        self._token = token
+        self._targets = targets
+        self._interval = interval_seconds
+        self._shield = shield
+        self._dir = bigr_dir or _DEFAULT_DIR
+        self._dir.mkdir(parents=True, exist_ok=True)
+        self._pid_path = self._dir / "agent.pid"
+        self._log_path = self._dir / "agent.log"
+        self._running = False
+        self._logger = self._setup_logger()
+        self._queue = OfflineQueue(self._dir / "queue")
+        self._client = httpx.Client(
+            timeout=60.0,
+            headers={"Authorization": f"Bearer {self._token}"},
+        )
+
+    def _setup_logger(self) -> logging.Logger:
+        logger = logging.getLogger(f"bigr.agent.{id(self)}")
+        logger.setLevel(logging.INFO)
+        if not logger.handlers:
+            handler = RotatingFileHandler(
+                self._log_path, maxBytes=5 * 1024 * 1024, backupCount=3,
+            )
+            handler.setFormatter(logging.Formatter(
+                "%(asctime)s [%(levelname)s] %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            ))
+            logger.addHandler(handler)
+        return logger
+
+    # ------------------------------------------------------------------
+    # PID lifecycle
+    # ------------------------------------------------------------------
+
+    def start(self) -> None:
+        """Start the agent daemon. Writes PID and enters scan loop."""
+        if self._pid_path.exists():
+            try:
+                existing = int(self._pid_path.read_text().strip())
+            except (ValueError, OSError):
+                existing = None
+            if existing and _is_process_alive(existing):
+                raise RuntimeError(
+                    f"Agent already running (PID {existing}). Use 'bigr agent stop'."
+                )
+            self._pid_path.unlink(missing_ok=True)
+
+        self._pid_path.write_text(str(os.getpid()))
+        self._running = True
+        self._logger.info(
+            "Agent started (PID %d). API: %s, Targets: %s, Interval: %ds",
+            os.getpid(), self._api_url, self._targets, self._interval,
+        )
+        self._run_loop()
+
+    def stop(self) -> None:
+        """Stop the daemon and clean up PID file."""
+        self._running = False
+        self._logger.info("Agent stopped.")
+        if self._pid_path.exists():
+            try:
+                self._pid_path.unlink()
+            except OSError:
+                pass
+        self._client.close()
+
+    def get_status(self) -> dict:
+        """Return current agent status from PID file."""
+        if not self._pid_path.exists():
+            return {"running": False, "message": "Not running (no PID file)."}
+        try:
+            pid = int(self._pid_path.read_text().strip())
+        except (ValueError, OSError):
+            return {"running": False, "message": "Invalid PID file."}
+        if _is_process_alive(pid):
+            return {"running": True, "pid": pid, "message": f"Running (PID {pid})."}
+        self._pid_path.unlink(missing_ok=True)
+        return {"running": False, "message": "Not running (stale PID cleaned)."}
+
+    # ------------------------------------------------------------------
+    # Main loop
+    # ------------------------------------------------------------------
+
+    def _run_loop(self) -> None:
+        try:
+            while self._running:
+                self._run_single_cycle()
+                self._send_heartbeat()
+                time.sleep(self._interval)
+        except KeyboardInterrupt:
+            self._logger.info("Keyboard interrupt.")
+        finally:
+            self.stop()
+
+    def _run_single_cycle(self) -> None:
+        """Execute one scan cycle: drain queue, scan each target, push results."""
+        # Drain any queued items from previous failures
+        if self._queue.count() > 0:
+            self._logger.info("Draining %d queued items...", self._queue.count())
+            sent, failed = self._queue.drain(self._drain_send)
+            self._logger.info("Drained: %d sent, %d failed", sent, failed)
+
+        for target in self._targets:
+            self._logger.info("Scanning %s ...", target)
+            try:
+                scan_result = self._scan_target(target)
+            except Exception as exc:
+                self._logger.error("Scan failed for %s: %s", target, exc)
+                continue
+
+            try:
+                self._push_discovery_results(scan_result)
+                self._logger.info(
+                    "Pushed %d assets for %s",
+                    len(scan_result.get("assets", [])), target,
+                )
+            except Exception as exc:
+                self._logger.warning(
+                    "Push failed for %s: %s — queuing for retry", target, exc,
+                )
+                self._queue.enqueue(scan_result, "discovery")
+
+            if self._shield:
+                try:
+                    shield_result = self._run_shield(target)
+                except Exception as exc:
+                    self._logger.error("Shield scan failed for %s: %s", target, exc)
+                    continue
+
+                try:
+                    self._push_shield_results(shield_result)
+                    self._logger.info("Shield pushed for %s", target)
+                except Exception as exc:
+                    self._logger.warning(
+                        "Shield push failed for %s: %s — queuing", target, exc,
+                    )
+                    self._queue.enqueue(shield_result, "shield")
+
+    def _drain_send(self, payload: dict, payload_type: str) -> None:
+        """Send a queued payload. Used by OfflineQueue.drain()."""
+        if payload_type == "shield":
+            self._push_shield_results(payload)
+        else:
+            self._push_discovery_results(payload)
+
+    # ------------------------------------------------------------------
+    # Scanning (reuses existing bigr modules)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _scan_target(target: str) -> dict:
+        """Run hybrid scan + classify on a target. Returns dict for ingest."""
+        from bigr.classifier.bigr_mapper import classify_assets
+        from bigr.scanner.hybrid import run_hybrid_scan
+
+        result = run_hybrid_scan(target)
+        classify_assets(result.assets, do_fingerprint=True)
+
+        return {
+            "target": result.target,
+            "scan_method": result.scan_method,
+            "started_at": result.started_at,
+            "completed_at": result.completed_at,
+            "is_root": result.is_root,
+            "assets": [a.to_dict() for a in result.assets],
+        }
+
+    @staticmethod
+    def _run_shield(target: str) -> dict:
+        """Run shield security modules on a target."""
+        from bigr.shield.orchestrator import ShieldOrchestrator
+
+        orchestrator = ShieldOrchestrator()
+        report = orchestrator.run(target)
+        return {
+            "target": target,
+            "started_at": report.started_at if hasattr(report, "started_at") else "",
+            "completed_at": report.completed_at if hasattr(report, "completed_at") else "",
+            "modules_run": [m.module_name for m in report.results] if hasattr(report, "results") else [],
+            "findings": [f.to_dict() for f in report.findings] if hasattr(report, "findings") else [],
+        }
+
+    # ------------------------------------------------------------------
+    # Push to cloud
+    # ------------------------------------------------------------------
+
+    def _push_discovery_results(self, scan_result: dict) -> None:
+        """POST /api/ingest/discovery with scan results."""
+        resp = self._client.post(
+            f"{self._api_url}/api/ingest/discovery",
+            json=scan_result,
+        )
+        resp.raise_for_status()
+
+    def _push_shield_results(self, shield_result: dict) -> None:
+        """POST /api/ingest/shield with shield results."""
+        resp = self._client.post(
+            f"{self._api_url}/api/ingest/shield",
+            json=shield_result,
+        )
+        resp.raise_for_status()
+
+    def _send_heartbeat(self) -> None:
+        """POST /api/agents/heartbeat."""
+        try:
+            resp = self._client.post(
+                f"{self._api_url}/api/agents/heartbeat",
+                json={"status": "online"},
+            )
+            resp.raise_for_status()
+            self._logger.info("Heartbeat sent.")
+        except Exception as exc:
+            self._logger.warning("Heartbeat failed: %s", exc)

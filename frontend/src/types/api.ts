@@ -294,3 +294,31 @@ export interface HealthResponse {
   data_file: string
   exists: boolean
 }
+
+// GET /api/agents
+export interface Agent {
+  id: string
+  name: string
+  site_name: string
+  location: string | null
+  is_active: boolean
+  registered_at: string
+  last_seen: string | null
+  status: string // 'online' | 'offline' | 'stale'
+  version: string | null
+  subnets: string[]
+}
+
+export interface AgentsResponse {
+  agents: Agent[]
+}
+
+// GET /api/sites
+export interface SiteSummary {
+  site_name: string
+  asset_count: number
+}
+
+export interface SitesResponse {
+  sites: SiteSummary[]
+}
