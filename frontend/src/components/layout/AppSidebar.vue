@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useUiStore } from '@/stores/ui'
 import {
   ShieldCheck as ShieldIcon,
   LayoutDashboard,
@@ -33,6 +35,7 @@ defineEmits<{
 }>()
 
 const route = useRoute()
+const ui = useUiStore()
 
 interface NavItem {
   name: string
@@ -46,18 +49,34 @@ interface NavSection {
   items: NavItem[]
 }
 
-const navSections: NavSection[] = [
+// Simple mode: 5 essential items
+const simpleNavSections: NavSection[] = [
   {
     title: '',
     items: [
-      { name: 'dashboard', label: 'Genel Bakış', icon: LayoutDashboard, path: '/' },
+      { name: 'home', label: 'Ana Ekran', icon: Shield, path: '/' },
+      { name: 'family', label: 'Ailem', icon: Users, path: '/family' },
+      { name: 'assets', label: 'Cihazlarım', icon: Server, path: '/assets' },
+      { name: 'notifications', label: 'Bildirimler', icon: Bell, path: '/notifications' },
+      { name: 'settings', label: 'Ayarlar', icon: Settings, path: '/settings' },
+    ],
+  },
+]
+
+// Advanced mode: full navigation
+const advancedNavSections: NavSection[] = [
+  {
+    title: '',
+    items: [
+      { name: 'home', label: 'Ana Ekran', icon: Shield, path: '/' },
+      { name: 'dashboard', label: 'Genel Bakış', icon: LayoutDashboard, path: '/overview' },
       { name: 'assets', label: 'Cihazlar', icon: Server, path: '/assets' },
     ],
   },
   {
     title: 'Güvenlik',
     items: [
-      { name: 'shield', label: 'Kalkan', icon: Shield, path: '/shield' },
+      { name: 'shield', label: 'Kalkan', icon: ShieldCheck, path: '/shield' },
       { name: 'shield-findings', label: 'Bulgular', icon: ShieldAlert, path: '/shield-findings' },
       { name: 'firewall', label: 'Güvenlik Duvarı', icon: Flame, path: '/firewall' },
       { name: 'vulnerabilities', label: 'Açıklar', icon: Bug, path: '/vulnerabilities' },
@@ -92,10 +111,12 @@ const navSections: NavSection[] = [
   },
 ]
 
+const navSections = computed(() =>
+  ui.advancedMode ? advancedNavSections : simpleNavSections,
+)
+
 const isActive = (item: NavItem) => {
   if (item.path === '/') return route.path === '/'
-  // Exact match first, then prefix match with boundary check
-  // This prevents /shield matching /shield-findings
   if (route.path === item.path) return true
   return route.path.startsWith(item.path + '/')
 }
@@ -172,6 +193,19 @@ const isActive = (item: NavItem) => {
         </RouterLink>
       </template>
     </nav>
+
+    <!-- Advanced Mode Toggle -->
+    <div v-if="!collapsed" class="border-t border-[var(--border-glass)] px-4 py-3">
+      <label class="flex cursor-pointer items-center gap-2 text-xs text-slate-500 hover:text-slate-400">
+        <input
+          type="checkbox"
+          :checked="ui.advancedMode"
+          class="h-3.5 w-3.5 rounded border-slate-600 bg-transparent accent-cyan-500"
+          @change="ui.toggleAdvancedMode()"
+        >
+        <span>Gelişmiş Görünüm</span>
+      </label>
+    </div>
 
     <!-- Collapse Toggle -->
     <div class="border-t border-[var(--border-glass)] px-2 py-3">

@@ -88,4 +88,17 @@
     color: var(--color-neon-cyan);
     text-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
   }
+
+  /* Shield state borders */
+  .status-border-green {
+    border-color: rgba(16, 185, 129, 0.3);
+  }
+
+  .status-border-yellow {
+    border-color: rgba(245, 158, 11, 0.3);
+  }
+
+  .status-border-red {
+    border-color: rgba(244, 63, 94, 0.3);
+  }
 }

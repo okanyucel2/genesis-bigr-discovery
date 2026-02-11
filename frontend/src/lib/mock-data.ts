@@ -38,6 +38,14 @@ import type {
   CertificatesResponse,
   Certificate,
   HealthResponse,
+  FirewallDailyStats,
+  CollectiveStats,
+  ContributionStatus,
+  FamilyOverview,
+  FamilyTimelineEntry,
+  FamilyAlert,
+  FirewallEvent,
+  HumanNotification,
 } from '@/types/api'
 
 // ---------------------------------------------------------------------------
@@ -1965,4 +1973,275 @@ export function mockShieldModules(): ShieldModulesResponse {
       { name: 'owasp', description: 'OWASP basic web probes', weight: 5, available: true },
     ],
   }
+}
+
+// ---------------------------------------------------------------------------
+// Home Dashboard Mock Data
+// ---------------------------------------------------------------------------
+
+export function mockFirewallDailyStats(): FirewallDailyStats {
+  return {
+    date: dateOnly(0),
+    blocked: 47,
+    allowed: 1283,
+    total: 1330,
+    block_rate: 3.5,
+  }
+}
+
+export function mockCollectiveStats(): CollectiveStats {
+  return {
+    total_signals: 2847,
+    active_agents: 156,
+    verified_threats: 23,
+    subnets_monitored: 412,
+    community_protection_score: 78,
+    last_updated: daysAgo(0),
+  }
+}
+
+export function mockContributionStatus(): ContributionStatus {
+  return {
+    signals_contributed: 34,
+    signals_received: 127,
+    is_contributing: true,
+    opt_in: true,
+    privacy_level: 'anonymous',
+  }
+}
+
+export function mockFamilyOverview(): FamilyOverview {
+  return {
+    family_name: 'Yucel Ailesi',
+    plan_id: 'family_plus',
+    devices: [
+      {
+        id: 'dev_001',
+        name: 'Okan\'in Telefonu',
+        device_type: 'phone',
+        icon: '📱',
+        owner_name: 'Okan',
+        is_online: true,
+        last_seen: daysAgo(0),
+        safety_score: 92,
+        safety_level: 'safe',
+        open_threats: 0,
+        ip: '192.168.1.101',
+        network_name: 'Ev Agi',
+      },
+      {
+        id: 'dev_002',
+        name: 'Salon TV',
+        device_type: 'smart_tv',
+        icon: '📺',
+        owner_name: null,
+        is_online: true,
+        last_seen: daysAgo(0),
+        safety_score: 78,
+        safety_level: 'warning',
+        open_threats: 1,
+        ip: '192.168.1.102',
+        network_name: 'Ev Agi',
+      },
+      {
+        id: 'dev_003',
+        name: 'MacBook Pro',
+        device_type: 'laptop',
+        icon: '💻',
+        owner_name: 'Okan',
+        is_online: true,
+        last_seen: daysAgo(0),
+        safety_score: 95,
+        safety_level: 'safe',
+        open_threats: 0,
+        ip: '192.168.1.103',
+        network_name: 'Ev Agi',
+      },
+      {
+        id: 'dev_004',
+        name: 'iPad',
+        device_type: 'tablet',
+        icon: '📱',
+        owner_name: 'Aile',
+        is_online: false,
+        last_seen: daysAgo(1),
+        safety_score: 88,
+        safety_level: 'safe',
+        open_threats: 0,
+        ip: '192.168.1.104',
+        network_name: 'Ev Agi',
+      },
+    ],
+    max_devices: 15,
+    total_threats: 1,
+    avg_safety_score: 88,
+    safety_level: 'safe',
+    devices_online: 3,
+    last_scan: daysAgo(0),
+  }
+}
+
+export function mockFamilyTimeline(): FamilyTimelineEntry[] {
+  return [
+    {
+      id: 'ft_001',
+      device_id: 'dev_002',
+      device_name: 'Salon TV',
+      device_icon: '📺',
+      event_type: 'threat_blocked',
+      message: 'Supheli baglanti engellendi (tracking.ad-network.com)',
+      timestamp: daysAgo(0),
+    },
+    {
+      id: 'ft_002',
+      device_id: 'dev_001',
+      device_name: 'Okan\'in Telefonu',
+      device_icon: '📱',
+      event_type: 'device_online',
+      message: 'Cihaz aga baglandi',
+      timestamp: daysAgo(0),
+    },
+    {
+      id: 'ft_003',
+      device_id: 'dev_003',
+      device_name: 'MacBook Pro',
+      device_icon: '💻',
+      event_type: 'scan_complete',
+      message: 'Guvenlik taramasi tamamlandi - temiz',
+      timestamp: daysAgo(0),
+    },
+    {
+      id: 'ft_004',
+      device_id: 'dev_004',
+      device_name: 'iPad',
+      device_icon: '📱',
+      event_type: 'device_offline',
+      message: 'Cihaz cevrimdisi oldu',
+      timestamp: daysAgo(1),
+    },
+  ]
+}
+
+export function mockFamilyAlerts(): FamilyAlert[] {
+  return [
+    {
+      id: 'fa_001',
+      device_id: 'dev_002',
+      device_name: 'Salon TV',
+      alert_type: 'suspicious_connection',
+      severity: 'medium',
+      message: 'TV bilinmeyen bir sunucuya veri gonderiyor',
+      timestamp: daysAgo(0),
+      is_read: false,
+    },
+  ]
+}
+
+export function mockFirewallEvents(): FirewallEvent[] {
+  return [
+    {
+      id: 'fe_001',
+      timestamp: daysAgo(0),
+      action: 'block',
+      rule_id: 'rule_threat_001',
+      source_ip: '45.33.32.156',
+      dest_ip: '192.168.1.102',
+      dest_port: 8443,
+      protocol: 'tcp',
+      process_name: null,
+      direction: 'inbound',
+    },
+    {
+      id: 'fe_002',
+      timestamp: daysAgo(0),
+      action: 'block',
+      rule_id: 'rule_ad_001',
+      source_ip: '192.168.1.102',
+      dest_ip: '104.21.67.89',
+      dest_port: 443,
+      protocol: 'tcp',
+      process_name: 'smarttv-app',
+      direction: 'outbound',
+    },
+    {
+      id: 'fe_003',
+      timestamp: daysAgo(0),
+      action: 'allow',
+      rule_id: null,
+      source_ip: '192.168.1.103',
+      dest_ip: '140.82.121.4',
+      dest_port: 443,
+      protocol: 'tcp',
+      process_name: 'chrome',
+      direction: 'outbound',
+    },
+    {
+      id: 'fe_004',
+      timestamp: daysAgo(1),
+      action: 'block',
+      rule_id: 'rule_port_001',
+      source_ip: '89.248.167.131',
+      dest_ip: '192.168.1.1',
+      dest_port: 23,
+      protocol: 'tcp',
+      process_name: null,
+      direction: 'inbound',
+    },
+    {
+      id: 'fe_005',
+      timestamp: daysAgo(1),
+      action: 'block',
+      rule_id: 'rule_threat_002',
+      source_ip: '185.220.101.42',
+      dest_ip: '192.168.1.1',
+      dest_port: 22,
+      protocol: 'tcp',
+      process_name: null,
+      direction: 'inbound',
+    },
+  ]
+}
+
+export function mockSampleNotifications(): HumanNotification[] {
+  return [
+    {
+      id: 'hn_001',
+      title: 'Supheli Baglanti Engellendi',
+      body: 'Salon TV\'niz bilinmeyen bir sunucuya baglanmaya calisti. Guvenlik duvariniz bu baglantiyi engelledi.',
+      severity: 'medium',
+      icon: '🛡️',
+      action_label: 'Detaylari Gor',
+      action_type: 'navigate',
+      original_alert_type: 'firewall_block',
+      original_message: 'Outbound connection blocked to 104.21.67.89:443',
+      generated_by: 'humanizer',
+      created_at: daysAgo(0),
+    },
+    {
+      id: 'hn_002',
+      title: 'Sertifika Suresi Yaklasiyor',
+      body: 'Web sunucunuzun TLS sertifikasi 15 gun icinde sona erecek. Yenilemek icin harekete gecin.',
+      severity: 'low',
+      icon: '🔐',
+      action_label: 'Sertifikalari Gor',
+      action_type: 'navigate',
+      original_alert_type: 'cert_expiry',
+      original_message: 'Certificate for 10.0.0.2:443 expires in 15 days',
+      generated_by: 'humanizer',
+      created_at: daysAgo(1),
+    },
+    {
+      id: 'hn_003',
+      title: 'Yeni Cihaz Algilandi',
+      body: 'Aginizda yeni bir cihaz goruldu: Apple iPhone (192.168.1.120). Taniyor musunuz?',
+      severity: 'info',
+      icon: '📱',
+      action_label: 'Tani',
+      action_type: 'identify',
+      original_alert_type: 'new_device',
+      original_message: 'New device detected: 00:AA:BB:CC:DD:EE at 192.168.1.120',
+      generated_by: 'humanizer',
+      created_at: daysAgo(2),
+    },
+  ]
 }

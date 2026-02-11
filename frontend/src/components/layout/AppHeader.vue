@@ -7,6 +7,7 @@ import { bigrApi } from '@/lib/api'
 const route = useRoute()
 
 const PAGE_TITLES: Record<string, string> = {
+  home: 'Ana Ekran',
   dashboard: 'Genel Bakış',
   assets: 'Cihazlar',
   'asset-detail': 'Cihaz Detayı',

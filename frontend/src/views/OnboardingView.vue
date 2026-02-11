@@ -1,34 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useOnboardingStore } from '@/stores/onboarding'
-import WelcomeStep from '@/components/onboarding/WelcomeStep.vue'
-import NetworkScanStep from '@/components/onboarding/NetworkScanStep.vue'
-import NameNetworkStep from '@/components/onboarding/NameNetworkStep.vue'
-import ReadyStep from '@/components/onboarding/ReadyStep.vue'
-
-const store = useOnboardingStore()
-
-const steps = ['Hosgeldin', 'Ag Taramasi', 'Isimlendirme', 'Hazir']
-
-const stepIndicators = computed(() =>
-  steps.map((label, idx) => ({
-    label,
-    active: idx === store.currentStep,
-    completed: idx < store.currentStep,
-  })),
-)
-
-function advanceToScan() {
-  store.goToStep(1)
-}
-
-function advanceToName() {
-  store.goToStep(2)
-}
-
-function advanceToReady() {
-  store.goToStep(3)
-}
+import ChatOnboarding from '@/components/onboarding/ChatOnboarding.vue'
 </script>
 
 <template>
@@ -36,84 +7,22 @@ function advanceToReady() {
     <!-- Background subtle grid pattern -->
     <div class="bg-grid" />
 
-    <!-- Step Indicator -->
-    <div class="relative z-10 flex items-center justify-center gap-2 pt-8 pb-4 px-6">
-      <template v-for="(step, idx) in stepIndicators" :key="idx">
-        <div class="flex items-center gap-2">
-          <!-- Step dot -->
-          <div
-            class="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold transition-all duration-300"
-            :class="[
-              step.completed
-                ? 'bg-cyan-500/30 text-cyan-400 border border-cyan-500/40'
-                : step.active
-                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
-                  : 'bg-white/5 text-slate-600 border border-white/10',
-            ]"
-          >
-            <!-- Checkmark for completed -->
-            <svg
-              v-if="step.completed"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="3"
-              class="h-3 w-3"
-            >
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-            </svg>
-            <span v-else>{{ idx + 1 }}</span>
-          </div>
-
-          <!-- Step label (hidden on small screens) -->
-          <span
-            class="hidden text-[10px] uppercase tracking-wider sm:inline"
-            :class="
-              step.active || step.completed
-                ? 'text-slate-300'
-                : 'text-slate-600'
-            "
-          >
-            {{ step.label }}
-          </span>
-        </div>
-
-        <!-- Connector line (not after last) -->
-        <div
-          v-if="idx < steps.length - 1"
-          class="h-px w-8 sm:w-12 transition-colors duration-300"
-          :class="
-            stepIndicators[idx + 1]?.completed || stepIndicators[idx + 1]?.active
-              ? 'bg-cyan-500/30'
-              : 'bg-white/10'
-          "
-        />
-      </template>
+    <!-- BIGR Logo + Title -->
+    <div class="relative z-10 flex items-center justify-center gap-3 pt-8 pb-2">
+      <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/20">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-5 w-5 text-cyan-400">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-sm font-bold tracking-wide text-neon-cyan">BIGR Shield</h1>
+        <p class="text-[10px] text-slate-500">Dijital koruyucunuz</p>
+      </div>
     </div>
 
-    <!-- Step Content -->
+    <!-- Chat-based onboarding -->
     <div class="relative z-10">
-      <Transition name="step-slide" mode="out-in">
-        <WelcomeStep
-          v-if="store.currentStep === 0"
-          key="welcome"
-          @advance="advanceToScan"
-        />
-        <NetworkScanStep
-          v-else-if="store.currentStep === 1"
-          key="scan"
-          @advance="advanceToName"
-        />
-        <NameNetworkStep
-          v-else-if="store.currentStep === 2"
-          key="name"
-          @advance="advanceToReady"
-        />
-        <ReadyStep
-          v-else-if="store.currentStep === 3"
-          key="ready"
-        />
-      </Transition>
+      <ChatOnboarding />
     </div>
   </div>
 </template>

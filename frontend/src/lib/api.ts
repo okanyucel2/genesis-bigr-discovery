@@ -82,6 +82,14 @@ import {
   mockShieldScan,
   mockShieldFindings,
   mockShieldModules,
+  mockFirewallDailyStats,
+  mockCollectiveStats,
+  mockContributionStatus,
+  mockFamilyOverview,
+  mockFamilyTimeline,
+  mockFamilyAlerts,
+  mockFirewallEvents,
+  mockSampleNotifications,
 } from '@/lib/mock-data'
 
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
@@ -241,6 +249,7 @@ export const bigrApi = {
     client.post<{ status: string; rules_created: number; findings_checked: number; message: string }>('/api/firewall/sync/shield'),
 
   getFirewallEvents: (limit = 100, action?: string) => {
+    if (DEMO_MODE) return mockResponse({ events: mockFirewallEvents().slice(0, limit), total: mockFirewallEvents().length })
     const params: Record<string, string | number> = { limit }
     if (action) params.action = action
     return client.get<FirewallEventsResponse>('/api/firewall/events', { params })
@@ -253,7 +262,9 @@ export const bigrApi = {
     client.put<{ status: string; config: FirewallConfig; message: string }>('/api/firewall/config', config),
 
   getFirewallDailyStats: () =>
-    client.get<FirewallDailyStats>('/api/firewall/stats/daily'),
+    DEMO_MODE
+      ? mockResponse(mockFirewallDailyStats())
+      : client.get<FirewallDailyStats>('/api/firewall/stats/daily'),
 
   installFirewallAdapter: () =>
     client.post<{ status: string; message: string }>('/api/firewall/adapter/install'),
@@ -397,7 +408,9 @@ export const bigrApi = {
     client.post<HumanizeBatchResponse>('/api/language/humanize/batch', requests),
 
   getSampleNotifications: () =>
-    client.get<SampleNotificationsResponse>('/api/language/sample-notifications'),
+    DEMO_MODE
+      ? mockResponse({ samples: mockSampleNotifications(), count: mockSampleNotifications().length })
+      : client.get<SampleNotificationsResponse>('/api/language/sample-notifications'),
 
   // Collective Intelligence
   getCollectiveThreats: (minConfidence = 0.5) =>
@@ -406,12 +419,16 @@ export const bigrApi = {
     }),
 
   getCollectiveStats: () =>
-    client.get<CollectiveStats>('/api/collective/stats'),
+    DEMO_MODE
+      ? mockResponse(mockCollectiveStats())
+      : client.get<CollectiveStats>('/api/collective/stats'),
 
   getContributionStatus: (agentHash = '') =>
-    client.get<ContributionStatus>('/api/collective/contribution', {
-      params: { agent_hash: agentHash },
-    }),
+    DEMO_MODE
+      ? mockResponse(mockContributionStatus())
+      : client.get<ContributionStatus>('/api/collective/contribution', {
+          params: { agent_hash: agentHash },
+        }),
 
   getCollectiveFeed: (limit = 20) =>
     client.get<CollectiveFeedResponse>('/api/collective/feed', {
@@ -420,9 +437,11 @@ export const bigrApi = {
 
   // Family Shield
   getFamilyOverview: (subscriptionId: string) =>
-    client.get<FamilyOverview>('/api/family/overview', {
-      params: { subscription_id: subscriptionId },
-    }),
+    DEMO_MODE
+      ? mockResponse(mockFamilyOverview())
+      : client.get<FamilyOverview>('/api/family/overview', {
+          params: { subscription_id: subscriptionId },
+        }),
 
   getFamilyDevices: (subscriptionId: string) =>
     client.get<FamilyDevice[]>('/api/family/devices', {
@@ -441,12 +460,16 @@ export const bigrApi = {
     client.delete(`/api/family/devices/${deviceId}`),
 
   getFamilyAlerts: (subscriptionId: string, limit = 50) =>
-    client.get<FamilyAlert[]>('/api/family/alerts', {
-      params: { subscription_id: subscriptionId, limit },
-    }),
+    DEMO_MODE
+      ? mockResponse(mockFamilyAlerts())
+      : client.get<FamilyAlert[]>('/api/family/alerts', {
+          params: { subscription_id: subscriptionId, limit },
+        }),
 
   getFamilyTimeline: (subscriptionId: string, limit = 30) =>
-    client.get<FamilyTimelineEntry[]>('/api/family/timeline', {
-      params: { subscription_id: subscriptionId, limit },
-    }),
+    DEMO_MODE
+      ? mockResponse(mockFamilyTimeline())
+      : client.get<FamilyTimelineEntry[]>('/api/family/timeline', {
+          params: { subscription_id: subscriptionId, limit },
+        }),
 }
