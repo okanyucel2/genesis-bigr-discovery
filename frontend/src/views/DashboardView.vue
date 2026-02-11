@@ -89,9 +89,9 @@ onMounted(() => {
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-white">Dashboard</h1>
+        <h1 class="text-2xl font-bold text-white">Genel Bakış</h1>
         <p class="mt-1 text-sm text-slate-400">
-          Asset discovery and classification overview
+          Ağ keşfi ve cihaz sınıflandırma özeti
         </p>
       </div>
       <div class="flex items-center gap-3">
@@ -103,7 +103,7 @@ onMounted(() => {
           @click="loadDashboard"
         >
           <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': loading }" />
-          Refresh
+          Yenile
         </button>
       </div>
     </div>
@@ -114,7 +114,7 @@ onMounted(() => {
       class="flex flex-col items-center justify-center py-20"
     >
       <Loader2 class="h-8 w-8 animate-spin text-cyan-400" />
-      <p class="mt-3 text-sm text-slate-400">Loading dashboard data...</p>
+      <p class="mt-3 text-sm text-slate-400">Veriler yükleniyor...</p>
     </div>
 
     <!-- Error State -->
@@ -124,7 +124,7 @@ onMounted(() => {
     >
       <AlertTriangle class="mx-auto h-10 w-10 text-amber-400" />
       <h2 class="mt-3 text-lg font-semibold text-white">
-        Unable to Load Data
+        Veri Yüklenemedi
       </h2>
       <p class="mt-2 text-sm text-slate-400">
         {{ error }}
@@ -133,7 +133,7 @@ onMounted(() => {
         class="mt-4 rounded-lg bg-cyan-500/20 px-4 py-2 text-sm font-medium text-cyan-400 transition-colors hover:bg-cyan-500/30"
         @click="loadDashboard"
       >
-        Try Again
+        Tekrar Dene
       </button>
     </div>
 
@@ -142,25 +142,25 @@ onMounted(() => {
       <!-- Stat Cards Row -->
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label="Total Assets"
+          label="Toplam Cihaz"
           :value="totalAssets"
           :icon="Server"
           color="#06b6d4"
         />
         <StatCard
-          label="Classified"
+          label="Sınıflandırılmış"
           :value="`${classifiedPercent}%`"
           :icon="ShieldCheck"
           color="#10b981"
         />
         <StatCard
-          label="Network & Systems"
+          label="Ağ & Sistemler"
           :value="networkSystemsCount"
           :icon="Network"
           color="#3b82f6"
         />
         <StatCard
-          label="Recent Changes"
+          label="Son Değişiklikler"
           :value="recentChangesCount"
           :icon="Activity"
           color="#f59e0b"
@@ -170,7 +170,7 @@ onMounted(() => {
       <!-- Category Cards Grid -->
       <div>
         <h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-slate-400">
-          Asset Categories
+          Cihaz Kategorileri
         </h2>
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <CategoryCard
@@ -187,7 +187,7 @@ onMounted(() => {
         <!-- Category Distribution Chart -->
         <div class="glass-panel rounded-xl p-5">
           <h3 class="mb-4 text-sm font-medium text-slate-300">
-            Category Distribution
+            Kategori Dağılımı
           </h3>
           <CategoryPieChart :data="categorySummary" />
         </div>
@@ -196,13 +196,13 @@ onMounted(() => {
         <div class="glass-panel rounded-xl p-5">
           <div class="mb-4 flex items-center justify-between">
             <h3 class="text-sm font-medium text-slate-300">
-              Recent Changes
+              Son Değişiklikler
             </h3>
             <RouterLink
               to="/analytics"
               class="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
             >
-              View all
+              Tümünü gör
             </RouterLink>
           </div>
           <RecentChanges :changes="changesData?.changes ?? []" />

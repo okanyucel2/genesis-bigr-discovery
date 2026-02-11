@@ -19,7 +19,6 @@ import {
   Download,
 } from 'lucide-vue-next'
 import { useFirewall } from '@/composables/useFirewall'
-import type { FirewallRule } from '@/types/api'
 
 const {
   status,
@@ -29,9 +28,6 @@ const {
   dailyStats,
   loading,
   error,
-  activeRules,
-  blockRules,
-  fetchRules,
   addRule,
   removeRule,
   toggleRule,

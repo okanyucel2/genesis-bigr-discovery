@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import { bigrApi } from '@/lib/api'
 import type {
   FamilyOverview,
-  FamilyDevice,
   FamilyAlert,
   FamilyTimelineEntry,
   AddDeviceRequest,

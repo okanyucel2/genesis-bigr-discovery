@@ -38,10 +38,6 @@ async function initialize() {
     await subscription.fetchCurrentSubscription()
   }
 
-  const subId = subscription.currentSubscription?.plan_id === 'family'
-    ? (subscription.currentSubscription as { device_id: string })?.device_id
-    : null
-
   // For MVP, use the subscription ID if available
   if (subscription.currentSubscription) {
     // The subscription response includes device_id; we need the subscription record's id

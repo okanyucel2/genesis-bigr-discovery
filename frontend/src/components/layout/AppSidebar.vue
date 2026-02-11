@@ -17,7 +17,6 @@ import {
   Wrench,
   Bell,
   Settings,
-  Sparkles,
   Users,
   Home,
   Flame,
@@ -35,29 +34,65 @@ defineEmits<{
 
 const route = useRoute()
 
-const navItems: Array<{ name: string; label: string; icon: typeof LayoutDashboard; path: string; separator?: boolean }> = [
-  { name: 'onboarding', label: 'Hosgeldin', icon: Sparkles, path: '/onboarding' },
-  { name: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/' },
-  { name: 'assets', label: 'Assets', icon: Server, path: '/assets' },
-  { name: 'topology', label: 'Topology', icon: Network, path: '/topology' },
-  { name: 'compliance', label: 'Compliance', icon: ShieldCheck, path: '/compliance' },
-  { name: 'analytics', label: 'Analytics', icon: TrendingUp, path: '/analytics' },
-  { name: 'vulnerabilities', label: 'Vulnerabilities', icon: Bug, path: '/vulnerabilities' },
-  { name: 'risk', label: 'Risk', icon: AlertTriangle, path: '/risk' },
-  { name: 'certificates', label: 'Certificates', icon: Lock, path: '/certificates' },
-  { name: 'shield', label: 'Shield', icon: Shield, path: '/shield', separator: true },
-  { name: 'shield-findings', label: 'Findings', icon: ShieldAlert, path: '/shield-findings' },
-  { name: 'notifications', label: 'Bildirimler', icon: Bell, path: '/notifications' },
-  { name: 'collective', label: 'Topluluk', icon: Users, path: '/collective' },
-  { name: 'family', label: 'Aile', icon: Home, path: '/family' },
-  { name: 'firewall', label: 'Guvenlik Duvari', icon: Flame, path: '/firewall' },
-  { name: 'remediation', label: 'Onarim', icon: Wrench, path: '/remediation' },
-  { name: 'agents', label: 'Agents', icon: Radio, path: '/agents' },
-  { name: 'pricing', label: 'Fiyatlandirma', icon: CreditCard, path: '/pricing', separator: true },
-  { name: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
+interface NavItem {
+  name: string
+  label: string
+  icon: typeof LayoutDashboard
+  path: string
+}
+
+interface NavSection {
+  title: string
+  items: NavItem[]
+}
+
+const navSections: NavSection[] = [
+  {
+    title: '',
+    items: [
+      { name: 'dashboard', label: 'Genel Bakış', icon: LayoutDashboard, path: '/' },
+      { name: 'assets', label: 'Cihazlar', icon: Server, path: '/assets' },
+    ],
+  },
+  {
+    title: 'Güvenlik',
+    items: [
+      { name: 'shield', label: 'Kalkan', icon: Shield, path: '/shield' },
+      { name: 'shield-findings', label: 'Bulgular', icon: ShieldAlert, path: '/shield-findings' },
+      { name: 'firewall', label: 'Güvenlik Duvarı', icon: Flame, path: '/firewall' },
+      { name: 'vulnerabilities', label: 'Açıklar', icon: Bug, path: '/vulnerabilities' },
+      { name: 'risk', label: 'Risk', icon: AlertTriangle, path: '/risk' },
+    ],
+  },
+  {
+    title: 'Ağ',
+    items: [
+      { name: 'topology', label: 'Ağ Haritası', icon: Network, path: '/topology' },
+      { name: 'analytics', label: 'Analitik', icon: TrendingUp, path: '/analytics' },
+      { name: 'compliance', label: 'Uyumluluk', icon: ShieldCheck, path: '/compliance' },
+      { name: 'certificates', label: 'Sertifikalar', icon: Lock, path: '/certificates' },
+    ],
+  },
+  {
+    title: 'Topluluk',
+    items: [
+      { name: 'collective', label: 'Topluluk', icon: Users, path: '/collective' },
+      { name: 'family', label: 'Aile', icon: Home, path: '/family' },
+      { name: 'notifications', label: 'Bildirimler', icon: Bell, path: '/notifications' },
+    ],
+  },
+  {
+    title: 'Yönetim',
+    items: [
+      { name: 'remediation', label: 'Onarım', icon: Wrench, path: '/remediation' },
+      { name: 'agents', label: 'Ajanlar', icon: Radio, path: '/agents' },
+      { name: 'pricing', label: 'Fiyatlandırma', icon: CreditCard, path: '/pricing' },
+      { name: 'settings', label: 'Ayarlar', icon: Settings, path: '/settings' },
+    ],
+  },
 ]
 
-const isActive = (item: (typeof navItems)[0]) => {
+const isActive = (item: NavItem) => {
   if (item.path === '/') return route.path === '/'
   return route.path.startsWith(item.path)
 }
@@ -82,42 +117,56 @@ const isActive = (item: (typeof navItems)[0]) => {
     </div>
 
     <!-- Navigation -->
-    <nav class="flex-1 overflow-y-auto px-2 py-3 space-y-1">
-      <template v-for="item in navItems" :key="item.name">
-        <div v-if="item.separator" class="my-2 border-t border-[var(--border-glass)]" />
-      <RouterLink
-        :to="item.path"
-        class="group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200"
-        :class="[
-          isActive(item)
-            ? 'bg-cyan-500/10 text-cyan-400'
-            : 'text-slate-400 hover:bg-white/5 hover:text-slate-200',
-        ]"
-      >
-        <!-- Active indicator -->
-        <div
-          v-if="isActive(item)"
-          class="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-r bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.6)]"
-        />
-
-        <component
-          :is="item.icon"
-          class="h-5 w-5 shrink-0 transition-colors"
-          :class="isActive(item) ? 'text-cyan-400' : 'text-slate-500 group-hover:text-slate-300'"
-        />
-
-        <Transition name="fade">
-          <span v-if="!collapsed" class="truncate">{{ item.label }}</span>
-        </Transition>
-
-        <!-- Tooltip when collapsed -->
-        <div
-          v-if="collapsed"
-          class="pointer-events-none absolute left-full ml-2 rounded-md bg-slate-800 px-2 py-1 text-xs text-slate-200 opacity-0 shadow-lg transition-opacity group-hover:opacity-100"
-        >
-          {{ item.label }}
+    <nav class="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+      <template v-for="(section, si) in navSections" :key="si">
+        <!-- Section separator + title -->
+        <div v-if="section.title" class="mt-4 mb-1.5 first:mt-0">
+          <div class="border-t border-[var(--border-glass)] mb-2" />
+          <Transition name="fade">
+            <span
+              v-if="!collapsed"
+              class="px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+            >
+              {{ section.title }}
+            </span>
+          </Transition>
         </div>
-      </RouterLink>
+
+        <RouterLink
+          v-for="item in section.items"
+          :key="item.name"
+          :to="item.path"
+          class="group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200"
+          :class="[
+            isActive(item)
+              ? 'bg-cyan-500/10 text-cyan-400'
+              : 'text-slate-400 hover:bg-white/5 hover:text-slate-200',
+          ]"
+        >
+          <!-- Active indicator -->
+          <div
+            v-if="isActive(item)"
+            class="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-r bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.6)]"
+          />
+
+          <component
+            :is="item.icon"
+            class="h-5 w-5 shrink-0 transition-colors"
+            :class="isActive(item) ? 'text-cyan-400' : 'text-slate-500 group-hover:text-slate-300'"
+          />
+
+          <Transition name="fade">
+            <span v-if="!collapsed" class="truncate">{{ item.label }}</span>
+          </Transition>
+
+          <!-- Tooltip when collapsed -->
+          <div
+            v-if="collapsed"
+            class="pointer-events-none absolute left-full ml-2 rounded-md bg-slate-800 px-2 py-1 text-xs text-slate-200 opacity-0 shadow-lg transition-opacity group-hover:opacity-100"
+          >
+            {{ item.label }}
+          </div>
+        </RouterLink>
       </template>
     </nav>
 
@@ -128,7 +177,7 @@ const isActive = (item: (typeof navItems)[0]) => {
         @click="$emit('toggle')"
       >
         <component :is="collapsed ? ChevronsRight : ChevronsLeft" class="h-4 w-4" />
-        <span v-if="!collapsed" class="truncate">Collapse</span>
+        <span v-if="!collapsed" class="truncate">Daralt</span>
       </button>
     </div>
   </aside>

@@ -36,7 +36,7 @@ onMounted(fetchSites)
       class="rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-cyan-500 focus:outline-none"
       @change="selectSite(($event.target as HTMLSelectElement).value || null)"
     >
-      <option value="">All Sites</option>
+      <option value="">Tüm Siteler</option>
       <option
         v-for="site in sites"
         :key="site.site_name"

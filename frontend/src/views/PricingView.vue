@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useSubscriptionStore } from '@/stores/subscription'
 import { Shield, Zap, Users, Check, ChevronDown, ChevronUp } from 'lucide-vue-next'
 import type { PlanInfo } from '@/types/api'

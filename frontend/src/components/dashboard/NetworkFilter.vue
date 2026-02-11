@@ -36,7 +36,7 @@ onMounted(fetchNetworks)
       class="rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-cyan-500 focus:outline-none"
       @change="selectNetwork(($event.target as HTMLSelectElement).value || null)"
     >
-      <option value="">All Networks</option>
+      <option value="">Tüm Ağlar</option>
       <option
         v-for="net in networks"
         :key="net.id"
