@@ -94,7 +94,10 @@ const navSections: NavSection[] = [
 
 const isActive = (item: NavItem) => {
   if (item.path === '/') return route.path === '/'
-  return route.path.startsWith(item.path)
+  // Exact match first, then prefix match with boundary check
+  // This prevents /shield matching /shield-findings
+  if (route.path === item.path) return true
+  return route.path.startsWith(item.path + '/')
 }
 </script>
 

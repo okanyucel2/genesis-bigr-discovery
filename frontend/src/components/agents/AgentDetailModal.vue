@@ -62,7 +62,6 @@ function toggleTarget(subnet: string) {
 }
 
 async function triggerScan() {
-  if (selectedTargets.value.length === 0) return
   scanning.value = true
   scanError.value = null
   try {
@@ -274,10 +273,10 @@ watch(() => networksExpanded.value, (expanded) => {
           <!-- Scan button (hidden while tracking) -->
           <button
             v-if="!tracker.isTracking.value"
-            :disabled="scanning || !hasTargets"
+            :disabled="scanning"
             :class="[
               'flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all',
-              scanning || !hasTargets
+              scanning
                 ? 'cursor-not-allowed bg-slate-700 text-slate-500'
                 : 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/20 hover:bg-cyan-400 hover:shadow-cyan-500/30 active:scale-[0.98]',
             ]"
