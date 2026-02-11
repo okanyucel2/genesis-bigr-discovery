@@ -296,6 +296,13 @@ export interface HealthResponse {
 }
 
 // GET /api/agents
+export interface AgentNetwork {
+  id: string
+  ssid: string | null
+  gateway_ip: string | null
+  friendly_name: string | null
+}
+
 export interface Agent {
   id: string
   name: string
@@ -304,9 +311,10 @@ export interface Agent {
   is_active: boolean
   registered_at: string
   last_seen: string | null
-  status: string // 'online' | 'offline' | 'stale'
+  status: string // 'online' | 'offline' | 'stale' | 'pending'
   version: string | null
   subnets: string[]
+  current_network: AgentNetwork | null
 }
 
 export interface AgentsResponse {
@@ -575,6 +583,31 @@ export interface AbuseIPDBStatus {
   remaining_calls: number
   daily_limit: number
   cache_size: number
+}
+
+// GET /api/threat/abuseipdb/settings
+export interface AbuseIPDBSettings {
+  api_key_set: boolean
+  api_key_masked: string
+  daily_limit: number
+  remaining_calls: number
+  cache_size: number
+  source: 'env' | 'file' | 'none'
+}
+
+// PUT /api/threat/abuseipdb/settings
+export interface AbuseIPDBSettingsUpdate {
+  api_key: string
+  daily_limit: number
+}
+
+// POST /api/threat/abuseipdb/test
+export interface AbuseIPDBTestResult {
+  status: string
+  message: string
+  valid: boolean
+  test_ip?: string
+  abuse_score?: number
 }
 
 // GET /api/threat/abuseipdb/blacklist

@@ -135,6 +135,7 @@ class ShieldScan:
     warning_checks: int = 0
     findings: list[ShieldFinding] = field(default_factory=list)
     module_scores: dict[str, ModuleScore] = field(default_factory=dict)
+    certificates: list[dict] = field(default_factory=list)
 
     @property
     def duration_seconds(self) -> float | None:
@@ -169,6 +170,7 @@ class ShieldScan:
             "findings_summary": severity_counts,
             "findings": [f.to_dict() for f in self.findings],
             "module_scores": {k: v.to_dict() for k, v in self.module_scores.items()},
+            "certificates": self.certificates,
         }
 
 

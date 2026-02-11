@@ -256,6 +256,100 @@ class FirewallService:
             "message": f"{rules_created} tehdit kurali olusturuldu.",
         }
 
+    async def sync_shield_rules(self, db: AsyncSession) -> dict:
+        """Create firewall rules from Shield security findings.
+
+        Maps actionable Shield findings to firewall rules:
+        - Open risky ports (from _HIGH_RISK_PORTS) → block_port inbound
+        - Critical/high findings on external IPs → block_ip
+        """
+        import re
+
+        from bigr.core.models_db import FirewallRuleDB, ShieldFindingDB
+
+        stmt = select(ShieldFindingDB).where(
+            ShieldFindingDB.severity.in_(["critical", "high", "medium"]),
+        )
+        result = await db.execute(stmt)
+        findings = result.scalars().all()
+
+        rules_created = 0
+        port_pattern = re.compile(r"(?:Open|Common) Port[^:]*:\s*(\d+)/")
+
+        for finding in findings:
+            # --- Port findings: block high-risk open ports inbound ---
+            if finding.module == "ports":
+                match = port_pattern.search(finding.title or "")
+                if not match:
+                    continue
+                port = int(match.group(1))
+                if port not in _HIGH_RISK_PORTS:
+                    continue
+
+                existing = await db.execute(
+                    select(FirewallRuleDB).where(
+                        FirewallRuleDB.rule_type == "block_port",
+                        FirewallRuleDB.target == str(port),
+                        FirewallRuleDB.source.in_(["shield", "remediation"]),
+                    )
+                )
+                if existing.scalar_one_or_none() is not None:
+                    continue
+
+                rule = FirewallRule(
+                    id=str(uuid.uuid4()),
+                    rule_type="block_port",
+                    target=str(port),
+                    direction="inbound",
+                    protocol="tcp",
+                    source="shield",
+                    reason=f"Shield: {finding.title}",
+                    reason_tr=_HIGH_RISK_PORTS[port],
+                    is_active=True,
+                )
+                await self.add_rule(rule, db)
+                rules_created += 1
+
+            # --- Critical/high external IP findings: block IP ---
+            elif finding.severity in ("critical", "high") and finding.target_ip:
+                ip = finding.target_ip
+                # Skip CIDRs and local subnets
+                if "/" in ip or ip.startswith(("192.168.", "10.", "172.16.", "127.")):
+                    continue
+
+                existing = await db.execute(
+                    select(FirewallRuleDB).where(
+                        FirewallRuleDB.rule_type == "block_ip",
+                        FirewallRuleDB.target == ip,
+                        FirewallRuleDB.source == "shield",
+                    )
+                )
+                if existing.scalar_one_or_none() is not None:
+                    continue
+
+                expires = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+                rule = FirewallRule(
+                    id=str(uuid.uuid4()),
+                    rule_type="block_ip",
+                    target=ip,
+                    direction="both",
+                    protocol="any",
+                    source="shield",
+                    reason=f"Shield: {finding.title} ({finding.severity})",
+                    reason_tr=f"Shield tarama bulgulari: {finding.title}",
+                    is_active=True,
+                    expires_at=expires,
+                )
+                await self.add_rule(rule, db)
+                rules_created += 1
+
+        return {
+            "status": "ok",
+            "rules_created": rules_created,
+            "findings_checked": len(findings),
+            "message": f"Shield bulgularindan {rules_created} kural olusturuldu.",
+        }
+
     async def sync_port_rules(self, db: AsyncSession) -> dict:
         """Create block rules for high-risk ports from remediation engine."""
         from bigr.core.models_db import FirewallRuleDB

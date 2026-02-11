@@ -109,6 +109,19 @@ export function useFirewall() {
     }
   }
 
+  async function syncShield() {
+    error.value = null
+    try {
+      const res = await bigrApi.syncFirewallShield()
+      await fetchRules()
+      await fetchStatus()
+      return res.data
+    } catch (e: unknown) {
+      error.value = e instanceof Error ? e.message : 'Shield senkronizasyonu basarisiz'
+      return null
+    }
+  }
+
   async function fetchEvents(limit = 100, action?: string) {
     try {
       const res = await bigrApi.getFirewallEvents(limit, action)
@@ -188,6 +201,7 @@ export function useFirewall() {
     toggleRule,
     syncThreats,
     syncPorts,
+    syncShield,
     fetchEvents,
     fetchConfig,
     updateConfig,

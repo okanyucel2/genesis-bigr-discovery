@@ -128,6 +128,17 @@ async def sync_port_rules(db: AsyncSession = Depends(get_db)) -> dict:
         raise HTTPException(status_code=500, detail=f"Port senkronizasyonu basarisiz: {exc}")
 
 
+@router.post("/sync/shield")
+async def sync_shield_rules(db: AsyncSession = Depends(get_db)) -> dict:
+    """Create firewall rules from Shield security findings."""
+    try:
+        result = await _service.sync_shield_rules(db)
+        return result
+    except Exception as exc:
+        logger.error("Failed to sync shield rules: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Shield senkronizasyonu basarisiz: {exc}")
+
+
 @router.get("/events")
 async def get_firewall_events(
     limit: int = Query(default=100, le=500),

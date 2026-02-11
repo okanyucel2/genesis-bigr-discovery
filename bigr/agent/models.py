@@ -60,6 +60,7 @@ class IngestShieldRequest(BaseModel):
     completed_at: str | None = None
     modules_run: list[str] = Field(default_factory=list)
     findings: list[dict] = Field(default_factory=list)
+    certificates: list[dict] = Field(default_factory=list)
 
 
 class CreateCommandRequest(BaseModel):

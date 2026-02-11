@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import func, select, update
+from sqlalchemy import delete as sql_delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bigr.agent.auth import generate_token, hash_token, verify_agent_token
@@ -26,7 +26,7 @@ from bigr.core import services
 from bigr.core.database import get_db
 from bigr.agent.alerts import alert_critical_finding, alert_service, alert_stale_agent
 from bigr.agent.ratelimit import ingest_limiter
-from bigr.core.models_db import AgentCommandDB, AgentDB, ShieldFindingDB, ShieldScanDB
+from bigr.core.models_db import AgentCommandDB, AgentDB, NetworkDB, ShieldFindingDB, ShieldScanDB
 from bigr.core.settings import settings
 
 router = APIRouter(tags=["agents"])
@@ -137,11 +137,20 @@ async def list_agents(db: AsyncSession = Depends(get_db)) -> dict:
     agents = []
     now = datetime.now(timezone.utc)
 
+    # Pre-fetch latest network per agent (most recent last_seen)
+    net_stmt = select(NetworkDB).order_by(NetworkDB.last_seen.desc())
+    net_result = await db.execute(net_stmt)
+    latest_network_by_agent: dict[str, NetworkDB] = {}
+    for net in net_result.scalars().all():
+        if net.agent_id and net.agent_id not in latest_network_by_agent:
+            latest_network_by_agent[net.agent_id] = net
+
     for a in result.scalars().all():
         # Compute effective status based on last_seen
         if not a.last_seen:
-            # Never sent heartbeat → agent registered but not started
             effective_status = "pending"
+        elif a.status == "offline":
+            effective_status = "offline"
         else:
             effective_status = a.status
             try:
@@ -162,6 +171,17 @@ async def list_agents(db: AsyncSession = Depends(get_db)) -> dict:
             except (json.JSONDecodeError, TypeError):
                 pass
 
+        # Current network info
+        current_network = None
+        net = latest_network_by_agent.get(a.id)
+        if net:
+            current_network = {
+                "id": net.id,
+                "ssid": net.ssid,
+                "gateway_ip": net.gateway_ip,
+                "friendly_name": net.friendly_name,
+            }
+
         agents.append({
             "id": a.id,
             "name": a.name,
@@ -173,9 +193,39 @@ async def list_agents(db: AsyncSession = Depends(get_db)) -> dict:
             "status": effective_status,
             "version": a.version,
             "subnets": subnets,
+            "current_network": current_network,
         })
 
     return {"agents": agents}
+
+
+@router.delete("/api/agents/{agent_id}")
+async def delete_agent(
+    agent_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Remove an agent and its associated commands."""
+    agent = (await db.execute(
+        select(AgentDB).where(AgentDB.id == agent_id)
+    )).scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found.")
+
+    # Nullify agent_id in referencing tables (preserve history)
+    from bigr.core.models_db import AssetDB, FamilyDeviceDB, ScanDB, ShieldScanDB as _ShieldScanDB
+    for model in (NetworkDB, ScanDB, AssetDB, _ShieldScanDB, FamilyDeviceDB):
+        await db.execute(
+            update(model).where(model.agent_id == agent_id).values(agent_id=None)
+        )
+    # Delete commands (non-nullable FK)
+    await db.execute(
+        sql_delete(AgentCommandDB).where(AgentCommandDB.agent_id == agent_id)
+    )
+    await db.execute(
+        sql_delete(AgentDB).where(AgentDB.id == agent_id)
+    )
+    await db.commit()
+    return {"status": "ok", "deleted": agent_id}
 
 
 @router.post("/api/ingest/discovery")
@@ -259,6 +309,14 @@ async def ingest_shield(
             remediation=finding.get("remediation"),
             raw_data=json.dumps(finding) if finding else None,
         ))
+
+    # Persist TLS certificates to certificates table
+    if body.certificates:
+        for cert_data in body.certificates:
+            try:
+                await services.save_certificate_async(db, cert_data)
+            except Exception:
+                pass  # Best-effort — don't fail ingest for cert persistence
 
     # Update agent last_seen
     stmt = update(AgentDB).where(AgentDB.id == agent.id).values(
@@ -386,11 +444,9 @@ async def create_command(
         except (json.JSONDecodeError, TypeError):
             pass
 
+    # If still no targets, use a sensible default (local network scan)
     if not targets:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No targets specified and agent has no registered subnets.",
-        )
+        targets = ["192.168.1.0/24"]
 
     command_id = str(uuid.uuid4())
     now_iso = datetime.now(timezone.utc).isoformat()

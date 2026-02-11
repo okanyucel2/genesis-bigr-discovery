@@ -81,6 +81,12 @@ class TLSCheckModule(ScanModule):
     name: str = "tls"
     weight: int = 20
 
+    def __init__(self) -> None:
+        super().__init__()
+        # Certificate data collected during the last scan.
+        # Populated by scan(), consumed by the orchestrator for DB persistence.
+        self.last_certificates: list[dict] = []
+
     def check_available(self) -> bool:
         """SSL stdlib is always available."""
         return True
@@ -99,6 +105,7 @@ class TLSCheckModule(ScanModule):
         8. CN/SAN match with target
         """
         findings: list[ShieldFinding] = []
+        self.last_certificates = []
         actual_port = port or 443
 
         # Step 1: Connect and retrieve certificate info
@@ -385,6 +392,21 @@ class TLSCheckModule(ScanModule):
         hsts_finding = _check_hsts(target, actual_port)
         if hsts_finding is not None:
             findings.append(hsts_finding)
+
+        # Collect certificate metadata for DB persistence
+        if cert_info:
+            from bigr.scanner.tls import parse_certificate
+
+            try:
+                cert_obj = parse_certificate(cert_info, target, actual_port)
+                cert_dict = cert_obj.to_dict()
+                # Supplement key_size from DER cert (parse_certificate can't do this)
+                key_bits = _extract_key_bits(peer_cert_der)
+                if key_bits is not None:
+                    cert_dict["key_size"] = key_bits
+                self.last_certificates.append(cert_dict)
+            except Exception:
+                pass  # Best-effort — don't fail the scan
 
         return findings
 

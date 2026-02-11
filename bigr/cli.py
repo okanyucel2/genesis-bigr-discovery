@@ -205,7 +205,7 @@ def report(
 
 @app.command()
 def serve(
-    port: int = typer.Option(8090, "--port", "-p", help="Dashboard port"),
+    port: int = typer.Option(9978, "--port", "-p", help="Dashboard port"),
     host: str = typer.Option("127.0.0.1", "--host", help="Dashboard host"),
     data: str = typer.Option("assets.json", "--data", "-d", help="Scan result file to display"),
 ) -> None:
@@ -1296,11 +1296,14 @@ def agent_start(
     targets: list[str] = typer.Argument(None, help="Target subnet(s) to scan"),
     api_url: Optional[str] = typer.Option(None, "--api-url", help="Cloud API URL (overrides config)"),
     token: Optional[str] = typer.Option(None, "--token", help="Bearer token (overrides config)"),
+    name: Optional[str] = typer.Option(None, "--name", "-n", help="Agent name (default: device hostname)"),
     interval: str = typer.Option("5m", "--interval", "-i", help="Scan interval (e.g. 5m, 1h)"),
-    shield: bool = typer.Option(False, "--shield", help="Also run shield security modules"),
+    shield: bool = typer.Option(True, "--shield/--no-shield", help="Run shield security modules (default: on)"),
     config_path: Optional[str] = typer.Option(None, "--config", hidden=True),
 ) -> None:
     """Start the agent daemon to scan and push results to cloud."""
+    import httpx
+
     from bigr.agent.config import AgentConfig
     from bigr.agent.daemon import AgentDaemon
     from bigr.config import parse_interval
@@ -1308,23 +1311,74 @@ def agent_start(
     cfg_path = Path(config_path) if config_path else None
     cfg = AgentConfig.load(cfg_path)
 
-    resolved_url = api_url or cfg.api_url
+    resolved_url = api_url or cfg.api_url or "http://127.0.0.1:9978"
     resolved_token = token or cfg.token
     resolved_targets = list(targets) if targets else cfg.targets
+    auto_detect = not resolved_targets
 
-    if not resolved_url:
-        console.print("[red]Error:[/red] No API URL. Use --api-url or run 'bigr agent register' first.")
-        raise typer.Exit(1)
-    if not resolved_token:
-        console.print("[red]Error:[/red] No token. Use --token or run 'bigr agent register' first.")
-        raise typer.Exit(1)
-    if not resolved_targets:
-        console.print("[red]Error:[/red] No targets. Provide subnet(s) as arguments.")
-        raise typer.Exit(1)
+    if auto_detect:
+        # Auto-detect current subnet
+        from bigr.agent.network_fingerprint import detect_local_subnet
+
+        detected = detect_local_subnet()
+        if detected:
+            console.print(f"[cyan]Auto-detected subnet:[/cyan] {detected}")
+        else:
+            console.print("[yellow]Could not auto-detect subnet — will retry each cycle[/yellow]")
+
+    # Auto-register if no token or token is stale
+    need_register = not resolved_token
+    if resolved_token and not need_register:
+        try:
+            resp = httpx.post(
+                f"{resolved_url}/api/agents/heartbeat",
+                json={"status": "online"},
+                headers={"Authorization": f"Bearer {resolved_token}"},
+                timeout=10.0,
+            )
+            if resp.status_code == 401:
+                console.print("[yellow]Token expired or invalid — re-registering...[/yellow]")
+                need_register = True
+        except httpx.RequestError:
+            pass
+
+    if need_register:
+        import platform as _platform
+
+        hostname = _platform.node().replace(".local", "").replace("-", " ")
+        agent_name = name or cfg.name or hostname or "BİGR Agent"
+        console.print(f"[cyan]Registering agent[/cyan] '{agent_name}' → {resolved_url}")
+        try:
+            resp = httpx.post(
+                f"{resolved_url}/api/agents/register",
+                json={"name": agent_name, "site_name": ""},
+                timeout=30.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            resolved_token = data["token"]
+            cfg.api_url = resolved_url
+            cfg.token = resolved_token
+            cfg.agent_id = data["agent_id"]
+            cfg.name = agent_name
+            cfg.targets = resolved_targets
+            cfg.shield = shield
+            cfg.save(cfg_path)
+            console.print(f"[green]Registered![/green] Agent ID: {data['agent_id']}")
+        except httpx.HTTPStatusError as exc:
+            console.print(f"[red]Auto-registration failed:[/red] {exc.response.status_code}")
+            raise typer.Exit(1)
+        except httpx.RequestError as exc:
+            console.print(f"[red]Cannot reach API:[/red] {exc}")
+            console.print("[dim]Make sure the dashboard is running: bigr serve[/dim]")
+            raise typer.Exit(1)
 
     interval_sec = parse_interval(interval)
     console.print(f"[green]Starting agent[/green] → {resolved_url}")
-    console.print(f"  Targets: {', '.join(resolved_targets)}")
+    if auto_detect:
+        console.print("  Targets: [cyan]otomatik algılama[/cyan] (her döngüde ağ tespit edilir)")
+    else:
+        console.print(f"  Targets: {', '.join(resolved_targets)}")
     console.print(f"  Interval: {interval_sec}s | Shield: {'Yes' if shield else 'No'}")
 
     daemon = AgentDaemon(
@@ -1333,6 +1387,7 @@ def agent_start(
         targets=resolved_targets,
         interval_seconds=interval_sec,
         shield=shield,
+        auto_detect=auto_detect,
     )
     try:
         daemon.start()
@@ -1346,6 +1401,10 @@ def agent_start(
 @agent_app.command("stop")
 def agent_stop() -> None:
     """Stop the running agent daemon."""
+    import httpx
+
+    from bigr.agent.config import AgentConfig
+
     pid_path = Path.home() / ".bigr" / "agent.pid"
     if not pid_path.exists():
         console.print("[yellow]No agent is running.[/yellow]")
@@ -1358,12 +1417,25 @@ def agent_stop() -> None:
         pid_path.unlink(missing_ok=True)
         return
 
+    # Notify API that agent is going offline (best-effort)
+    cfg = AgentConfig.load()
+    if cfg.api_url and cfg.token:
+        try:
+            httpx.post(
+                f"{cfg.api_url}/api/agents/heartbeat",
+                json={"status": "offline"},
+                headers={"Authorization": f"Bearer {cfg.token}"},
+                timeout=5.0,
+            )
+        except Exception:
+            pass  # Don't block stop on network errors
+
     try:
         os.kill(pid, signal.SIGTERM)
         console.print(f"[green]Stopped agent[/green] (PID {pid}).")
     except OSError as exc:
         console.print(f"[red]Error stopping agent:[/red] {exc}")
-        pid_path.unlink(missing_ok=True)
+    pid_path.unlink(missing_ok=True)
 
 
 @agent_app.command("status")
@@ -1388,6 +1460,70 @@ def agent_status() -> None:
     else:
         console.print("[yellow]Agent is not running (stale PID).[/yellow]")
         pid_path.unlink(missing_ok=True)
+
+
+@agent_app.command("menubar")
+def agent_menubar() -> None:
+    """Launch the macOS menu bar status monitor.
+
+    Shows agent status, scan stats, and quick actions in the system tray.
+    The agent daemon runs independently — this is a lightweight monitor.
+    """
+    import platform as _platform
+
+    if _platform.system() != "Darwin":
+        console.print("[red]Error:[/red] Menu bar app is only available on macOS.")
+        raise typer.Exit(1)
+
+    try:
+        from bigr.agent.menubar import run_menubar
+    except ImportError:
+        console.print(
+            "[red]Error:[/red] rumps is required for the menu bar app.\n"
+            "Install it with: pip install rumps"
+        )
+        raise typer.Exit(1)
+
+    console.print("[green]Launching BİGR menu bar app...[/green]")
+    run_menubar()
+
+
+@agent_app.command("install")
+def agent_install() -> None:
+    """Install BİGR agent as a macOS background service (LaunchAgent).
+
+    The agent will start automatically at login and restart on crash.
+    """
+    from bigr.agent.launchd import install, is_installed
+
+    if is_installed():
+        console.print("[yellow]LaunchAgent already installed.[/yellow] Use 'bigr agent uninstall' first to reinstall.")
+        return
+
+    console.print("[cyan]Installing BİGR LaunchAgent...[/cyan]")
+    success, message = install()
+    if success:
+        console.print(f"[green]Installed![/green] Plist: {message}")
+        console.print("[dim]Agent will start automatically at login.[/dim]")
+        console.print("[dim]Logs: ~/.bigr/logs/[/dim]")
+    else:
+        console.print(f"[red]Installation failed:[/red] {message}")
+
+
+@agent_app.command("uninstall")
+def agent_uninstall() -> None:
+    """Remove BİGR agent background service."""
+    from bigr.agent.launchd import is_installed, uninstall
+
+    if not is_installed():
+        console.print("[yellow]LaunchAgent is not installed.[/yellow]")
+        return
+
+    success, message = uninstall()
+    if success:
+        console.print(f"[green]Uninstalled.[/green] {message}")
+    else:
+        console.print(f"[red]Uninstall failed:[/red] {message}")
 
 
 # ---------------------------------------------------------------------------

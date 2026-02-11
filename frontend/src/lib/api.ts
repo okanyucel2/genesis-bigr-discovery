@@ -45,6 +45,9 @@ import type {
   AbuseIPDBStatus,
   AbuseIPDBBlacklistResponse,
   AbuseIPDBEnrichment,
+  AbuseIPDBSettings,
+  AbuseIPDBSettingsUpdate,
+  AbuseIPDBTestResult,
   HumanizeRequest,
   HumanizeResponse,
   HumanizeBatchResponse,
@@ -184,6 +187,9 @@ export const bigrApi = {
   getAgents: () =>
     client.get<AgentsResponse>('/api/agents'),
 
+  deleteAgent: (agentId: string) =>
+    client.delete<{ status: string; deleted: string }>(`/api/agents/${agentId}`),
+
   getSites: () =>
     client.get<SitesResponse>('/api/sites'),
 
@@ -230,6 +236,9 @@ export const bigrApi = {
 
   syncFirewallPorts: () =>
     client.post<{ status: string; rules_created: number; message: string }>('/api/firewall/sync/ports'),
+
+  syncFirewallShield: () =>
+    client.post<{ status: string; rules_created: number; findings_checked: number; message: string }>('/api/firewall/sync/shield'),
 
   getFirewallEvents: (limit = 100, action?: string) => {
     const params: Record<string, string | number> = { limit }
@@ -364,6 +373,21 @@ export const bigrApi = {
 
   enrichAsset: (ip: string) =>
     client.get<AbuseIPDBEnrichment>(`/api/threat/abuseipdb/enrichment/${ip}`),
+
+  getAbuseIPDBSettings: () =>
+    client.get<AbuseIPDBSettings>('/api/threat/abuseipdb/settings'),
+
+  updateAbuseIPDBSettings: (settings: AbuseIPDBSettingsUpdate) =>
+    client.put<{ status: string; api_key_set: boolean; api_key_masked: string; daily_limit: number; message: string }>(
+      '/api/threat/abuseipdb/settings',
+      settings,
+    ),
+
+  testAbuseIPDBConnection: () =>
+    client.post<AbuseIPDBTestResult>('/api/threat/abuseipdb/test'),
+
+  clearAbuseIPDBSettings: () =>
+    client.delete<{ status: string; message: string }>('/api/threat/abuseipdb/settings'),
 
   // Language Engine — Notification Humanizer
   humanizeAlert: (request: HumanizeRequest) =>

@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from bigr.core.database import get_db
 from bigr.shield.models import ScanDepth
 from bigr.shield.orchestrator import ShieldOrchestrator
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/shield", tags=["shield"])
 orchestrator = ShieldOrchestrator()
@@ -38,9 +43,32 @@ async def start_scan(
     )
 
     # Run scan in background — return immediately so frontend can poll
-    asyncio.create_task(orchestrator.run_scan(scan.id))
+    asyncio.create_task(_run_and_persist_certs(scan.id))
 
     return JSONResponse(status_code=202, content=scan.to_dict())
+
+
+async def _run_and_persist_certs(scan_id: str) -> None:
+    """Run scan and persist any discovered TLS certificates."""
+    try:
+        scan = await orchestrator.run_scan(scan_id)
+    except Exception:
+        return
+
+    if scan.certificates:
+        from bigr.core import services
+        from bigr.core.database import get_session_factory
+
+        try:
+            factory = get_session_factory()
+            async with factory() as session:
+                for cert_data in scan.certificates:
+                    try:
+                        await services.save_certificate_async(session, cert_data)
+                    except Exception:
+                        logger.debug("Failed to persist certificate for %s", cert_data.get("ip"))
+        except Exception:
+            logger.debug("Failed to open DB session for certificate persistence")
 
 
 @router.get("/scan/{scan_id}")
@@ -80,7 +108,7 @@ async def list_modules() -> dict:
 
 
 @router.post("/quick")
-async def quick_scan(target: str) -> dict:
+async def quick_scan(target: str, db: AsyncSession = Depends(get_db)) -> dict:
     """Quick scan - creates, runs, and returns results inline.
 
     This is a convenience endpoint that runs a quick-depth scan
@@ -94,5 +122,15 @@ async def quick_scan(target: str) -> dict:
         await orchestrator.run_scan(scan.id)
     except Exception:
         pass
+
+    # Persist any TLS certificates discovered during the scan
+    if scan.certificates:
+        from bigr.core import services
+
+        for cert_data in scan.certificates:
+            try:
+                await services.save_certificate_async(db, cert_data)
+            except Exception:
+                logger.debug("Failed to persist certificate for %s", cert_data.get("ip"))
 
     return scan.to_dict()

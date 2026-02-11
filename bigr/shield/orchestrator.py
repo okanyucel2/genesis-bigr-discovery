@@ -123,6 +123,10 @@ class ShieldOrchestrator:
 
                 all_findings.extend(findings)
 
+                # Collect certificate metadata from TLS module
+                if module_name == "tls" and hasattr(module, "last_certificates"):
+                    scan.certificates.extend(module.last_certificates)
+
                 # Calculate module score from findings
                 ms = _compute_module_score(module_name, findings)
                 module_scores[module_name] = ms

@@ -33,6 +33,7 @@ const {
   toggleRule,
   syncThreats,
   syncPorts,
+  syncShield,
   fetchEvents,
   updateConfig,
   installAdapter,
@@ -69,6 +70,7 @@ const protectionLevels = [
 const severityColors: Record<string, string> = {
   threat_intel: 'bg-red-500/20 text-red-400 border-red-500/30',
   remediation: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+  shield: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
   user: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
   collective: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
 }
@@ -113,6 +115,7 @@ async function handleSyncAll() {
   syncing.value = true
   await syncThreats()
   await syncPorts()
+  await syncShield()
   syncing.value = false
 }
 
