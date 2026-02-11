@@ -21,6 +21,7 @@ function statusDot(status: string): string {
   switch (status) {
     case 'online': return 'bg-emerald-400'
     case 'stale': return 'bg-amber-400'
+    case 'pending': return 'bg-blue-400 animate-pulse'
     default: return 'bg-slate-500'
   }
 }
@@ -272,12 +273,13 @@ onUnmounted(() => {
           <span
             :class="[
               agent.status === 'online' ? 'bg-emerald-500/15 text-emerald-400 ring-emerald-500/30'
+                : agent.status === 'pending' ? 'bg-blue-500/15 text-blue-400 ring-blue-500/30'
                 : agent.status === 'stale' ? 'bg-amber-500/15 text-amber-400 ring-amber-500/30'
                 : 'bg-slate-500/15 text-slate-400 ring-slate-500/30',
               'rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1',
             ]"
           >
-            {{ agent.status === 'online' ? 'Çevrimiçi' : agent.status === 'stale' ? 'Belirsiz' : 'Çevrimdışı' }}
+            {{ agent.status === 'online' ? 'Çevrimiçi' : agent.status === 'pending' ? 'Başlatılmadı' : agent.status === 'stale' ? 'Belirsiz' : 'Çevrimdışı' }}
           </span>
         </div>
 
@@ -288,10 +290,17 @@ onUnmounted(() => {
             <span v-if="agent.location" class="text-slate-500">{{ agent.location }}</span>
           </div>
 
-          <div class="flex items-center gap-2 text-slate-300">
-            <Clock class="h-3.5 w-3.5 text-slate-500" />
-            <span>Son görülme: {{ timeAgo(agent.last_seen) }}</span>
+          <!-- Pending agent: show setup hint -->
+          <div v-if="agent.status === 'pending'" class="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-blue-300">
+            Ajanı başlatmak için: <code class="rounded bg-slate-800 px-1 text-blue-400">bigr agent start</code>
           </div>
+
+          <template v-else>
+            <div class="flex items-center gap-2 text-slate-300">
+              <Clock class="h-3.5 w-3.5 text-slate-500" />
+              <span>Son görülme: {{ timeAgo(agent.last_seen) }}</span>
+            </div>
+          </template>
 
           <div v-if="agent.subnets.length" class="flex items-center gap-2 text-slate-300">
             <Wifi class="h-3.5 w-3.5 text-slate-500" />

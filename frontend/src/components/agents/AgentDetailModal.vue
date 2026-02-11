@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
   X, Play, Clock, MapPin, Wifi, Shield,
   AlertCircle, Loader2, ChevronDown, ChevronUp, Radio,
+  Terminal, Copy, CheckCheck,
 } from 'lucide-vue-next'
 import type { Agent, AgentCommand, NetworkSummary } from '@/types/api'
 import { bigrApi } from '@/lib/api'
@@ -130,6 +131,19 @@ function timeAgo(iso: string | null): string {
 }
 
 const hasTargets = computed(() => selectedTargets.value.length > 0)
+const isPending = computed(() => props.agent.status === 'pending')
+const isOnline = computed(() => props.agent.status === 'online')
+
+// Copy command helper
+const copiedCmd = ref(false)
+const startCmd = `bigr agent start ${props.agent.subnets.length ? props.agent.subnets.join(' ') : '192.168.1.0/24'}`
+async function copyStartCmd() {
+  try {
+    await navigator.clipboard.writeText(startCmd)
+    copiedCmd.value = true
+    setTimeout(() => { copiedCmd.value = false }, 2000)
+  } catch { /* */ }
+}
 
 watch(() => historyExpanded.value, (expanded) => {
   if (expanded && commands.value.length === 0) {
@@ -163,7 +177,10 @@ watch(() => networksExpanded.value, (expanded) => {
           <div class="flex items-center gap-3">
             <div
               :class="[
-                agent.status === 'online' ? 'bg-emerald-400 shadow-emerald-400/40' : agent.status === 'stale' ? 'bg-amber-400 shadow-amber-400/40' : 'bg-slate-500',
+                agent.status === 'online' ? 'bg-emerald-400 shadow-emerald-400/40'
+                  : agent.status === 'pending' ? 'bg-blue-400 shadow-blue-400/40 animate-pulse'
+                  : agent.status === 'stale' ? 'bg-amber-400 shadow-amber-400/40'
+                  : 'bg-slate-500',
                 'h-2.5 w-2.5 rounded-full shadow-lg',
               ]"
             />
@@ -182,7 +199,8 @@ watch(() => networksExpanded.value, (expanded) => {
 
         <!-- Agent info -->
         <div class="space-y-4 px-6 py-5">
-          <div class="flex flex-wrap gap-3 text-sm text-slate-300">
+          <!-- Status info bar -->
+          <div v-if="!isPending" class="flex flex-wrap gap-3 text-sm text-slate-300">
             <div v-if="agent.location" class="flex items-center gap-1.5">
               <MapPin class="h-3.5 w-3.5 text-slate-500" />
               {{ agent.location }}
@@ -196,96 +214,144 @@ watch(() => networksExpanded.value, (expanded) => {
             </div>
           </div>
 
-          <!-- Live command tracker (PhaseTimeline-inspired) -->
-          <CommandTracker
-            v-if="tracker.isTracking.value"
-            :steps="tracker.steps.value"
-            :progress-percent="tracker.progressPercent.value"
-            :is-done="tracker.isDone.value"
-            :targets="selectedTargets"
-            :shield="shieldEnabled"
-            :result="tracker.activeCommand.value?.result"
-            :started-at="tracker.activeCommand.value?.started_at"
-            :completed-at="tracker.activeCommand.value?.completed_at"
-            @dismiss="tracker.dismiss()"
-          />
+          <!-- PENDING STATE: Agent registered but not started -->
+          <template v-if="isPending">
+            <div class="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 text-center">
+              <div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/10 ring-1 ring-blue-500/20">
+                <Radio class="h-5 w-5 text-blue-400" />
+              </div>
+              <p class="text-sm font-medium text-blue-300">Bu ajan henüz başlatılmadı</p>
+              <p class="mt-1 text-xs text-slate-400">
+                Ajanın ağınızı tarayabilmesi için terminalde başlatmanız gerekiyor.
+              </p>
+            </div>
 
-          <!-- Target selection (hidden while tracking) -->
-          <div v-if="!tracker.isTracking.value">
-            <label class="mb-2 block text-xs font-medium uppercase tracking-wider text-slate-400">
-              Tarama Hedefleri
-            </label>
-            <div v-if="agent.subnets.length" class="flex flex-wrap gap-2">
+            <div>
+              <label class="mb-2 block text-xs font-medium uppercase tracking-wider text-slate-400">
+                Sonraki Adım
+              </label>
+              <div class="flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2.5">
+                <div class="flex items-center gap-2">
+                  <Terminal class="h-4 w-4 flex-shrink-0 text-slate-500" />
+                  <code class="text-sm text-cyan-400">{{ startCmd }}</code>
+                </div>
+                <button
+                  class="ml-2 rounded p-1 text-slate-500 transition-colors hover:text-slate-300"
+                  title="Kopyala"
+                  @click="copyStartCmd"
+                >
+                  <CheckCheck v-if="copiedCmd" class="h-3.5 w-3.5 text-emerald-400" />
+                  <Copy v-else class="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <p class="mt-2 text-[11px] text-slate-500">
+                Ajan başlatıldığında bu sayfa otomatik olarak güncellenecek.
+              </p>
+            </div>
+          </template>
+
+          <!-- ONLINE/STALE STATE: Normal scan controls -->
+          <template v-else>
+            <!-- Live command tracker (PhaseTimeline-inspired) -->
+            <CommandTracker
+              v-if="tracker.isTracking.value"
+              :steps="tracker.steps.value"
+              :progress-percent="tracker.progressPercent.value"
+              :is-done="tracker.isDone.value"
+              :targets="selectedTargets"
+              :shield="shieldEnabled"
+              :result="tracker.activeCommand.value?.result"
+              :started-at="tracker.activeCommand.value?.started_at"
+              :completed-at="tracker.activeCommand.value?.completed_at"
+              @dismiss="tracker.dismiss()"
+            />
+
+            <!-- Target selection (hidden while tracking) -->
+            <div v-if="!tracker.isTracking.value">
+              <label class="mb-2 block text-xs font-medium uppercase tracking-wider text-slate-400">
+                Tarama Hedefleri
+              </label>
+              <div v-if="agent.subnets.length" class="flex flex-wrap gap-2">
+                <button
+                  v-for="subnet in agent.subnets"
+                  :key="subnet"
+                  :class="[
+                    'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-all',
+                    selectedTargets.includes(subnet)
+                      ? 'border-cyan-500/50 bg-cyan-500/15 text-cyan-300'
+                      : 'border-slate-600 bg-slate-800/50 text-slate-400 hover:border-slate-500',
+                  ]"
+                  @click="toggleTarget(subnet)"
+                >
+                  <Wifi class="h-3.5 w-3.5" />
+                  {{ subnet }}
+                </button>
+              </div>
+              <p v-else class="text-sm text-slate-500">
+                Alt ağ tanımlı değil. Ajan varsayılan hedeflerini kullanacak.
+              </p>
+            </div>
+
+            <!-- Shield toggle (hidden while tracking) -->
+            <div v-if="!tracker.isTracking.value" class="flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-800/30 px-4 py-3">
+              <div class="flex items-center gap-2.5">
+                <Shield class="h-4 w-4 text-cyan-400" />
+                <div>
+                  <p class="text-sm font-medium text-white">Kalkan Güvenlik Taraması</p>
+                  <p class="text-xs text-slate-400">Keşiften sonra güvenlik modüllerini çalıştır</p>
+                </div>
+              </div>
               <button
-                v-for="subnet in agent.subnets"
-                :key="subnet"
                 :class="[
-                  'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-all',
-                  selectedTargets.includes(subnet)
-                    ? 'border-cyan-500/50 bg-cyan-500/15 text-cyan-300'
-                    : 'border-slate-600 bg-slate-800/50 text-slate-400 hover:border-slate-500',
+                  'relative h-6 w-11 rounded-full transition-colors',
+                  shieldEnabled ? 'bg-cyan-500' : 'bg-slate-600',
                 ]"
-                @click="toggleTarget(subnet)"
+                @click="shieldEnabled = !shieldEnabled"
               >
-                <Wifi class="h-3.5 w-3.5" />
-                {{ subnet }}
+                <span
+                  :class="[
+                    'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
+                    shieldEnabled ? 'left-[22px]' : 'left-0.5',
+                  ]"
+                />
               </button>
             </div>
-            <p v-else class="text-sm text-slate-500">
-              Alt ağ tanımlı değil. Ajan varsayılan hedeflerini kullanacak.
-            </p>
-          </div>
 
-          <!-- Shield toggle (hidden while tracking) -->
-          <div v-if="!tracker.isTracking.value" class="flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-800/30 px-4 py-3">
-            <div class="flex items-center gap-2.5">
-              <Shield class="h-4 w-4 text-cyan-400" />
-              <div>
-                <p class="text-sm font-medium text-white">Kalkan Güvenlik Taraması</p>
-                <p class="text-xs text-slate-400">Keşiften sonra güvenlik modüllerini çalıştır</p>
-              </div>
-            </div>
-            <button
-              :class="[
-                'relative h-6 w-11 rounded-full transition-colors',
-                shieldEnabled ? 'bg-cyan-500' : 'bg-slate-600',
-              ]"
-              @click="shieldEnabled = !shieldEnabled"
+            <!-- Error feedback -->
+            <div
+              v-if="scanError"
+              class="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-400"
             >
-              <span
-                :class="[
-                  'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
-                  shieldEnabled ? 'left-[22px]' : 'left-0.5',
-                ]"
-              />
+              <AlertCircle class="h-4 w-4 flex-shrink-0" />
+              {{ scanError }}
+            </div>
+
+            <!-- Scan button (hidden while tracking, only for online) -->
+            <button
+              v-if="!tracker.isTracking.value && isOnline"
+              :disabled="scanning"
+              :class="[
+                'flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all',
+                scanning
+                  ? 'cursor-not-allowed bg-slate-700 text-slate-500'
+                  : 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/20 hover:bg-cyan-400 hover:shadow-cyan-500/30 active:scale-[0.98]',
+              ]"
+              @click="triggerScan"
+            >
+              <Loader2 v-if="scanning" class="h-4 w-4 animate-spin" />
+              <Play v-else class="h-4 w-4" />
+              {{ scanning ? 'Tarama başlatılıyor...' : 'Taramayı Başlat' }}
             </button>
-          </div>
 
-          <!-- Error feedback -->
-          <div
-            v-if="scanError"
-            class="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-400"
-          >
-            <AlertCircle class="h-4 w-4 flex-shrink-0" />
-            {{ scanError }}
-          </div>
-
-          <!-- Scan button (hidden while tracking) -->
-          <button
-            v-if="!tracker.isTracking.value"
-            :disabled="scanning"
-            :class="[
-              'flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all',
-              scanning
-                ? 'cursor-not-allowed bg-slate-700 text-slate-500'
-                : 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/20 hover:bg-cyan-400 hover:shadow-cyan-500/30 active:scale-[0.98]',
-            ]"
-            @click="triggerScan"
-          >
-            <Loader2 v-if="scanning" class="h-4 w-4 animate-spin" />
-            <Play v-else class="h-4 w-4" />
-            {{ scanning ? 'Tarama başlatılıyor...' : 'Taramayı Başlat' }}
-          </button>
+            <!-- Stale/offline warning -->
+            <div
+              v-if="!isOnline && !isPending && !tracker.isTracking.value"
+              class="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 text-sm text-amber-400"
+            >
+              <AlertCircle class="h-4 w-4 flex-shrink-0" />
+              Ajan çevrimdışı — tarama tetiklenemez.
+            </div>
+          </template>
         </div>
 
         <!-- Known Networks (collapsible) -->

@@ -67,7 +67,7 @@ async def register_agent(
         token_hash=hash_token(token),
         is_active=1,
         registered_at=now_iso,
-        status="online",
+        status="pending",
         subnets=json.dumps(body.subnets) if body.subnets else None,
     )
     db.add(agent)
@@ -138,9 +138,12 @@ async def list_agents(db: AsyncSession = Depends(get_db)) -> dict:
     now = datetime.now(timezone.utc)
 
     for a in result.scalars().all():
-        # Mark stale agents (no heartbeat in 5 minutes)
-        effective_status = a.status
-        if a.last_seen:
+        # Compute effective status based on last_seen
+        if not a.last_seen:
+            # Never sent heartbeat → agent registered but not started
+            effective_status = "pending"
+        else:
+            effective_status = a.status
             try:
                 last = datetime.fromisoformat(a.last_seen)
                 if last.tzinfo is None:
