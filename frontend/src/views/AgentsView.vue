@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { Radio, Wifi, MapPin, Clock, RefreshCw, Play, Check, X as XIcon, Terminal, Monitor } from 'lucide-vue-next'
+import { Radio, Wifi, MapPin, Clock, RefreshCw, Play, Check, X as XIcon, Terminal, Monitor, Copy, CheckCheck } from 'lucide-vue-next'
 import { useAgents } from '@/composables/useAgents'
 import AgentDetailModal from '@/components/agents/AgentDetailModal.vue'
 import type { Agent } from '@/types/api'
@@ -97,6 +97,24 @@ async function quickScan(agent: Agent, event: Event) {
   }
 }
 
+// Setup commands (defined here to avoid quote issues in template)
+const CMD_INSTALL = 'pip install bigr-discovery'
+const CMD_REGISTER = 'bigr agent register --api-url http://127.0.0.1:8090 --name "Ev Ağı"'
+const CMD_START = 'bigr agent start'
+
+// Copy-to-clipboard with feedback
+const copiedCmd = ref<string | null>(null)
+
+async function copyCommand(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    copiedCmd.value = text
+    setTimeout(() => { copiedCmd.value = null }, 2000)
+  } catch {
+    // fallback
+  }
+}
+
 onMounted(fetchAgents)
 
 onUnmounted(() => {
@@ -148,35 +166,68 @@ onUnmounted(() => {
       <div class="glass-card rounded-2xl p-6">
         <h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">Kurulum Adımları</h3>
         <div class="space-y-4">
+          <!-- Step 1: Install -->
           <div class="flex gap-4">
             <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/15 text-sm font-bold text-cyan-400">1</div>
-            <div>
+            <div class="flex-1">
               <p class="font-medium text-slate-200">BİGR CLI'ı yükleyin</p>
-              <div class="mt-1.5 flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2">
-                <Terminal class="h-4 w-4 flex-shrink-0 text-slate-500" />
-                <code class="text-sm text-cyan-400">pip install bigr-discovery</code>
+              <div class="mt-1.5 flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2">
+                <div class="flex items-center gap-2">
+                  <Terminal class="h-4 w-4 flex-shrink-0 text-slate-500" />
+                  <code class="text-sm text-cyan-400">{{ CMD_INSTALL }}</code>
+                </div>
+                <button
+                  class="rounded p-1 text-slate-500 transition-colors hover:text-slate-300"
+                  title="Kopyala"
+                  @click="copyCommand(CMD_INSTALL)"
+                >
+                  <CheckCheck v-if="copiedCmd === CMD_INSTALL" class="h-3.5 w-3.5 text-emerald-400" />
+                  <Copy v-else class="h-3.5 w-3.5" />
+                </button>
               </div>
             </div>
           </div>
 
+          <!-- Step 2: Register -->
           <div class="flex gap-4">
             <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/15 text-sm font-bold text-cyan-400">2</div>
-            <div>
+            <div class="flex-1">
               <p class="font-medium text-slate-200">Ajanı kaydedin</p>
-              <div class="mt-1.5 flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2">
-                <Terminal class="h-4 w-4 flex-shrink-0 text-slate-500" />
-                <code class="text-sm text-cyan-400">bigr agent register --name "Ev Ağı"</code>
+              <div class="mt-1.5 flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2">
+                <div class="flex items-center gap-2">
+                  <Terminal class="h-4 w-4 flex-shrink-0 text-slate-500" />
+                  <code class="text-sm text-cyan-400">{{ CMD_REGISTER }}</code>
+                </div>
+                <button
+                  class="rounded p-1 text-slate-500 transition-colors hover:text-slate-300"
+                  title="Kopyala"
+                  @click="copyCommand(CMD_REGISTER)"
+                >
+                  <CheckCheck v-if="copiedCmd === CMD_REGISTER" class="h-3.5 w-3.5 text-emerald-400" />
+                  <Copy v-else class="h-3.5 w-3.5" />
+                </button>
               </div>
             </div>
           </div>
 
+          <!-- Step 3: Start -->
           <div class="flex gap-4">
             <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/15 text-sm font-bold text-cyan-400">3</div>
-            <div>
+            <div class="flex-1">
               <p class="font-medium text-slate-200">Taramayı başlatın</p>
-              <div class="mt-1.5 flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2">
-                <Terminal class="h-4 w-4 flex-shrink-0 text-slate-500" />
-                <code class="text-sm text-cyan-400">bigr agent start</code>
+              <div class="mt-1.5 flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2">
+                <div class="flex items-center gap-2">
+                  <Terminal class="h-4 w-4 flex-shrink-0 text-slate-500" />
+                  <code class="text-sm text-cyan-400">{{ CMD_START }}</code>
+                </div>
+                <button
+                  class="rounded p-1 text-slate-500 transition-colors hover:text-slate-300"
+                  title="Kopyala"
+                  @click="copyCommand(CMD_START)"
+                >
+                  <CheckCheck v-if="copiedCmd === CMD_START" class="h-3.5 w-3.5 text-emerald-400" />
+                  <Copy v-else class="h-3.5 w-3.5" />
+                </button>
               </div>
             </div>
           </div>
