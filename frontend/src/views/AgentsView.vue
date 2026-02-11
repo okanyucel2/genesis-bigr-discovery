@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { Radio, Wifi, MapPin, Clock, RefreshCw, Play, Check, X as XIcon } from 'lucide-vue-next'
+import { Radio, Wifi, MapPin, Clock, RefreshCw, Play, Check, X as XIcon, Terminal, Monitor } from 'lucide-vue-next'
 import { useAgents } from '@/composables/useAgents'
 import AgentDetailModal from '@/components/agents/AgentDetailModal.vue'
 import type { Agent } from '@/types/api'
@@ -17,14 +17,6 @@ let pollTimers: Record<string, ReturnType<typeof setInterval>> = {}
 const onlineCount = computed(() => agents.value.filter(a => a.status === 'online').length)
 const totalCount = computed(() => agents.value.length)
 
-function statusColor(status: string): string {
-  switch (status) {
-    case 'online': return 'text-emerald-400'
-    case 'stale': return 'text-amber-400'
-    default: return 'text-slate-500'
-  }
-}
-
 function statusDot(status: string): string {
   switch (status) {
     case 'online': return 'bg-emerald-400'
@@ -34,25 +26,25 @@ function statusDot(status: string): string {
 }
 
 function timeAgo(iso: string | null): string {
-  if (!iso) return 'Never'
+  if (!iso) return 'Hiç'
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'Just now'
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 1) return 'Az önce'
+  if (mins < 60) return `${mins}dk önce`
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
+  if (hours < 24) return `${hours}sa önce`
+  return `${Math.floor(hours / 24)}g önce`
 }
 
 function scanButtonLabel(agentId: string): string {
   const state = scanStates.value[agentId]
-  if (!state) return 'Scan Now'
+  if (!state) return 'Tara'
   switch (state.status) {
-    case 'queued': return 'Queued'
-    case 'scanning': return 'Scanning...'
-    case 'done': return 'Done'
-    case 'failed': return 'Failed'
-    default: return 'Scan Now'
+    case 'queued': return 'Sırada'
+    case 'scanning': return 'Taranıyor...'
+    case 'done': return 'Tamamlandı'
+    case 'failed': return 'Başarısız'
+    default: return 'Tara'
   }
 }
 
@@ -117,9 +109,9 @@ onUnmounted(() => {
   <div class="space-y-6">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-white">Remote Agents</h1>
+        <h1 class="text-2xl font-bold text-white">Tarayıcı Ajanlar</h1>
         <p class="mt-1 text-sm text-slate-400">
-          {{ onlineCount }} / {{ totalCount }} online
+          {{ onlineCount }} / {{ totalCount }} çevrimiçi
         </p>
       </div>
       <button
@@ -127,7 +119,7 @@ onUnmounted(() => {
         @click="fetchAgents"
       >
         <RefreshCw class="h-4 w-4" />
-        Refresh
+        Yenile
       </button>
     </div>
 
@@ -139,13 +131,76 @@ onUnmounted(() => {
       <p class="text-rose-400">{{ error }}</p>
     </div>
 
-    <div v-else-if="!agents.length" class="glass-card rounded-xl p-8 text-center">
-      <Radio class="mx-auto h-12 w-12 text-slate-500" />
-      <p class="mt-4 text-lg text-slate-300">No agents registered</p>
-      <p class="mt-1 text-sm text-slate-500">
-        Use <code class="rounded bg-slate-700 px-1.5 py-0.5 text-cyan-400">bigr agent register</code>
-        to connect a remote scanner.
-      </p>
+    <!-- Friendly empty state with setup guide -->
+    <div v-else-if="!agents.length" class="mx-auto max-w-2xl space-y-6">
+      <div class="glass-card rounded-2xl p-8 text-center">
+        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-500/10 ring-1 ring-cyan-500/20">
+          <Radio class="h-8 w-8 text-cyan-400" />
+        </div>
+        <h2 class="text-xl font-semibold text-white">Henüz Ajan Yok</h2>
+        <p class="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-400">
+          Ağınızdaki cihazları otomatik olarak keşfetmek için bir tarayıcı ajan kurmanız gerekiyor.
+          Ajan, ağınızı periyodik olarak tarar ve yeni cihazları BİGR'e bildirir.
+        </p>
+      </div>
+
+      <!-- Setup steps -->
+      <div class="glass-card rounded-2xl p-6">
+        <h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">Kurulum Adımları</h3>
+        <div class="space-y-4">
+          <div class="flex gap-4">
+            <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/15 text-sm font-bold text-cyan-400">1</div>
+            <div>
+              <p class="font-medium text-slate-200">BİGR CLI'ı yükleyin</p>
+              <div class="mt-1.5 flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2">
+                <Terminal class="h-4 w-4 flex-shrink-0 text-slate-500" />
+                <code class="text-sm text-cyan-400">pip install bigr-discovery</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-4">
+            <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/15 text-sm font-bold text-cyan-400">2</div>
+            <div>
+              <p class="font-medium text-slate-200">Ajanı kaydedin</p>
+              <div class="mt-1.5 flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2">
+                <Terminal class="h-4 w-4 flex-shrink-0 text-slate-500" />
+                <code class="text-sm text-cyan-400">bigr agent register --name "Ev Ağı"</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-4">
+            <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/15 text-sm font-bold text-cyan-400">3</div>
+            <div>
+              <p class="font-medium text-slate-200">Taramayı başlatın</p>
+              <div class="mt-1.5 flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2">
+                <Terminal class="h-4 w-4 flex-shrink-0 text-slate-500" />
+                <code class="text-sm text-cyan-400">bigr agent start</code>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- What agents do -->
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div class="glass-card rounded-xl p-4 text-center">
+          <Monitor class="mx-auto mb-2 h-5 w-5 text-emerald-400" />
+          <p class="text-xs font-medium text-slate-300">Cihaz Keşfi</p>
+          <p class="mt-0.5 text-[11px] text-slate-500">Ağdaki tüm cihazları bulur</p>
+        </div>
+        <div class="glass-card rounded-xl p-4 text-center">
+          <Wifi class="mx-auto mb-2 h-5 w-5 text-cyan-400" />
+          <p class="text-xs font-medium text-slate-300">Ağ Dolaşımı</p>
+          <p class="mt-0.5 text-[11px] text-slate-500">Farklı ağları tanır</p>
+        </div>
+        <div class="glass-card rounded-xl p-4 text-center">
+          <Clock class="mx-auto mb-2 h-5 w-5 text-amber-400" />
+          <p class="text-xs font-medium text-slate-300">Periyodik Tarama</p>
+          <p class="mt-0.5 text-[11px] text-slate-500">Otomatik çalışır</p>
+        </div>
+      </div>
     </div>
 
     <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -163,21 +218,28 @@ onUnmounted(() => {
               <p class="text-xs text-slate-400">{{ agent.id.slice(0, 8) }}...</p>
             </div>
           </div>
-          <span :class="[statusColor(agent.status), 'text-xs font-medium uppercase']">
-            {{ agent.status }}
+          <span
+            :class="[
+              agent.status === 'online' ? 'bg-emerald-500/15 text-emerald-400 ring-emerald-500/30'
+                : agent.status === 'stale' ? 'bg-amber-500/15 text-amber-400 ring-amber-500/30'
+                : 'bg-slate-500/15 text-slate-400 ring-slate-500/30',
+              'rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1',
+            ]"
+          >
+            {{ agent.status === 'online' ? 'Çevrimiçi' : agent.status === 'stale' ? 'Belirsiz' : 'Çevrimdışı' }}
           </span>
         </div>
 
         <div class="mt-4 space-y-2 text-sm">
           <div class="flex items-center gap-2 text-slate-300">
             <MapPin class="h-3.5 w-3.5 text-slate-500" />
-            <span>{{ agent.site_name || 'No site' }}</span>
+            <span>{{ agent.site_name || 'Konum belirtilmemiş' }}</span>
             <span v-if="agent.location" class="text-slate-500">{{ agent.location }}</span>
           </div>
 
           <div class="flex items-center gap-2 text-slate-300">
             <Clock class="h-3.5 w-3.5 text-slate-500" />
-            <span>Last seen: {{ timeAgo(agent.last_seen) }}</span>
+            <span>Son görülme: {{ timeAgo(agent.last_seen) }}</span>
           </div>
 
           <div v-if="agent.subnets.length" class="flex items-center gap-2 text-slate-300">

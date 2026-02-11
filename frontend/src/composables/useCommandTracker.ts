@@ -28,10 +28,10 @@ export function useCommandTracker(agentId: string) {
     const cmd = activeCommand.value
     if (!cmd) {
       return [
-        { name: 'Queued', status: 'pending' },
-        { name: 'Acknowledged', status: 'pending' },
-        { name: 'Scanning', status: 'pending' },
-        { name: 'Completed', status: 'pending' },
+        { name: 'Sırada', status: 'pending' },
+        { name: 'Alındı', status: 'pending' },
+        { name: 'Taranıyor', status: 'pending' },
+        { name: 'Tamamlandı', status: 'pending' },
       ]
     }
 
@@ -45,11 +45,11 @@ export function useCommandTracker(agentId: string) {
     const currentIdx = statusMap[cmd.status] ?? 0
 
     return [
-      { name: 'Queued', status: currentIdx > 0 ? 'complete' : currentIdx === 0 ? 'active' : 'pending' },
-      { name: 'Acknowledged', status: currentIdx > 1 ? 'complete' : currentIdx === 1 ? 'active' : 'pending' },
-      { name: 'Scanning', status: currentIdx > 2 ? 'complete' : currentIdx === 2 ? 'active' : 'pending' },
+      { name: 'Sırada', status: currentIdx > 0 ? 'complete' : currentIdx === 0 ? 'active' : 'pending' },
+      { name: 'Alındı', status: currentIdx > 1 ? 'complete' : currentIdx === 1 ? 'active' : 'pending' },
+      { name: 'Taranıyor', status: currentIdx > 2 ? 'complete' : currentIdx === 2 ? 'active' : 'pending' },
       {
-        name: cmd.status === 'failed' ? 'Failed' : 'Completed',
+        name: cmd.status === 'failed' ? 'Başarısız' : 'Tamamlandı',
         status: cmd.status === 'failed' ? 'failed' : currentIdx >= 3 ? 'complete' : 'pending',
       },
     ] as CommandStep[]

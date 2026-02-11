@@ -139,16 +139,16 @@ onUnmounted(() => {
 
     <!-- Targets info -->
     <div v-if="targets?.length && !isDone && !activeStepMessage" class="targets-info">
-      <span class="targets-label">Targets:</span>
+      <span class="targets-label">Hedefler:</span>
       <span class="targets-list">{{ targets.join(', ') }}</span>
-      <span v-if="shield" class="shield-badge">Shield</span>
+      <span v-if="shield" class="shield-badge">Kalkan</span>
     </div>
 
     <!-- Scan report summary (when done) -->
     <div v-if="isDone && result" class="scan-report">
       <div class="report-header">
         <span :class="hasFailed ? 'text-rose-400' : 'text-emerald-400'" class="report-title">
-          {{ hasFailed ? 'Scan Failed' : 'Scan Complete' }}
+          {{ hasFailed ? 'Tarama Başarısız' : 'Tarama Tamamlandı' }}
         </span>
         <span v-if="duration" class="report-duration">
           <Timer :size="11" />
@@ -159,18 +159,18 @@ onUnmounted(() => {
         <div class="stat">
           <Monitor :size="14" class="text-cyan-400" />
           <span class="stat-value">{{ result.assets_discovered ?? 0 }}</span>
-          <span class="stat-label">devices found</span>
+          <span class="stat-label">cihaz bulundu</span>
         </div>
         <div class="stat">
           <Scan :size="14" class="text-slate-400" />
           <span class="stat-value">{{ result.targets_scanned ?? 0 }}</span>
-          <span class="stat-label">subnets scanned</span>
+          <span class="stat-label">alt ağ tarandı</span>
         </div>
       </div>
       <div v-if="resultErrors.length" class="report-errors">
         <div class="error-header">
           <AlertTriangle :size="12" />
-          {{ resultErrors.length }} warning{{ resultErrors.length > 1 ? 's' : '' }}
+          {{ resultErrors.length }} uyarı
         </div>
         <div v-for="(err, i) in resultErrors" :key="i" class="error-line">
           {{ err }}
@@ -185,7 +185,7 @@ onUnmounted(() => {
       @click="emit('dismiss')"
     >
       <X :size="12" />
-      Dismiss
+      Kapat
     </button>
   </div>
 </template>

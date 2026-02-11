@@ -110,11 +110,11 @@ async function fetchNetworks() {
 
 function statusBadge(status: string): { color: string; label: string } {
   switch (status) {
-    case 'pending': return { color: 'bg-amber-500/20 text-amber-400 border-amber-500/30', label: 'Pending' }
-    case 'ack': return { color: 'bg-blue-500/20 text-blue-400 border-blue-500/30', label: 'Acknowledged' }
-    case 'running': return { color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30', label: 'Running' }
-    case 'completed': return { color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', label: 'Completed' }
-    case 'failed': return { color: 'bg-rose-500/20 text-rose-400 border-rose-500/30', label: 'Failed' }
+    case 'pending': return { color: 'bg-amber-500/20 text-amber-400 border-amber-500/30', label: 'Beklemede' }
+    case 'ack': return { color: 'bg-blue-500/20 text-blue-400 border-blue-500/30', label: 'Alındı' }
+    case 'running': return { color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30', label: 'Çalışıyor' }
+    case 'completed': return { color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', label: 'Tamamlandı' }
+    case 'failed': return { color: 'bg-rose-500/20 text-rose-400 border-rose-500/30', label: 'Başarısız' }
     default: return { color: 'bg-slate-500/20 text-slate-400 border-slate-500/30', label: status }
   }
 }
@@ -123,11 +123,11 @@ function timeAgo(iso: string | null): string {
   if (!iso) return '-'
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'Just now'
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 1) return 'Az önce'
+  if (mins < 60) return `${mins}dk önce`
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
+  if (hours < 24) return `${hours}sa önce`
+  return `${Math.floor(hours / 24)}g önce`
 }
 
 const hasTargets = computed(() => selectedTargets.value.length > 0)
@@ -170,7 +170,7 @@ watch(() => networksExpanded.value, (expanded) => {
             />
             <div>
               <h2 class="text-lg font-semibold text-white">{{ agent.name }}</h2>
-              <p class="text-xs text-slate-400">{{ agent.site_name || 'No site' }}</p>
+              <p class="text-xs text-slate-400">{{ agent.site_name || 'Konum belirtilmemiş' }}</p>
             </div>
           </div>
           <button
@@ -190,7 +190,7 @@ watch(() => networksExpanded.value, (expanded) => {
             </div>
             <div class="flex items-center gap-1.5">
               <Clock class="h-3.5 w-3.5 text-slate-500" />
-              Last seen: {{ timeAgo(agent.last_seen) }}
+              Son görülme: {{ timeAgo(agent.last_seen) }}
             </div>
             <div v-if="agent.version" class="text-xs text-slate-500">
               v{{ agent.version }}
@@ -214,7 +214,7 @@ watch(() => networksExpanded.value, (expanded) => {
           <!-- Target selection (hidden while tracking) -->
           <div v-if="!tracker.isTracking.value">
             <label class="mb-2 block text-xs font-medium uppercase tracking-wider text-slate-400">
-              Scan Targets
+              Tarama Hedefleri
             </label>
             <div v-if="agent.subnets.length" class="flex flex-wrap gap-2">
               <button
@@ -233,7 +233,7 @@ watch(() => networksExpanded.value, (expanded) => {
               </button>
             </div>
             <p v-else class="text-sm text-slate-500">
-              No subnets registered. Agent will use its default targets.
+              Alt ağ tanımlı değil. Ajan varsayılan hedeflerini kullanacak.
             </p>
           </div>
 
@@ -242,8 +242,8 @@ watch(() => networksExpanded.value, (expanded) => {
             <div class="flex items-center gap-2.5">
               <Shield class="h-4 w-4 text-cyan-400" />
               <div>
-                <p class="text-sm font-medium text-white">Shield Security Scan</p>
-                <p class="text-xs text-slate-400">Run security modules after discovery</p>
+                <p class="text-sm font-medium text-white">Kalkan Güvenlik Taraması</p>
+                <p class="text-xs text-slate-400">Keşiften sonra güvenlik modüllerini çalıştır</p>
               </div>
             </div>
             <button
@@ -285,7 +285,7 @@ watch(() => networksExpanded.value, (expanded) => {
           >
             <Loader2 v-if="scanning" class="h-4 w-4 animate-spin" />
             <Play v-else class="h-4 w-4" />
-            {{ scanning ? 'Triggering scan...' : 'Trigger Scan' }}
+            {{ scanning ? 'Tarama başlatılıyor...' : 'Taramayı Başlat' }}
           </button>
         </div>
 
@@ -297,7 +297,7 @@ watch(() => networksExpanded.value, (expanded) => {
           >
             <span class="flex items-center gap-1.5">
               <Radio class="h-3.5 w-3.5" />
-              Known Networks
+              Bilinen Ağlar
             </span>
             <ChevronUp v-if="networksExpanded" class="h-4 w-4" />
             <ChevronDown v-else class="h-4 w-4" />
@@ -308,7 +308,7 @@ watch(() => networksExpanded.value, (expanded) => {
               <Loader2 class="h-5 w-5 animate-spin text-slate-500" />
             </div>
             <div v-else-if="!knownNetworks.length" class="py-3 text-center text-sm text-slate-500">
-              No networks detected yet
+              Henüz ağ tespit edilmedi
             </div>
             <div v-else class="space-y-2">
               <div
@@ -326,7 +326,7 @@ watch(() => networksExpanded.value, (expanded) => {
                   </span>
                 </div>
                 <div class="flex items-center gap-2 text-slate-500">
-                  <span>{{ net.asset_count }} assets</span>
+                  <span>{{ net.asset_count }} cihaz</span>
                   <span>{{ timeAgo(net.last_seen) }}</span>
                 </div>
               </div>
@@ -340,7 +340,7 @@ watch(() => networksExpanded.value, (expanded) => {
             class="flex w-full items-center justify-between px-6 py-3 text-sm text-slate-400 transition-colors hover:text-slate-300"
             @click="historyExpanded = !historyExpanded"
           >
-            <span>Command History</span>
+            <span>Komut Geçmişi</span>
             <ChevronUp v-if="historyExpanded" class="h-4 w-4" />
             <ChevronDown v-else class="h-4 w-4" />
           </button>
@@ -350,7 +350,7 @@ watch(() => networksExpanded.value, (expanded) => {
               <Loader2 class="h-5 w-5 animate-spin text-slate-500" />
             </div>
             <div v-else-if="!commands.length" class="py-3 text-center text-sm text-slate-500">
-              No commands yet
+              Henüz komut yok
             </div>
             <div v-else class="space-y-2">
               <div
