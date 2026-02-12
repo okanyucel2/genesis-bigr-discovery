@@ -67,6 +67,9 @@ import type {
   GuardianRulesResponse,
   GuardianBlocklistsResponse,
   GuardianHealthResponse,
+  WatcherStatus,
+  WatcherHistoryResponse,
+  WatcherAlertsResponse,
 } from '@/types/api'
 import type { ShieldScanResponse, ShieldFindingsResponse, ShieldModulesResponse } from '@/types/shield'
 import {
@@ -96,6 +99,34 @@ import {
   mockFirewallEvents,
   mockSampleNotifications,
   mockGuardianStatus,
+  mockGuardianStats,
+  mockGuardianRules,
+  mockGuardianBlocklists,
+  mockGuardianHealth,
+  mockWatcherStatus,
+  mockWatcherHistory,
+  mockWatcherAlerts,
+  mockFirewallStatus,
+  mockFirewallRules,
+  mockFirewallConfig,
+  mockAgents,
+  mockSites,
+  mockNetworks,
+  mockAgentCommands,
+  mockAgentShieldFindings,
+  mockOnboardingStart,
+  mockOnboardingStatus,
+  mockPlans,
+  mockCurrentSubscription,
+  mockUsage,
+  mockTierAccess,
+  mockRemediationPlan,
+  mockRemediationHistory,
+  mockDeadManStatus,
+  mockAbuseIPDBSettings,
+  mockCollectiveThreats,
+  mockCollectiveFeed,
+  mockFamilyDevices,
 } from '@/lib/mock-data'
 
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
@@ -199,60 +230,91 @@ export const bigrApi = {
       : client.get<HealthResponse>('/api/health'),
 
   getAgents: () =>
-    client.get<AgentsResponse>('/api/agents'),
+    DEMO_MODE
+      ? mockResponse({ agents: mockAgents() })
+      : client.get<AgentsResponse>('/api/agents'),
 
   deleteAgent: (agentId: string) =>
-    client.delete<{ status: string; deleted: string }>(`/api/agents/${agentId}`),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', deleted: agentId })
+      : client.delete<{ status: string; deleted: string }>(`/api/agents/${agentId}`),
 
   getSites: () =>
-    client.get<SitesResponse>('/api/sites'),
+    DEMO_MODE
+      ? mockResponse({ sites: mockSites() })
+      : client.get<SitesResponse>('/api/sites'),
 
   createAgentCommand: (agentId: string, targets?: string[], shield?: boolean) =>
-    client.post<CreateCommandResponse>(`/api/agents/${agentId}/commands`, {
-      command_type: 'scan_now',
-      targets: targets || [],
-      shield: shield ?? true,
-    }),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', command_id: 'cmd_demo', agent_id: agentId, command_type: 'scan_now', targets: targets || [], shield: shield ?? true })
+      : client.post<CreateCommandResponse>(`/api/agents/${agentId}/commands`, {
+          command_type: 'scan_now',
+          targets: targets || [],
+          shield: shield ?? true,
+        }),
 
   getAgentCommands: (agentId: string, status?: string) => {
+    if (DEMO_MODE) return mockResponse({ commands: mockAgentCommands(), count: 1 })
     const params: Record<string, string> = {}
     if (status) params.status = status
     return client.get<AgentCommandsResponse>(`/api/agents/${agentId}/commands`, { params })
   },
 
   getNetworks: () =>
-    client.get<NetworksResponse>('/api/networks'),
+    DEMO_MODE
+      ? mockResponse({ networks: mockNetworks() })
+      : client.get<NetworksResponse>('/api/networks'),
 
   renameNetwork: (networkId: string, friendlyName: string) =>
-    client.put(`/api/networks/${networkId}`, { friendly_name: friendlyName }),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok' })
+      : client.put(`/api/networks/${networkId}`, { friendly_name: friendlyName }),
 
   // Firewall
   getFirewallStatus: () =>
-    client.get<FirewallStatus>('/api/firewall/status'),
+    DEMO_MODE
+      ? mockResponse(mockFirewallStatus())
+      : client.get<FirewallStatus>('/api/firewall/status'),
 
   getFirewallRules: (ruleType?: string, activeOnly = true) => {
+    if (DEMO_MODE) {
+      const rules = mockFirewallRules().filter(r => !ruleType || r.rule_type === ruleType)
+      return mockResponse({ rules, total: rules.length })
+    }
     const params: Record<string, string | boolean> = { active_only: activeOnly }
     if (ruleType) params.rule_type = ruleType
     return client.get<FirewallRulesResponse>('/api/firewall/rules', { params })
   },
 
   addFirewallRule: (rule: Partial<FirewallRule>) =>
-    client.post<{ status: string; rule: FirewallRule; message: string }>('/api/firewall/rules', rule),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', rule: { ...rule, id: 'fw_demo' } as FirewallRule, message: 'Kural eklendi.' })
+      : client.post<{ status: string; rule: FirewallRule; message: string }>('/api/firewall/rules', rule),
 
   removeFirewallRule: (ruleId: string) =>
-    client.delete<{ status: string; message: string; rule_id: string }>(`/api/firewall/rules/${ruleId}`),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', message: 'Kural silindi.', rule_id: ruleId })
+      : client.delete<{ status: string; message: string; rule_id: string }>(`/api/firewall/rules/${ruleId}`),
 
   toggleFirewallRule: (ruleId: string) =>
-    client.put<{ status: string; rule: FirewallRule; message: string }>(`/api/firewall/rules/${ruleId}/toggle`),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', rule: mockFirewallRules()[0], message: 'Kural durumu degistirildi.' })
+      : client.put<{ status: string; rule: FirewallRule; message: string }>(`/api/firewall/rules/${ruleId}/toggle`),
 
   syncFirewallThreats: () =>
-    client.post<{ status: string; rules_created: number; message: string }>('/api/firewall/sync/threats'),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', rules_created: 2, message: '2 tehdit kurali eklendi.' })
+      : client.post<{ status: string; rules_created: number; message: string }>('/api/firewall/sync/threats'),
 
   syncFirewallPorts: () =>
-    client.post<{ status: string; rules_created: number; message: string }>('/api/firewall/sync/ports'),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', rules_created: 1, message: '1 port kurali eklendi.' })
+      : client.post<{ status: string; rules_created: number; message: string }>('/api/firewall/sync/ports'),
 
   syncFirewallShield: () =>
-    client.post<{ status: string; rules_created: number; findings_checked: number; message: string }>('/api/firewall/sync/shield'),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', rules_created: 1, findings_checked: 5, message: '1 shield kurali eklendi.' })
+      : client.post<{ status: string; rules_created: number; findings_checked: number; message: string }>('/api/firewall/sync/shield'),
 
   getFirewallEvents: (limit = 100, action?: string) => {
     if (DEMO_MODE) return mockResponse({ events: mockFirewallEvents().slice(0, limit), total: mockFirewallEvents().length })
@@ -262,10 +324,14 @@ export const bigrApi = {
   },
 
   getFirewallConfig: () =>
-    client.get<FirewallConfig>('/api/firewall/config'),
+    DEMO_MODE
+      ? mockResponse(mockFirewallConfig())
+      : client.get<FirewallConfig>('/api/firewall/config'),
 
   updateFirewallConfig: (config: FirewallConfig) =>
-    client.put<{ status: string; config: FirewallConfig; message: string }>('/api/firewall/config', config),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', config, message: 'Yapilandirma guncellendi.' })
+      : client.put<{ status: string; config: FirewallConfig; message: string }>('/api/firewall/config', config),
 
   getFirewallDailyStats: () =>
     DEMO_MODE
@@ -273,9 +339,19 @@ export const bigrApi = {
       : client.get<FirewallDailyStats>('/api/firewall/stats/daily'),
 
   installFirewallAdapter: () =>
-    client.post<{ status: string; message: string }>('/api/firewall/adapter/install'),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', message: 'Adapter yuklendi.' })
+      : client.post<{ status: string; message: string }>('/api/firewall/adapter/install'),
 
   getAgentShieldFindings: (site?: string, severity?: string) => {
+    if (DEMO_MODE) {
+      let findings = mockAgentShieldFindings()
+      if (site) findings = findings.filter(f => f.site_name === site)
+      if (severity) findings = findings.filter(f => f.severity === severity)
+      const counts: Record<string, number> = {}
+      findings.forEach(f => { counts[f.severity] = (counts[f.severity] || 0) + 1 })
+      return mockResponse({ findings, total: findings.length, severity_counts: counts })
+    }
     const params: Record<string, string> = {}
     if (site) params.site = site
     if (severity) params.severity = severity
@@ -305,47 +381,64 @@ export const bigrApi = {
 
   // Onboarding
   startOnboarding: () =>
-    client.post<OnboardingStartResponse>('/api/onboarding/start'),
+    DEMO_MODE
+      ? mockResponse(mockOnboardingStart())
+      : client.post<OnboardingStartResponse>('/api/onboarding/start'),
 
   getOnboardingStatus: () =>
-    client.get<OnboardingStatusResponse>('/api/onboarding/status'),
+    DEMO_MODE
+      ? mockResponse(mockOnboardingStatus())
+      : client.get<OnboardingStatusResponse>('/api/onboarding/status'),
 
   nameNetwork: (networkId: string, name: string, type: string) =>
-    client.post<OnboardingNameResponse>('/api/onboarding/name-network', {
-      network_id: networkId,
-      name,
-      type,
-    }),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', network_id: networkId, name, type, updated: true, message: 'Ag adlandirildi.' })
+      : client.post<OnboardingNameResponse>('/api/onboarding/name-network', {
+          network_id: networkId,
+          name,
+          type,
+        }),
 
   completeOnboarding: () =>
-    client.post<OnboardingCompleteResponse>('/api/onboarding/complete'),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', message: 'Kurulum tamamlandi!', motto: 'Aginiz artik BİGR korumasi altinda.' })
+      : client.post<OnboardingCompleteResponse>('/api/onboarding/complete'),
 
   resetOnboarding: () =>
-    client.post('/api/onboarding/reset'),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok' })
+      : client.post('/api/onboarding/reset'),
 
   // Subscription & Pricing
   getPlans: () =>
-    client.get<PlansResponse>('/api/subscription/plans'),
+    DEMO_MODE
+      ? mockResponse({ plans: mockPlans(), total: 3 })
+      : client.get<PlansResponse>('/api/subscription/plans'),
 
   getCurrentSubscription: (deviceId?: string) => {
+    if (DEMO_MODE) return mockResponse(mockCurrentSubscription())
     const params: Record<string, string> = {}
     if (deviceId) params.device_id = deviceId
     return client.get<SubscriptionInfo>('/api/subscription/current', { params })
   },
 
   activatePlan: (planId: string, deviceId?: string) =>
-    client.post<ActivatePlanResponse>('/api/subscription/activate', {
-      plan_id: planId,
-      device_id: deviceId || undefined,
-    }),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', message: 'Plan aktif edildi.', subscription: mockCurrentSubscription() })
+      : client.post<ActivatePlanResponse>('/api/subscription/activate', {
+          plan_id: planId,
+          device_id: deviceId || undefined,
+        }),
 
   getUsage: (deviceId?: string) => {
+    if (DEMO_MODE) return mockResponse(mockUsage())
     const params: Record<string, string> = {}
     if (deviceId) params.device_id = deviceId
     return client.get<UsageInfo>('/api/subscription/usage', { params })
   },
 
   getTierAccess: (deviceId?: string) => {
+    if (DEMO_MODE) return mockResponse(mockTierAccess())
     const params: Record<string, string> = {}
     if (deviceId) params.device_id = deviceId
     return client.get<TierAccessInfo>('/api/subscription/tier-access', { params })
@@ -353,65 +446,99 @@ export const bigrApi = {
 
   // Remediation
   getRemediationPlan: (ip?: string) =>
-    ip
-      ? client.get<RemediationPlan>(`/api/remediation/plan/${ip}`)
-      : client.get<RemediationPlan>('/api/remediation/plan'),
+    DEMO_MODE
+      ? mockResponse(mockRemediationPlan())
+      : ip
+        ? client.get<RemediationPlan>(`/api/remediation/plan/${ip}`)
+        : client.get<RemediationPlan>('/api/remediation/plan'),
 
   executeRemediation: (actionId: string) =>
-    client.post<RemediationExecuteResponse>(`/api/remediation/execute/${actionId}`),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', message: 'Aksiyon basariyla uygulandi.', action_id: actionId })
+      : client.post<RemediationExecuteResponse>(`/api/remediation/execute/${actionId}`),
 
   getRemediationHistory: () =>
-    client.get<RemediationHistoryResponse>('/api/remediation/history'),
+    DEMO_MODE
+      ? mockResponse({ history: mockRemediationHistory(), total: 2 })
+      : client.get<RemediationHistoryResponse>('/api/remediation/history'),
 
   // Dead Man Switch
   getDeadManStatus: () =>
-    client.get<DeadManStatusResponse>('/api/deadman/status'),
+    DEMO_MODE
+      ? mockResponse(mockDeadManStatus())
+      : client.get<DeadManStatusResponse>('/api/deadman/status'),
 
   getDeadManAgentStatus: (agentId: string) =>
-    client.get<DeadManStatus>(`/api/deadman/status/${agentId}`),
+    DEMO_MODE
+      ? mockResponse(mockDeadManStatus().statuses[0])
+      : client.get<DeadManStatus>(`/api/deadman/status/${agentId}`),
 
   updateDeadManConfig: (config: DeadManSwitchConfig) =>
-    client.put('/api/deadman/config', config),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok' })
+      : client.put('/api/deadman/config', config),
 
   forceDeadManCheck: () =>
-    client.post('/api/deadman/check'),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', message: 'Kontrol tamamlandi.' })
+      : client.post('/api/deadman/check'),
 
   // AbuseIPDB
   checkAbuseIPDB: (ip: string) =>
-    client.get<AbuseIPDBCheck>(`/api/threat/abuseipdb/check/${ip}`),
+    DEMO_MODE
+      ? mockResponse({ ip, is_public: true, abuse_confidence_score: 42, total_reports: 7, num_distinct_users: 5, last_reported_at: null, country_code: 'US', isp: 'Cloudflare', usage_type: 'Data Center', bigr_threat_score: 3.2 })
+      : client.get<AbuseIPDBCheck>(`/api/threat/abuseipdb/check/${ip}`),
 
   getAbuseIPDBStatus: () =>
-    client.get<AbuseIPDBStatus>('/api/threat/abuseipdb/status'),
+    DEMO_MODE
+      ? mockResponse({ enabled: true, api_key_set: true, remaining_calls: 847, daily_limit: 1000, cache_size: 156 })
+      : client.get<AbuseIPDBStatus>('/api/threat/abuseipdb/status'),
 
   getAbuseIPDBBlacklist: (confidenceMinimum = 90, limit = 1000) =>
-    client.get<AbuseIPDBBlacklistResponse>('/api/threat/abuseipdb/blacklist', {
-      params: { confidence_minimum: confidenceMinimum, limit },
-    }),
+    DEMO_MODE
+      ? mockResponse({ entries: [{ ip: '185.220.101.1', confidence: 100, country: 'DE' }, { ip: '45.148.10.92', confidence: 95, country: 'RU' }], count: 2, confidence_minimum: confidenceMinimum })
+      : client.get<AbuseIPDBBlacklistResponse>('/api/threat/abuseipdb/blacklist', {
+          params: { confidence_minimum: confidenceMinimum, limit },
+        }),
 
   enrichAsset: (ip: string) =>
-    client.get<AbuseIPDBEnrichment>(`/api/threat/abuseipdb/enrichment/${ip}`),
+    DEMO_MODE
+      ? mockResponse({ ip, combined_threat_score: 2.1, sources: ['local', 'abuseipdb'], abuseipdb: null, local_threat: null, status: 'ok' })
+      : client.get<AbuseIPDBEnrichment>(`/api/threat/abuseipdb/enrichment/${ip}`),
 
   getAbuseIPDBSettings: () =>
-    client.get<AbuseIPDBSettings>('/api/threat/abuseipdb/settings'),
+    DEMO_MODE
+      ? mockResponse(mockAbuseIPDBSettings())
+      : client.get<AbuseIPDBSettings>('/api/threat/abuseipdb/settings'),
 
   updateAbuseIPDBSettings: (settings: AbuseIPDBSettingsUpdate) =>
-    client.put<{ status: string; api_key_set: boolean; api_key_masked: string; daily_limit: number; message: string }>(
-      '/api/threat/abuseipdb/settings',
-      settings,
-    ),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', api_key_set: true, api_key_masked: 'sk-****...****new', daily_limit: settings.daily_limit, message: 'Ayarlar guncellendi.' })
+      : client.put<{ status: string; api_key_set: boolean; api_key_masked: string; daily_limit: number; message: string }>(
+          '/api/threat/abuseipdb/settings',
+          settings,
+        ),
 
   testAbuseIPDBConnection: () =>
-    client.post<AbuseIPDBTestResult>('/api/threat/abuseipdb/test'),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', message: 'API baglantisi basarili.', valid: true, test_ip: '8.8.8.8', abuse_score: 0 })
+      : client.post<AbuseIPDBTestResult>('/api/threat/abuseipdb/test'),
 
   clearAbuseIPDBSettings: () =>
-    client.delete<{ status: string; message: string }>('/api/threat/abuseipdb/settings'),
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', message: 'Ayarlar temizlendi.' })
+      : client.delete<{ status: string; message: string }>('/api/threat/abuseipdb/settings'),
 
   // Language Engine — Notification Humanizer
   humanizeAlert: (request: HumanizeRequest) =>
-    client.post<HumanizeResponse>('/api/language/humanize', request),
+    DEMO_MODE
+      ? mockResponse({ notification: { id: 'demo_hn', title: 'Demo Bildirim', body: request.message, severity: request.severity, icon: '🔔', action_label: null, action_type: null, original_alert_type: request.alert_type, original_message: request.message, generated_by: 'demo', created_at: new Date().toISOString() } })
+      : client.post<HumanizeResponse>('/api/language/humanize', request),
 
   humanizeBatch: (requests: HumanizeRequest[]) =>
-    client.post<HumanizeBatchResponse>('/api/language/humanize/batch', requests),
+    DEMO_MODE
+      ? mockResponse({ notifications: [], count: 0 })
+      : client.post<HumanizeBatchResponse>('/api/language/humanize/batch', requests),
 
   getSampleNotifications: () =>
     DEMO_MODE
@@ -420,9 +547,15 @@ export const bigrApi = {
 
   // Collective Intelligence
   getCollectiveThreats: (minConfidence = 0.5) =>
-    client.get<CollectiveThreatsResponse>('/api/collective/threats', {
-      params: { min_confidence: minConfidence },
-    }),
+    DEMO_MODE
+      ? mockResponse({
+          threats: mockCollectiveThreats().filter(t => t.confidence >= minConfidence),
+          total: mockCollectiveThreats().filter(t => t.confidence >= minConfidence).length,
+          min_confidence: minConfidence,
+        } as CollectiveThreatsResponse)
+      : client.get<CollectiveThreatsResponse>('/api/collective/threats', {
+          params: { min_confidence: minConfidence },
+        }),
 
   getCollectiveStats: () =>
     DEMO_MODE
@@ -437,9 +570,14 @@ export const bigrApi = {
         }),
 
   getCollectiveFeed: (limit = 20) =>
-    client.get<CollectiveFeedResponse>('/api/collective/feed', {
-      params: { limit },
-    }),
+    DEMO_MODE
+      ? mockResponse({
+          signals: mockCollectiveFeed().slice(0, limit),
+          total: mockCollectiveFeed().length,
+        } as CollectiveFeedResponse)
+      : client.get<CollectiveFeedResponse>('/api/collective/feed', {
+          params: { limit },
+        }),
 
   // Family Shield
   getFamilyOverview: (subscriptionId: string) =>
@@ -450,20 +588,39 @@ export const bigrApi = {
         }),
 
   getFamilyDevices: (subscriptionId: string) =>
-    client.get<FamilyDevice[]>('/api/family/devices', {
-      params: { subscription_id: subscriptionId },
-    }),
+    DEMO_MODE
+      ? mockResponse(mockFamilyDevices())
+      : client.get<FamilyDevice[]>('/api/family/devices', {
+          params: { subscription_id: subscriptionId },
+        }),
 
   addFamilyDevice: (subscriptionId: string, request: AddDeviceRequest) =>
-    client.post<FamilyDevice>('/api/family/devices', request, {
-      params: { subscription_id: subscriptionId },
-    }),
+    DEMO_MODE
+      ? mockResponse({
+          id: `dev_${Date.now()}`, name: request.device_name,
+          device_type: request.device_type || 'unknown', icon: '📱',
+          owner_name: request.owner_name || null, is_online: false,
+          last_seen: null, safety_score: 100, safety_level: 'safe',
+          open_threats: 0, ip: '192.168.1.200', network_name: 'Ev Agi',
+        } as FamilyDevice)
+      : client.post<FamilyDevice>('/api/family/devices', request, {
+          params: { subscription_id: subscriptionId },
+        }),
 
   updateFamilyDevice: (deviceId: string, request: UpdateDeviceRequest) =>
-    client.put<FamilyDevice>(`/api/family/devices/${deviceId}`, request),
+    DEMO_MODE
+      ? mockResponse({
+          ...mockFamilyDevices()[0], id: deviceId,
+          ...(request.name && { name: request.name }),
+          ...(request.device_type && { device_type: request.device_type }),
+          ...(request.owner_name !== undefined && { owner_name: request.owner_name }),
+        } as FamilyDevice)
+      : client.put<FamilyDevice>(`/api/family/devices/${deviceId}`, request),
 
   removeFamilyDevice: (deviceId: string) =>
-    client.delete(`/api/family/devices/${deviceId}`),
+    DEMO_MODE
+      ? mockResponse({ status: 'deleted', id: deviceId })
+      : client.delete(`/api/family/devices/${deviceId}`),
 
   getFamilyAlerts: (subscriptionId: string, limit = 50) =>
     DEMO_MODE
@@ -486,25 +643,62 @@ export const bigrApi = {
       : client.get<GuardianStatusResponse>('/api/guardian/status'),
 
   getGuardianStats: () =>
-    client.get<GuardianStatsResponse>('/api/guardian/stats'),
+    DEMO_MODE
+      ? mockResponse(mockGuardianStats())
+      : client.get<GuardianStatsResponse>('/api/guardian/stats'),
 
   getGuardianRules: () =>
-    client.get<GuardianRulesResponse>('/api/guardian/rules'),
+    DEMO_MODE
+      ? mockResponse({ rules: mockGuardianRules(), total: 3 } as GuardianRulesResponse)
+      : client.get<GuardianRulesResponse>('/api/guardian/rules'),
 
   addGuardianRule: (action: string, domain: string, category = 'custom', reason = '') =>
-    client.post<{ id: string; action: string; domain: string }>('/api/guardian/rules', {
-      action, domain, category, reason,
-    }),
+    DEMO_MODE
+      ? mockResponse({ id: `rule_${Date.now()}`, action, domain })
+      : client.post<{ id: string; action: string; domain: string }>('/api/guardian/rules', {
+          action, domain, category, reason,
+        }),
 
   deleteGuardianRule: (ruleId: string) =>
-    client.delete<{ status: string; id: string }>(`/api/guardian/rules/${ruleId}`),
+    DEMO_MODE
+      ? mockResponse({ status: 'deleted', id: ruleId })
+      : client.delete<{ status: string; id: string }>(`/api/guardian/rules/${ruleId}`),
 
   updateGuardianBlocklists: () =>
-    client.post<{ status: string; results: unknown }>('/api/guardian/blocklist/update'),
+    DEMO_MODE
+      ? mockResponse({ status: 'updated', results: { updated: 3, errors: 0 } })
+      : client.post<{ status: string; results: unknown }>('/api/guardian/blocklist/update'),
 
   getGuardianBlocklists: () =>
-    client.get<GuardianBlocklistsResponse>('/api/guardian/blocklists'),
+    DEMO_MODE
+      ? mockResponse({ blocklists: mockGuardianBlocklists() } as GuardianBlocklistsResponse)
+      : client.get<GuardianBlocklistsResponse>('/api/guardian/blocklists'),
 
   getGuardianHealth: () =>
-    client.get<GuardianHealthResponse>('/api/guardian/health'),
+    DEMO_MODE
+      ? mockResponse(mockGuardianHealth())
+      : client.get<GuardianHealthResponse>('/api/guardian/health'),
+
+  // Watcher (Daemon Mode)
+  getWatcherStatus: () =>
+    DEMO_MODE
+      ? mockResponse(mockWatcherStatus())
+      : client.get<WatcherStatus>('/api/watcher/status'),
+
+  getWatcherHistory: (limit = 20) =>
+    DEMO_MODE
+      ? mockResponse({ scans: mockWatcherHistory(), total: 5 } as WatcherHistoryResponse)
+      : client.get<WatcherHistoryResponse>('/api/watcher/history', { params: { limit } }),
+
+  getWatcherAlerts: (limit = 50) =>
+    DEMO_MODE
+      ? mockResponse({ alerts: mockWatcherAlerts(), total: 4 } as WatcherAlertsResponse)
+      : client.get<WatcherAlertsResponse>('/api/watcher/alerts', { params: { limit } }),
+
+  triggerWatcherScan: (subnet?: string) =>
+    DEMO_MODE
+      ? mockResponse({ status: 'triggered', subnet: subnet || '192.168.1.0/24' })
+      : client.post<{ status: string; subnet: string }>('/api/watcher/scan-now', null, {
+          params: subnet ? { subnet } : {},
+        }),
 }

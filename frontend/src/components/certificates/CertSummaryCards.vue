@@ -40,7 +40,7 @@ const stats = computed(() => {
     <div class="glass-card rounded-xl p-5">
       <div class="flex items-start justify-between">
         <div class="flex-1 min-w-0">
-          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Total Certs</p>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Toplam Sertifika</p>
           <p class="mt-2 text-2xl font-bold text-white tabular-nums">{{ stats.total }}</p>
         </div>
         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10">
@@ -53,7 +53,7 @@ const stats = computed(() => {
     <div class="glass-card rounded-xl p-5">
       <div class="flex items-start justify-between">
         <div class="flex-1 min-w-0">
-          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Expiring Soon</p>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Yakında Sona Erecek</p>
           <p class="mt-2 text-2xl font-bold text-amber-400 tabular-nums">{{ stats.expiringSoon }}</p>
         </div>
         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
@@ -66,7 +66,7 @@ const stats = computed(() => {
     <div class="glass-card rounded-xl p-5">
       <div class="flex items-start justify-between">
         <div class="flex-1 min-w-0">
-          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Expired</p>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Süresi Dolmuş</p>
           <p class="mt-2 text-2xl font-bold text-rose-400 tabular-nums">{{ stats.expired }}</p>
         </div>
         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-500/10">
@@ -79,7 +79,7 @@ const stats = computed(() => {
     <div class="glass-card rounded-xl p-5">
       <div class="flex items-start justify-between">
         <div class="flex-1 min-w-0">
-          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Self-Signed</p>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Kendi İmzalı</p>
           <p class="mt-2 text-2xl font-bold text-slate-400 tabular-nums">{{ stats.selfSigned }}</p>
         </div>
         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-500/10">
@@ -92,7 +92,7 @@ const stats = computed(() => {
     <div class="glass-card rounded-xl p-5">
       <div class="flex items-start justify-between">
         <div class="flex-1 min-w-0">
-          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Weak Keys</p>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Zayıf Anahtarlar</p>
           <p class="mt-2 text-2xl font-bold text-purple-400 tabular-nums">{{ stats.weakKeys }}</p>
         </div>
         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-500/10">

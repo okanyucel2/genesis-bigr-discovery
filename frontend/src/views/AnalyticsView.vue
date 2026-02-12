@@ -31,7 +31,7 @@ onMounted(() => {
 <template>
   <div class="space-y-6">
     <div class="flex items-center justify-between">
-      <h1 class="text-2xl font-bold text-white">Analytics & Trends</h1>
+      <h1 class="text-2xl font-bold text-white">Analitik ve Trendler</h1>
 
       <!-- Time range selector -->
       <div class="flex gap-1 rounded-lg border border-border bg-white/5 p-1">
@@ -48,7 +48,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <LoadingState v-if="loading" message="Loading analytics data..." />
+    <LoadingState v-if="loading" message="Analitik verileri yükleniyor..." />
 
     <div v-else-if="error" class="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4">
       <p class="text-sm text-rose-400">{{ error }}</p>
@@ -56,8 +56,8 @@ onMounted(() => {
 
     <EmptyState
       v-else-if="!data"
-      title="No Analytics Data"
-      description="Run scans over time to generate trend analytics."
+      title="Analitik Verisi Yok"
+      description="Trend verileri için zaman içinde taramalar çalıştırın."
     />
 
     <template v-else>
@@ -65,14 +65,14 @@ onMounted(() => {
       <TrendLineChart
         v-if="data.asset_count_trend"
         :series="data.asset_count_trend"
-        title="Asset Count Trend"
+        title="Cihaz Sayısı Trendi"
       />
 
       <!-- Category trends (stacked area, full width) -->
       <TrendLineChart
         v-if="data.category_trends.length > 0"
         :series="data.category_trends"
-        title="Category Trends"
+        title="Kategori Trendleri"
         :multiline="true"
       />
 

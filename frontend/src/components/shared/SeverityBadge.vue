@@ -12,23 +12,23 @@ const severityConfig = computed(() => {
   const level = props.severity.toLowerCase()
   switch (level) {
     case 'critical':
-      return { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Critical' }
+      return { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Kritik' }
     case 'high':
       return {
         bg: 'bg-orange-500/20',
         text: 'text-orange-400',
-        label: 'High',
+        label: 'Yüksek',
       }
     case 'medium':
       return {
         bg: 'bg-yellow-500/20',
         text: 'text-yellow-400',
-        label: 'Medium',
+        label: 'Orta',
       }
     case 'low':
-      return { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Low' }
+      return { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Düşük' }
     default:
-      return { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'None' }
+      return { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'Yok' }
   }
 })
 </script>

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { RouterLink } from 'vue-router'
 import {
   Clock, Radio, Scan, CheckCircle, XCircle, X,
-  Monitor, AlertTriangle, Timer,
+  Monitor, AlertTriangle, Timer, ArrowRight,
 } from 'lucide-vue-next'
 import type { CommandStep } from '@/composables/useCommandTracker'
 
@@ -167,6 +168,15 @@ onUnmounted(() => {
           <span class="stat-label">alt ağ tarandı</span>
         </div>
       </div>
+      <!-- Navigate to assets -->
+      <RouterLink
+        v-if="!hasFailed && Number(result.assets_discovered ?? 0) > 0"
+        to="/assets"
+        class="view-assets-link"
+      >
+        Cihazları Görüntüle
+        <ArrowRight :size="13" />
+      </RouterLink>
       <div v-if="resultErrors.length" class="report-errors">
         <div class="error-header">
           <AlertTriangle :size="12" />
@@ -442,6 +452,27 @@ onUnmounted(() => {
 .stat-label {
   font-size: 10px;
   color: rgba(148, 163, 184, 0.5);
+}
+
+.view-assets-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #22d3ee;
+  background: rgba(34, 211, 238, 0.08);
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.view-assets-link:hover {
+  background: rgba(34, 211, 238, 0.15);
+  border-color: rgba(34, 211, 238, 0.4);
 }
 
 .report-errors {

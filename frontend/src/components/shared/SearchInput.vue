@@ -13,7 +13,7 @@ const props = withDefaults(
     class?: string
   }>(),
   {
-    placeholder: 'Search...',
+    placeholder: 'Ara...',
     debounceMs: 300,
   },
 )

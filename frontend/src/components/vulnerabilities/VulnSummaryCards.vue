@@ -33,7 +33,7 @@ const stats = computed(() => {
     <div class="glass-card rounded-xl p-5">
       <div class="flex items-start justify-between">
         <div class="flex-1 min-w-0">
-          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Total Vulns</p>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Toplam Açık</p>
           <p class="mt-2 text-2xl font-bold text-white tabular-nums">{{ stats.totalVulns }}</p>
         </div>
         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10">
@@ -46,7 +46,7 @@ const stats = computed(() => {
     <div class="glass-card rounded-xl p-5">
       <div class="flex items-start justify-between">
         <div class="flex-1 min-w-0">
-          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Critical</p>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Kritik</p>
           <p class="mt-2 text-2xl font-bold text-rose-400 tabular-nums">{{ stats.critical }}</p>
         </div>
         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-500/10">
@@ -59,7 +59,7 @@ const stats = computed(() => {
     <div class="glass-card rounded-xl p-5">
       <div class="flex items-start justify-between">
         <div class="flex-1 min-w-0">
-          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">High</p>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Yüksek</p>
           <p class="mt-2 text-2xl font-bold text-amber-400 tabular-nums">{{ stats.high }}</p>
         </div>
         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
@@ -72,7 +72,7 @@ const stats = computed(() => {
     <div class="glass-card rounded-xl p-5">
       <div class="flex items-start justify-between">
         <div class="flex-1 min-w-0">
-          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Medium</p>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Orta</p>
           <p class="mt-2 text-2xl font-bold text-cyan-400 tabular-nums">{{ stats.medium }}</p>
         </div>
         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10">
@@ -85,7 +85,7 @@ const stats = computed(() => {
     <div class="glass-card rounded-xl p-5">
       <div class="flex items-start justify-between">
         <div class="flex-1 min-w-0">
-          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Low</p>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Düşük</p>
           <p class="mt-2 text-2xl font-bold text-slate-400 tabular-nums">{{ stats.low }}</p>
         </div>
         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-500/10">
@@ -98,7 +98,7 @@ const stats = computed(() => {
     <div class="glass-card rounded-xl p-5">
       <div class="flex items-start justify-between">
         <div class="flex-1 min-w-0">
-          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Affected</p>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Etkilenen</p>
           <p class="mt-2 text-2xl font-bold text-purple-400 tabular-nums">{{ stats.affectedAssets }}</p>
         </div>
         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-500/10">

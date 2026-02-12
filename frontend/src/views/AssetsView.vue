@@ -23,9 +23,9 @@ onMounted(() => {
 <template>
   <div class="space-y-6">
     <div>
-      <h1 class="text-2xl font-bold text-white">Assets</h1>
+      <h1 class="text-2xl font-bold text-white">Cihazlar</h1>
       <p class="mt-1 text-sm text-muted-foreground">
-        Discovered network assets with BİGR classification
+        BİGR sınıflandırmalı ağ cihazları
       </p>
     </div>
 
@@ -34,7 +34,7 @@ onMounted(() => {
     <div class="glass-card rounded-lg border border-border/50 p-1">
       <LoadingState
         v-if="store.loading"
-        message="Discovering assets..."
+        message="Cihazlar keşfediliyor..."
       />
 
       <div
@@ -46,22 +46,22 @@ onMounted(() => {
           class="mt-3 text-sm text-primary hover:underline"
           @click="store.fetchAssets()"
         >
-          Try again
+          Tekrar Dene
         </button>
       </div>
 
       <template v-else>
         <div class="flex items-center justify-between px-4 py-3">
           <p class="text-sm text-muted-foreground">
-            Showing
+            Gösteriliyor
             <span class="font-medium text-foreground">
               {{ store.filteredAssets.length }}
             </span>
-            of
+            /
             <span class="font-medium text-foreground">
               {{ store.totalAssets }}
             </span>
-            assets
+            cihaz
           </p>
         </div>
 

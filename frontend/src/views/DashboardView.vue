@@ -216,13 +216,13 @@ onMounted(() => {
       >
         <div class="mb-4 flex items-center justify-between">
           <h3 class="text-sm font-medium text-slate-300">
-            Compliance Overview
+            Uyumluluk Genel Bakışı
           </h3>
           <RouterLink
             to="/compliance"
             class="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
           >
-            Full report
+            Tam rapor
           </RouterLink>
         </div>
         <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -230,7 +230,7 @@ onMounted(() => {
             <p class="text-3xl font-bold text-neon-cyan tabular-nums">
               {{ complianceData.compliance_score }}%
             </p>
-            <p class="mt-1 text-xs text-slate-400">Compliance Score</p>
+            <p class="mt-1 text-xs text-slate-400">Uyumluluk Puanı</p>
           </div>
           <div class="text-center">
             <p
@@ -245,19 +245,19 @@ onMounted(() => {
             >
               {{ complianceGrade }}
             </p>
-            <p class="mt-1 text-xs text-slate-400">Grade</p>
+            <p class="mt-1 text-xs text-slate-400">Not</p>
           </div>
           <div class="text-center">
             <p class="text-3xl font-bold text-emerald-400 tabular-nums">
               {{ complianceData.breakdown.fully_classified }}
             </p>
-            <p class="mt-1 text-xs text-slate-400">Fully Classified</p>
+            <p class="mt-1 text-xs text-slate-400">Tamamen Sınıflandırılmış</p>
           </div>
           <div class="text-center">
             <p class="text-3xl font-bold text-amber-400 tabular-nums">
               {{ complianceData.breakdown.unclassified }}
             </p>
-            <p class="mt-1 text-xs text-slate-400">Unclassified</p>
+            <p class="mt-1 text-xs text-slate-400">Sınıflandırılmamış</p>
           </div>
         </div>
       </div>

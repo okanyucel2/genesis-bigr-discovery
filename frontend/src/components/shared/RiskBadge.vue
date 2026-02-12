@@ -12,30 +12,30 @@ const riskConfig = computed(() => {
   const lvl = props.level.toLowerCase()
   switch (lvl) {
     case 'critical':
-      return { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Critical' }
+      return { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Kritik' }
     case 'high':
       return {
         bg: 'bg-orange-500/20',
         text: 'text-orange-400',
-        label: 'High',
+        label: 'Yüksek',
       }
     case 'medium':
       return {
         bg: 'bg-yellow-500/20',
         text: 'text-yellow-400',
-        label: 'Medium',
+        label: 'Orta',
       }
     case 'low':
       return {
         bg: 'bg-emerald-500/20',
         text: 'text-emerald-400',
-        label: 'Low',
+        label: 'Düşük',
       }
     default:
       return {
         bg: 'bg-gray-500/20',
         text: 'text-gray-400',
-        label: 'Unknown',
+        label: 'Bilinmeyen',
       }
   }
 })

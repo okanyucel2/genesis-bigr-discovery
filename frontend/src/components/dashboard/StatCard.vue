@@ -33,7 +33,7 @@ defineProps<{
           >
             {{ trend > 0 ? '+' : '' }}{{ trend }}%
           </span>
-          <span class="text-[10px] text-slate-500">vs last scan</span>
+          <span class="text-[10px] text-slate-500">son taramaya göre</span>
         </div>
       </div>
       <div

@@ -50,13 +50,13 @@ const statusText = computed(() => {
   if (!currentScan.value) return ''
   switch (currentScan.value.status) {
     case 'queued':
-      return 'Scan queued, waiting to start...'
+      return 'Tarama sıraya alındı, başlaması bekleniyor...'
     case 'running':
-      return `Scanning ${currentScan.value.target}...`
+      return `${currentScan.value.target} taranıyor...`
     case 'completed':
-      return `Scan completed in ${currentScan.value.duration_seconds ?? '?'}s`
+      return `Tarama tamamlandı: ${currentScan.value.duration_seconds ?? '?'}s`
     case 'failed':
-      return 'Scan failed'
+      return 'Tarama başarısız'
     default:
       return ''
   }
@@ -115,9 +115,9 @@ const hasOwaspModule = computed(() =>
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-white">Shield - Security Validation</h1>
+        <h1 class="text-2xl font-bold text-white">Kalkan - Güvenlik Doğrulaması</h1>
         <p class="mt-1 text-sm text-slate-400">
-          Comprehensive security scanning and vulnerability assessment
+          Kapsamlı güvenlik taraması ve zafiyet değerlendirmesi
         </p>
       </div>
       <button
@@ -126,7 +126,7 @@ const hasOwaspModule = computed(() =>
         @click="handleRefresh"
       >
         <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': loading }" />
-        Refresh
+        Yenile
       </button>
     </div>
 
@@ -139,7 +139,7 @@ const hasOwaspModule = computed(() =>
       class="glass-card mx-auto max-w-md rounded-xl p-8 text-center"
     >
       <AlertTriangle class="mx-auto h-10 w-10 text-amber-400" />
-      <h2 class="mt-3 text-lg font-semibold text-white">Unable to Start Scan</h2>
+      <h2 class="mt-3 text-lg font-semibold text-white">Tarama Başlatılamadı</h2>
       <p class="mt-2 text-sm text-slate-400">{{ error }}</p>
     </div>
 
@@ -149,9 +149,9 @@ const hasOwaspModule = computed(() =>
       class="flex flex-col items-center justify-center py-20"
     >
       <Shield class="h-16 w-16 text-slate-600" />
-      <h2 class="mt-4 text-lg font-medium text-slate-400">Enter a target to begin</h2>
+      <h2 class="mt-4 text-lg font-medium text-slate-400">Başlamak için bir hedef girin</h2>
       <p class="mt-1 text-sm text-slate-500">
-        Provide an IP address, domain, or CIDR range to start a security scan
+        Güvenlik taraması için IP, alan adı veya CIDR aralığı girin
       </p>
     </div>
 
@@ -181,9 +181,9 @@ const hasOwaspModule = computed(() =>
       class="glass-card mx-auto max-w-md rounded-xl p-8 text-center"
     >
       <XCircle class="mx-auto h-10 w-10 text-rose-400" />
-      <h2 class="mt-3 text-lg font-semibold text-white">Scan Failed</h2>
+      <h2 class="mt-3 text-lg font-semibold text-white">Tarama Başarısız</h2>
       <p class="mt-2 text-sm text-slate-400">
-        The scan for {{ currentScan?.target }} could not be completed.
+        {{ currentScan?.target }} için tarama tamamlanamadı.
       </p>
     </div>
 
@@ -203,15 +203,15 @@ const hasOwaspModule = computed(() =>
         <!-- Center: Module Score Cards -->
         <div class="min-w-0 flex-1">
           <div class="mb-3 flex items-center justify-between">
-            <h2 class="text-sm font-medium text-white">Module Scores</h2>
+            <h2 class="text-sm font-medium text-white">Modül Puanları</h2>
             <div class="flex items-center gap-3 text-xs text-slate-500">
               <span class="flex items-center gap-1">
                 <CheckCircle class="h-3 w-3 text-emerald-400" />
-                {{ currentScan?.passed_checks ?? 0 }} passed
+                {{ currentScan?.passed_checks ?? 0 }} geçti
               </span>
               <span class="flex items-center gap-1">
                 <XCircle class="h-3 w-3 text-rose-400" />
-                {{ currentScan?.failed_checks ?? 0 }} failed
+                {{ currentScan?.failed_checks ?? 0 }} başarısız
               </span>
             </div>
           </div>
@@ -221,7 +221,7 @@ const hasOwaspModule = computed(() =>
             :scores="currentScan!.module_scores"
           />
           <div v-else class="glass-card rounded-xl p-6 text-center">
-            <p class="text-sm text-slate-500">No module breakdown available</p>
+            <p class="text-sm text-slate-500">Modül dökümü mevcut değil</p>
           </div>
         </div>
 
@@ -234,19 +234,19 @@ const hasOwaspModule = computed(() =>
       <!-- Scan Info Bar -->
       <div class="glass-card flex flex-wrap items-center gap-4 rounded-lg px-4 py-2.5 text-xs text-slate-500">
         <span>
-          Target:
+          Hedef:
           <span class="font-mono text-slate-300">{{ currentScan?.target }}</span>
         </span>
         <span>
-          Depth:
+          Derinlik:
           <span class="text-slate-300">{{ currentScan?.scan_depth }}</span>
         </span>
         <span>
-          Duration:
+          Süre:
           <span class="font-mono text-slate-300">{{ currentScan?.duration_seconds ?? '?' }}s</span>
         </span>
         <span>
-          Checks:
+          Kontroller:
           <span class="font-mono text-slate-300">{{ currentScan?.total_checks }}</span>
         </span>
       </div>
@@ -255,14 +255,14 @@ const hasOwaspModule = computed(() =>
       <Tabs default-value="findings">
         <TabsList class="bg-white/5">
           <TabsTrigger value="findings" class="data-[state=active]:bg-white/10 data-[state=active]:text-cyan-400 text-slate-400">
-            All Findings
+            Tüm Bulgular
           </TabsTrigger>
           <TabsTrigger
             v-if="hasPortModule"
             value="ports"
             class="data-[state=active]:bg-white/10 data-[state=active]:text-cyan-400 text-slate-400"
           >
-            Ports
+            Portlar
             <span v-if="portFindings.length > 0" class="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500/20 px-1 text-[10px] font-semibold text-rose-400">
               {{ portFindings.length }}
             </span>
@@ -272,7 +272,7 @@ const hasOwaspModule = computed(() =>
             value="headers"
             class="data-[state=active]:bg-white/10 data-[state=active]:text-cyan-400 text-slate-400"
           >
-            Headers
+            Başlıklar
             <span v-if="headerFindings.length > 0" class="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold text-amber-400">
               {{ headerFindings.length }}
             </span>
@@ -302,7 +302,7 @@ const hasOwaspModule = computed(() =>
             value="creds"
             class="data-[state=active]:bg-white/10 data-[state=active]:text-cyan-400 text-slate-400"
           >
-            Credentials
+            Kimlik Bilgileri
             <span v-if="credFindings.length > 0" class="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500/20 px-1 text-[10px] font-semibold text-rose-400">
               {{ credFindings.length }}
             </span>
@@ -321,7 +321,7 @@ const hasOwaspModule = computed(() =>
             value="remediation"
             class="data-[state=active]:bg-white/10 data-[state=active]:text-cyan-400 text-slate-400"
           >
-            Remediation
+            Düzeltme
           </TabsTrigger>
         </TabsList>
 

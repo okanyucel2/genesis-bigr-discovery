@@ -47,6 +47,33 @@ import type {
   FirewallEvent,
   HumanNotification,
   GuardianStatusResponse,
+  GuardianStatsResponse,
+  GuardianRule,
+  GuardianBlocklist,
+  GuardianHealthResponse,
+  WatcherStatus,
+  WatcherScan,
+  WatcherAlert,
+  FirewallStatus,
+  FirewallRule,
+  FirewallConfig,
+  Agent,
+  SiteSummary,
+  NetworkSummary,
+  AgentCommand,
+  AgentShieldFinding,
+  OnboardingStartResponse,
+  OnboardingStatusResponse,
+  PlanInfo,
+  SubscriptionInfo,
+  UsageInfo,
+  TierAccessInfo,
+  RemediationPlan,
+  RemediationHistoryEntry,
+  DeadManStatusResponse,
+  AbuseIPDBSettings,
+  CollectiveSignalReport,
+  FamilyDevice,
 } from '@/types/api'
 
 // ---------------------------------------------------------------------------
@@ -2220,6 +2247,581 @@ export function mockGuardianStatus(): GuardianStatusResponse {
       allowed_queries: 21115,
     },
   }
+}
+
+export function mockGuardianStats(): GuardianStatsResponse {
+  return {
+    current_period: {
+      total_queries: 1847,
+      blocked_queries: 156,
+      allowed_queries: 1691,
+      cache_hit_rate: 0.42,
+    },
+    lifetime: {
+      total_queries: 23456,
+      blocked_queries: 2341,
+      allowed_queries: 21115,
+    },
+    top_blocked: [
+      { domain: 'tracking.adnetwork.com', count: 42, category: 'advertising' },
+      { domain: 'telemetry.spyware.io', count: 28, category: 'spyware' },
+      { domain: 'cdn.malicious-scripts.net', count: 19, category: 'malware' },
+      { domain: 'analytics.tracker.org', count: 15, category: 'tracking' },
+      { domain: 'ads.popupfarm.com', count: 11, category: 'advertising' },
+    ],
+  }
+}
+
+export function mockGuardianRules(): GuardianRule[] {
+  return [
+    {
+      id: 'gr_001',
+      action: 'block',
+      domain: 'tracking.adnetwork.com',
+      category: 'advertising',
+      reason: 'Reklam izleme engeli',
+      hit_count: 42,
+      created_at: daysAgo(14),
+    },
+    {
+      id: 'gr_002',
+      action: 'allow',
+      domain: 'safe.example.com',
+      category: 'custom',
+      reason: 'Guvenilir site — beyaz liste',
+      hit_count: 8,
+      created_at: daysAgo(7),
+    },
+    {
+      id: 'gr_003',
+      action: 'block',
+      domain: '*.malicious-scripts.net',
+      category: 'malware',
+      reason: 'Zararli yazilim dagitim agi',
+      hit_count: 19,
+      created_at: daysAgo(3),
+    },
+  ]
+}
+
+export function mockGuardianBlocklists(): GuardianBlocklist[] {
+  return [
+    {
+      id: 'bl_001',
+      name: 'StevenBlack Hosts',
+      url: 'https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts',
+      format: 'hosts',
+      category: 'unified',
+      domain_count: 85432,
+      is_enabled: true,
+      last_updated: daysAgo(1),
+    },
+    {
+      id: 'bl_002',
+      name: 'AdGuard DNS Filter',
+      url: 'https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt',
+      format: 'adblock',
+      category: 'advertising',
+      domain_count: 42156,
+      is_enabled: true,
+      last_updated: daysAgo(2),
+    },
+    {
+      id: 'bl_003',
+      name: 'EasyPrivacy',
+      url: 'https://v.firebog.net/hosts/Easyprivacy.txt',
+      format: 'domains',
+      category: 'tracking',
+      domain_count: 15789,
+      is_enabled: false,
+      last_updated: null,
+    },
+  ]
+}
+
+export function mockGuardianHealth(): GuardianHealthResponse {
+  return {
+    status: 'healthy',
+    checks: {
+      dns_resolution: { ok: true, detail: 'DNS cozumleme calisiyor (avg 12ms)' },
+      upstream_reachable: { ok: true, detail: 'Upstream DNS (1.1.1.1, 8.8.8.8) erisilebilir' },
+      blocklist_fresh: { ok: true, detail: 'Tum listeler son 48 saat icinde guncellendi' },
+      cache: { ok: true, detail: 'Onbellek aktif — 1847 kayit, %42 isabet orani' },
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Watcher (Daemon Mode)
+// ---------------------------------------------------------------------------
+
+export function mockWatcherStatus(): WatcherStatus {
+  return {
+    is_running: true,
+    pid: 42567,
+    uptime_seconds: 7245,
+    targets: [
+      { subnet: '192.168.1.0/24', interval_seconds: 300 },
+      { subnet: '10.0.0.0/24', interval_seconds: 600 },
+    ],
+    last_scan_at: daysAgo(0),
+    scan_count: 47,
+  }
+}
+
+export function mockWatcherHistory(): WatcherScan[] {
+  return [
+    {
+      subnet: '192.168.1.0/24',
+      started_at: daysAgo(0),
+      completed_at: daysAgo(0),
+      asset_count: 12,
+      changes_count: 1,
+      status: 'completed',
+    },
+    {
+      subnet: '10.0.0.0/24',
+      started_at: daysAgo(0),
+      completed_at: daysAgo(0),
+      asset_count: 6,
+      changes_count: 0,
+      status: 'completed',
+    },
+    {
+      subnet: '192.168.1.0/24',
+      started_at: daysAgo(0),
+      completed_at: daysAgo(0),
+      asset_count: 11,
+      changes_count: 2,
+      status: 'completed',
+    },
+    {
+      subnet: '10.0.0.0/24',
+      started_at: daysAgo(0),
+      completed_at: daysAgo(0),
+      asset_count: 6,
+      changes_count: 0,
+      status: 'completed',
+    },
+    {
+      subnet: '192.168.1.0/24',
+      started_at: daysAgo(1),
+      completed_at: daysAgo(1),
+      asset_count: 11,
+      changes_count: 0,
+      status: 'completed',
+    },
+  ]
+}
+
+export function mockWatcherAlerts(): WatcherAlert[] {
+  return [
+    {
+      alert_type: 'NEW_DEVICE',
+      severity: 'warning',
+      ip: '192.168.1.120',
+      message: 'Yeni cihaz algilandi: Apple iPhone (192.168.1.120)',
+      timestamp: daysAgo(0),
+    },
+    {
+      alert_type: 'PORT_CHANGE',
+      severity: 'warning',
+      ip: '10.0.0.2',
+      message: 'Port degisikligi: 10.0.0.2 — yeni port 8443 acildi',
+      timestamp: daysAgo(0),
+    },
+    {
+      alert_type: 'DEVICE_MISSING',
+      severity: 'info',
+      ip: '192.168.1.50',
+      message: 'Cihaz artik gorunmuyor: 192.168.1.50 (HP Printer)',
+      timestamp: daysAgo(1),
+    },
+    {
+      alert_type: 'ROGUE_DEVICE',
+      severity: 'critical',
+      ip: '192.168.1.200',
+      message: 'Tanimlanmamis cihaz: 192.168.1.200 — siniflandirilmamis, seri port acik',
+      timestamp: daysAgo(2),
+    },
+  ]
+}
+
+// ---------------------------------------------------------------------------
+// Firewall (full mock)
+// ---------------------------------------------------------------------------
+
+export function mockFirewallStatus(): FirewallStatus {
+  return {
+    is_enabled: true,
+    platform: 'macOS',
+    engine: 'pf',
+    total_rules: 12,
+    active_rules: 10,
+    blocked_today: 47,
+    allowed_today: 1283,
+    last_updated: daysAgo(0),
+    protection_level: 'high',
+  }
+}
+
+export function mockFirewallRules(): FirewallRule[] {
+  return [
+    {
+      id: 'fw_r1', rule_type: 'threat', target: '104.21.67.89', direction: 'outbound',
+      protocol: 'tcp', source: 'abuseipdb', reason: 'AbuseIPDB score: 95',
+      reason_tr: 'AbuseIPDB skoru: 95', is_active: true, created_at: daysAgo(3),
+      expires_at: daysFromNow(27), hit_count: 12,
+    },
+    {
+      id: 'fw_r2', rule_type: 'port', target: '0.0.0.0:23', direction: 'inbound',
+      protocol: 'tcp', source: 'remediation', reason: 'Telnet — high-risk unencrypted protocol',
+      reason_tr: 'Telnet — yuksek riskli sifresiz protokol', is_active: true, created_at: daysAgo(7),
+      expires_at: null, hit_count: 3,
+    },
+    {
+      id: 'fw_r3', rule_type: 'shield', target: '10.0.0.5:8080', direction: 'inbound',
+      protocol: 'tcp', source: 'shield', reason: 'Open admin panel on non-standard port',
+      reason_tr: 'Standart disi portta acik yonetim paneli', is_active: true, created_at: daysAgo(1),
+      expires_at: null, hit_count: 0,
+    },
+  ]
+}
+
+export function mockFirewallConfig(): FirewallConfig {
+  return {
+    enabled: true,
+    default_action: 'allow',
+    block_known_threats: true,
+    block_high_risk_ports: true,
+    log_allowed: false,
+    auto_sync_threats: true,
+    protection_level: 'high',
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Agents
+// ---------------------------------------------------------------------------
+
+export function mockAgents(): Agent[] {
+  return [
+    {
+      id: 'agent_home_01', name: 'Ev Ajanı', site_name: 'Ev', location: 'Istanbul',
+      is_active: true, registered_at: daysAgo(30), last_seen: daysAgo(0),
+      status: 'online', version: '1.4.2', subnets: ['192.168.1.0/24'],
+      current_network: { id: 'net_01', ssid: 'BİGR-Home', gateway_ip: '192.168.1.1', friendly_name: 'Ev Agi' },
+    },
+    {
+      id: 'agent_office_01', name: 'Ofis Ajanı', site_name: 'Ofis', location: 'Ankara',
+      is_active: true, registered_at: daysAgo(14), last_seen: daysAgo(0),
+      status: 'online', version: '1.4.2', subnets: ['10.0.0.0/24'],
+      current_network: { id: 'net_02', ssid: 'BİGR-Office', gateway_ip: '10.0.0.1', friendly_name: 'Ofis VLAN' },
+    },
+  ]
+}
+
+export function mockSites(): SiteSummary[] {
+  return [
+    { site_name: 'Ev', asset_count: 12 },
+    { site_name: 'Ofis', asset_count: 6 },
+  ]
+}
+
+export function mockNetworks(): NetworkSummary[] {
+  return [
+    {
+      id: 'net_01', fingerprint_hash: 'abc123', gateway_mac: '00:1A:2B:3C:4D:01',
+      gateway_ip: '192.168.1.1', ssid: 'BİGR-Home', friendly_name: 'Ev Agi',
+      agent_id: 'agent_home_01', first_seen: daysAgo(30), last_seen: daysAgo(0), asset_count: 12,
+    },
+    {
+      id: 'net_02', fingerprint_hash: 'def456', gateway_mac: '00:1A:2B:3C:4D:FF',
+      gateway_ip: '10.0.0.1', ssid: 'BİGR-Office', friendly_name: 'Ofis VLAN',
+      agent_id: 'agent_office_01', first_seen: daysAgo(14), last_seen: daysAgo(0), asset_count: 6,
+    },
+  ]
+}
+
+export function mockAgentCommands(): AgentCommand[] {
+  return [
+    {
+      id: 'cmd_001', command_type: 'scan_now',
+      params: { targets: ['192.168.1.0/24'], shield: true },
+      status: 'completed', created_at: daysAgo(0),
+      started_at: daysAgo(0), completed_at: daysAgo(0),
+      result: { assets_found: 12, duration_seconds: 45 },
+    },
+  ]
+}
+
+// ---------------------------------------------------------------------------
+// Shield Findings (agent-ingested)
+// ---------------------------------------------------------------------------
+
+export function mockAgentShieldFindings(): AgentShieldFinding[] {
+  return [
+    {
+      id: 1, scan_id: 'scan_001', module: 'port_scan', severity: 'high',
+      title: 'Acik Telnet Portu', detail: 'Port 23 acik — sifresiz uzak erisim riski',
+      target_ip: '192.168.1.10', remediation: 'Telnet servisini kapatin, SSH kullanin',
+      target: '192.168.1.0/24', site_name: 'Ev', agent_id: 'agent_home_01', scanned_at: daysAgo(1),
+    },
+    {
+      id: 2, scan_id: 'scan_001', module: 'ssl_check', severity: 'medium',
+      title: 'Zayif TLS Versiyonu', detail: 'TLS 1.0 destekleniyor — bilinen zafiyetler mevcut',
+      target_ip: '10.0.0.2', remediation: 'TLS 1.2+ zorunlu kilin',
+      target: '10.0.0.0/24', site_name: 'Ofis', agent_id: 'agent_office_01', scanned_at: daysAgo(1),
+    },
+    {
+      id: 3, scan_id: 'scan_002', module: 'default_creds', severity: 'critical',
+      title: 'Varsayilan Sifre', detail: 'Admin paneli varsayilan kimlik bilgileriyle erisilebilir',
+      target_ip: '192.168.1.5', remediation: 'Yonetici sifresini hemen degistirin',
+      target: '192.168.1.0/24', site_name: 'Ev', agent_id: 'agent_home_01', scanned_at: daysAgo(0),
+    },
+  ]
+}
+
+// ---------------------------------------------------------------------------
+// Onboarding
+// ---------------------------------------------------------------------------
+
+export function mockOnboardingStart(): OnboardingStartResponse {
+  return {
+    status: 'ok',
+    network_id: 'net_01',
+    ssid: 'BİGR-Home',
+    gateway_ip: '192.168.1.1',
+    gateway_mac: '00:1A:2B:3C:4D:01',
+    safety_score: 78,
+    risk_factors: ['Telnet portu acik (23)', 'UPnP aktif'],
+    safety_message: 'Aginiz genel olarak guvenli, bazi iyilestirmeler onerilir.',
+    safety_detail: '2 risk faktoru tespit edildi.',
+    known_network: false,
+    open_ports: [80, 443, 23, 8080],
+    device_count: 12,
+  }
+}
+
+export function mockOnboardingStatus(): OnboardingStatusResponse {
+  return {
+    step: 'scan_complete',
+    completed_steps: ['network_detect', 'scan'],
+    network_info: mockOnboardingStart(),
+    network_name: 'Ev Agi',
+    network_type: 'home',
+    safety_score: 78,
+    is_complete: false,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Subscription & Pricing
+// ---------------------------------------------------------------------------
+
+const MOCK_PLANS: PlanInfo[] = [
+  {
+    id: 'free', name: 'Free', name_tr: 'Ucretsiz', price_usd: 0, max_devices: 1,
+    ai_tiers: ['l0'], features: ['Basic scanning', 'Asset discovery'],
+    features_tr: ['Temel tarama', 'Cihaz kesfetme'],
+  },
+  {
+    id: 'home', name: 'Home', name_tr: 'Ev', price_usd: 4.99, max_devices: 5,
+    ai_tiers: ['l0', 'l1'], features: ['Guardian DNS', 'Family Shield', 'Firewall'],
+    features_tr: ['Guardian DNS', 'Aile Kalkani', 'Guvenlik Duvari'],
+  },
+  {
+    id: 'pro', name: 'Pro', name_tr: 'Profesyonel', price_usd: 14.99, max_devices: 25,
+    ai_tiers: ['l0', 'l1', 'l2'], features: ['All Home features', 'AI Analysis', 'Multi-site', 'API access'],
+    features_tr: ['Tum Ev ozellikleri', 'AI Analiz', 'Coklu konum', 'API erisimi'],
+  },
+]
+
+export function mockPlans(): PlanInfo[] {
+  return MOCK_PLANS
+}
+
+export function mockCurrentSubscription(): SubscriptionInfo {
+  return {
+    device_id: 'device_01',
+    plan_id: 'home',
+    plan: MOCK_PLANS[1]!,
+    is_active: true,
+    activated_at: daysAgo(15),
+    expires_at: daysFromNow(15),
+  }
+}
+
+export function mockUsage(): UsageInfo {
+  return {
+    device_id: 'device_01',
+    plan_id: 'home',
+    ai_queries_l0: 124,
+    ai_queries_l1: 18,
+    ai_queries_l2: 0,
+    devices_active: 3,
+    devices_max: 5,
+    period_start: daysAgo(15),
+    period_end: daysFromNow(15),
+  }
+}
+
+export function mockTierAccess(): TierAccessInfo {
+  return {
+    plan_id: 'home',
+    allowed_tiers: ['l0', 'l1'],
+    max_tier: 'l1',
+    can_use_l1: true,
+    can_use_l2: false,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Remediation
+// ---------------------------------------------------------------------------
+
+export function mockRemediationPlan(): RemediationPlan {
+  return {
+    asset_ip: null,
+    total_actions: 3,
+    critical_count: 1,
+    auto_fixable_count: 2,
+    actions: [
+      {
+        id: 'rem_001', title: 'Close Telnet port', title_tr: 'Telnet portunu kapatin',
+        description: 'Port 23 is open with unencrypted access',
+        description_tr: 'Port 23 sifresiz erisimle acik',
+        severity: 'critical', action_type: 'port_block', target_ip: '192.168.1.10',
+        target_port: 23, auto_fixable: true, estimated_impact: 'high',
+      },
+      {
+        id: 'rem_002', title: 'Update TLS version', title_tr: 'TLS versiyonunu guncelleyin',
+        description: 'TLS 1.0 is deprecated and vulnerable',
+        description_tr: 'TLS 1.0 kaldirildi ve savunmasiz',
+        severity: 'high', action_type: 'config_change', target_ip: '10.0.0.2',
+        target_port: 443, auto_fixable: false, estimated_impact: 'medium',
+      },
+      {
+        id: 'rem_003', title: 'Change default password', title_tr: 'Varsayilan sifreyi degistirin',
+        description: 'Admin panel accessible with default credentials',
+        description_tr: 'Yonetim paneli varsayilan kimlik bilgileriyle erisilebilir',
+        severity: 'critical', action_type: 'credential_change', target_ip: '192.168.1.5',
+        target_port: 8080, auto_fixable: true, estimated_impact: 'critical',
+      },
+    ],
+    generated_at: daysAgo(0),
+    ai_tier_used: 'l1',
+  }
+}
+
+export function mockRemediationHistory(): RemediationHistoryEntry[] {
+  return [
+    {
+      id: 'rh_001', asset_ip: '192.168.1.10', action_type: 'port_block',
+      title: 'Telnet portunu kapatin', severity: 'critical', status: 'completed',
+      executed_at: daysAgo(1), result: 'Port 23 basariyla kapatildi', created_at: daysAgo(2),
+    },
+    {
+      id: 'rh_002', asset_ip: '10.0.0.3', action_type: 'firmware_update',
+      title: 'Firmware guncelle', severity: 'medium', status: 'pending',
+      executed_at: null, result: null, created_at: daysAgo(0),
+    },
+  ]
+}
+
+// ---------------------------------------------------------------------------
+// Dead Man Switch
+// ---------------------------------------------------------------------------
+
+export function mockDeadManStatus(): DeadManStatusResponse {
+  return {
+    statuses: [
+      {
+        agent_id: 'agent_home_01', agent_name: 'Ev Ajanı',
+        last_heartbeat: daysAgo(0), minutes_since_heartbeat: 3,
+        is_alive: true, alert_triggered: false,
+        config: { enabled: true, timeout_minutes: 30, alert_email: null, alert_webhook: null },
+      },
+      {
+        agent_id: 'agent_office_01', agent_name: 'Ofis Ajanı',
+        last_heartbeat: daysAgo(0), minutes_since_heartbeat: 8,
+        is_alive: true, alert_triggered: false,
+        config: { enabled: true, timeout_minutes: 30, alert_email: null, alert_webhook: null },
+      },
+    ],
+    total_agents: 2,
+    alive_count: 2,
+    alert_count: 0,
+    config: { enabled: true, timeout_minutes: 30, alert_email: null, alert_webhook: null },
+    summary_tr: 'Tum ajanlar aktif. Son kontrol 3 dakika once.',
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AbuseIPDB / Settings
+// ---------------------------------------------------------------------------
+
+export function mockAbuseIPDBSettings(): AbuseIPDBSettings {
+  return {
+    api_key_set: true,
+    api_key_masked: 'sk-****...****a1b2',
+    daily_limit: 1000,
+    remaining_calls: 847,
+    cache_size: 156,
+    source: 'file',
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Collective Intelligence (additional)
+// ---------------------------------------------------------------------------
+
+export function mockCollectiveThreats(): CollectiveSignalReport[] {
+  return [
+    {
+      subnet_hash: 'hash_abc', signal_type: 'port_scan', reporter_count: 7,
+      avg_severity: 6.2, first_seen: daysAgo(5), last_seen: daysAgo(0),
+      confidence: 0.85, is_verified: true,
+    },
+    {
+      subnet_hash: 'hash_def', signal_type: 'brute_force', reporter_count: 12,
+      avg_severity: 7.8, first_seen: daysAgo(3), last_seen: daysAgo(0),
+      confidence: 0.92, is_verified: true,
+    },
+    {
+      subnet_hash: 'hash_ghi', signal_type: 'malware_c2', reporter_count: 3,
+      avg_severity: 9.1, first_seen: daysAgo(1), last_seen: daysAgo(0),
+      confidence: 0.67, is_verified: false,
+    },
+  ]
+}
+
+export function mockCollectiveFeed(): CollectiveSignalReport[] {
+  return mockCollectiveThreats()
+}
+
+// ---------------------------------------------------------------------------
+// Family Shield (additional)
+// ---------------------------------------------------------------------------
+
+export function mockFamilyDevices(): FamilyDevice[] {
+  return [
+    {
+      id: 'dev_001', name: 'Okan\'in iPhone', device_type: 'phone', icon: '📱',
+      owner_name: 'Okan', is_online: true, last_seen: daysAgo(0), safety_score: 92,
+      safety_level: 'safe', open_threats: 0, ip: '192.168.1.120', network_name: 'Ev Agi',
+    },
+    {
+      id: 'dev_002', name: 'Salon TV', device_type: 'smart_tv', icon: '📺',
+      owner_name: null, is_online: true, last_seen: daysAgo(0), safety_score: 74,
+      safety_level: 'warning', open_threats: 1, ip: '192.168.1.45', network_name: 'Ev Agi',
+    },
+    {
+      id: 'dev_003', name: 'Yatak Odasi Laptop', device_type: 'laptop', icon: '💻',
+      owner_name: 'Ayse', is_online: false, last_seen: daysAgo(1), safety_score: 88,
+      safety_level: 'safe', open_threats: 0, ip: '192.168.1.80', network_name: 'Ev Agi',
+    },
+  ]
 }
 
 export function mockSampleNotifications(): HumanNotification[] {

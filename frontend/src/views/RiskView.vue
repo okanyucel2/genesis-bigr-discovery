@@ -36,9 +36,9 @@ onMounted(() => {
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-white">Risk Assessment</h1>
+        <h1 class="text-2xl font-bold text-white">Risk Değerlendirmesi</h1>
         <p class="mt-1 text-sm text-slate-400">
-          Asset risk profiles and threat analysis
+          Cihaz risk profilleri ve tehdit analizi
         </p>
       </div>
       <button
@@ -47,7 +47,7 @@ onMounted(() => {
         @click="fetchRisk"
       >
         <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': loading }" />
-        Refresh
+        Yenile
       </button>
     </div>
 
@@ -57,7 +57,7 @@ onMounted(() => {
       class="flex flex-col items-center justify-center py-20"
     >
       <Loader2 class="h-8 w-8 animate-spin text-cyan-400" />
-      <p class="mt-3 text-sm text-slate-400">Loading risk data...</p>
+      <p class="mt-3 text-sm text-slate-400">Risk verileri yükleniyor...</p>
     </div>
 
     <!-- Error State -->
@@ -66,13 +66,13 @@ onMounted(() => {
       class="glass-card mx-auto max-w-md rounded-xl p-8 text-center"
     >
       <AlertTriangle class="mx-auto h-10 w-10 text-amber-400" />
-      <h2 class="mt-3 text-lg font-semibold text-white">Unable to Load Data</h2>
+      <h2 class="mt-3 text-lg font-semibold text-white">Veriler Yüklenemedi</h2>
       <p class="mt-2 text-sm text-slate-400">{{ error }}</p>
       <button
         class="mt-4 rounded-lg bg-cyan-500/20 px-4 py-2 text-sm font-medium text-cyan-400 transition-colors hover:bg-cyan-500/30"
         @click="fetchRisk"
       >
-        Try Again
+        Tekrar Dene
       </button>
     </div>
 
@@ -87,8 +87,8 @@ onMounted(() => {
         <div class="flex-1 min-w-0">
           <Tabs default-value="heatmap">
             <TabsList>
-              <TabsTrigger value="heatmap">Heatmap</TabsTrigger>
-              <TabsTrigger value="table">Top Risks</TabsTrigger>
+              <TabsTrigger value="heatmap">Isı Haritası</TabsTrigger>
+              <TabsTrigger value="table">En Yüksek Riskler</TabsTrigger>
             </TabsList>
 
             <TabsContent value="heatmap">
@@ -111,7 +111,7 @@ onMounted(() => {
         >
           <div class="glass-panel sticky top-4 rounded-xl p-5">
             <div class="mb-4 flex items-center justify-between">
-              <h3 class="text-sm font-medium text-white">Asset Detail</h3>
+              <h3 class="text-sm font-medium text-white">Cihaz Detayı</h3>
               <button
                 class="rounded-md p-1 text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-200"
                 @click="closeDetail"
@@ -126,15 +126,15 @@ onMounted(() => {
                 <span class="ml-2 font-mono text-white">{{ selectedProfile.ip }}</span>
               </div>
               <div v-if="selectedProfile.hostname">
-                <span class="text-slate-500">Hostname:</span>
+                <span class="text-slate-500">Cihaz Adı:</span>
                 <span class="ml-2 text-slate-300">{{ selectedProfile.hostname }}</span>
               </div>
               <div v-if="selectedProfile.vendor">
-                <span class="text-slate-500">Vendor:</span>
+                <span class="text-slate-500">Üretici:</span>
                 <span class="ml-2 text-slate-300">{{ selectedProfile.vendor }}</span>
               </div>
               <div>
-                <span class="text-slate-500">Risk Score:</span>
+                <span class="text-slate-500">Risk Puanı:</span>
                 <span
                   class="ml-2 font-mono font-semibold"
                   :class="{
@@ -148,7 +148,7 @@ onMounted(() => {
                 </span>
               </div>
               <div v-if="selectedProfile.top_cve">
-                <span class="text-slate-500">Top CVE:</span>
+                <span class="text-slate-500">En Yüksek CVE:</span>
                 <span class="ml-2 font-mono text-xs text-rose-300">{{ selectedProfile.top_cve }}</span>
               </div>
             </div>

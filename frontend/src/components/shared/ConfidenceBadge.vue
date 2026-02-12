@@ -17,12 +17,12 @@ const normalizedScore = computed(() => {
 const confidenceConfig = computed(() => {
   const pct = normalizedScore.value
   if (pct >= 90)
-    return { bg: 'bg-emerald-500/20', text: 'text-emerald-400', label: 'High' }
+    return { bg: 'bg-emerald-500/20', text: 'text-emerald-400', label: 'Yüksek' }
   if (pct >= 70)
-    return { bg: 'bg-cyan-500/20', text: 'text-cyan-400', label: 'Good' }
+    return { bg: 'bg-cyan-500/20', text: 'text-cyan-400', label: 'İyi' }
   if (pct >= 50)
-    return { bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: 'Fair' }
-  return { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Low' }
+    return { bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: 'Orta' }
+  return { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Düşük' }
 })
 
 const displayLabel = computed(() => props.level ?? confidenceConfig.value.label)

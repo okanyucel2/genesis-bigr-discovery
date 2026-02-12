@@ -53,7 +53,7 @@ const hasActiveFilters = computed(() => activeFilterCount.value > 0)
   <div class="flex flex-wrap items-center gap-3">
     <SearchInput
       :model-value="store.searchQuery"
-      placeholder="Search by IP, hostname, vendor, MAC..."
+      placeholder="IP, cihaz adı, üretici, MAC ile ara..."
       class="w-64"
       @update:model-value="handleSearchUpdate"
     />
@@ -63,7 +63,7 @@ const hasActiveFilters = computed(() => activeFilterCount.value > 0)
       class="h-10 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
       @change="handleCategoryChange"
     >
-      <option value="">All Categories</option>
+      <option value="">Tüm Kategoriler</option>
       <option
         v-for="cat in BIGR_CATEGORY_LIST"
         :key="cat"
@@ -78,7 +78,7 @@ const hasActiveFilters = computed(() => activeFilterCount.value > 0)
       class="h-10 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
       @change="handleSubnetChange"
     >
-      <option value="">All Subnets</option>
+      <option value="">Tüm Alt Ağlar</option>
       <option
         v-for="subnet in subnets"
         :key="subnet.id"
@@ -90,7 +90,7 @@ const hasActiveFilters = computed(() => activeFilterCount.value > 0)
 
     <div v-if="hasActiveFilters" class="flex items-center gap-2">
       <Badge variant="secondary" class="gap-1">
-        {{ activeFilterCount }} active
+        {{ activeFilterCount }} aktif
       </Badge>
       <Button
         variant="ghost"
@@ -99,7 +99,7 @@ const hasActiveFilters = computed(() => activeFilterCount.value > 0)
         @click="clearFilters"
       >
         <X :size="14" />
-        Clear
+        Temizle
       </Button>
     </div>
   </div>

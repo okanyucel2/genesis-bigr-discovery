@@ -19,9 +19,9 @@ onMounted(() => {
 
 <template>
   <div class="space-y-6">
-    <h1 class="text-2xl font-bold text-white">BIGR Compliance</h1>
+    <h1 class="text-2xl font-bold text-white">BİGR Uyumluluğu</h1>
 
-    <LoadingState v-if="loading" message="Loading compliance data..." />
+    <LoadingState v-if="loading" message="Uyumluluk verileri yükleniyor..." />
 
     <div v-else-if="error" class="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4">
       <p class="text-sm text-rose-400">{{ error }}</p>
@@ -29,8 +29,8 @@ onMounted(() => {
 
     <EmptyState
       v-else-if="!data"
-      title="No Compliance Data"
-      description="Run a scan to generate compliance metrics."
+      title="Uyumluluk Verisi Yok"
+      description="Uyumluluk ölçütleri için tarama çalıştırın."
     />
 
     <template v-else>
@@ -38,7 +38,7 @@ onMounted(() => {
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle class="text-base">Compliance Score</CardTitle>
+            <CardTitle class="text-base">Uyumluluk Puanı</CardTitle>
           </CardHeader>
           <CardContent class="flex justify-center">
             <ComplianceGauge
@@ -50,7 +50,7 @@ onMounted(() => {
 
         <Card>
           <CardHeader>
-            <CardTitle class="text-base">Classification Breakdown</CardTitle>
+            <CardTitle class="text-base">Sınıflandırma Dökümü</CardTitle>
           </CardHeader>
           <CardContent>
             <ComplianceBreakdown :breakdown="data.breakdown" />
@@ -62,7 +62,7 @@ onMounted(() => {
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle class="text-base">Category Distribution</CardTitle>
+            <CardTitle class="text-base">Kategori Dağılımı</CardTitle>
           </CardHeader>
           <CardContent>
             <ComplianceDistribution :distribution="data.distribution" />
@@ -71,7 +71,7 @@ onMounted(() => {
 
         <Card>
           <CardHeader>
-            <CardTitle class="text-base">Subnet Compliance</CardTitle>
+            <CardTitle class="text-base">Alt Ağ Uyumluluğu</CardTitle>
           </CardHeader>
           <CardContent>
             <SubnetComplianceTable :subnets="data.subnet_compliance" />
@@ -82,7 +82,7 @@ onMounted(() => {
       <!-- Bottom: Action items -->
       <Card>
         <CardHeader>
-          <CardTitle class="text-base">Action Items</CardTitle>
+          <CardTitle class="text-base">Yapılacaklar</CardTitle>
         </CardHeader>
         <CardContent>
           <ActionItemsList :items="data.action_items" />

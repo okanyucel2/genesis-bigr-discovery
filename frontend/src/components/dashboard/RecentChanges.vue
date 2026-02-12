@@ -38,13 +38,13 @@ function formatTimeAgo(dateStr: string): string {
   const diffMs = now.getTime() - date.getTime()
   const diffSec = Math.floor(diffMs / 1000)
 
-  if (diffSec < 60) return `${diffSec}s ago`
+  if (diffSec < 60) return `${diffSec}sn önce`
   const diffMin = Math.floor(diffSec / 60)
-  if (diffMin < 60) return `${diffMin}m ago`
+  if (diffMin < 60) return `${diffMin}dk önce`
   const diffHr = Math.floor(diffMin / 60)
-  if (diffHr < 24) return `${diffHr}h ago`
+  if (diffHr < 24) return `${diffHr}sa önce`
   const diffDay = Math.floor(diffHr / 24)
-  if (diffDay < 30) return `${diffDay}d ago`
+  if (diffDay < 30) return `${diffDay}g önce`
   return date.toLocaleDateString()
 }
 </script>
@@ -55,7 +55,7 @@ function formatTimeAgo(dateStr: string): string {
       v-if="displayChanges.length === 0"
       class="flex items-center justify-center py-8 text-sm text-slate-500"
     >
-      No recent changes detected
+      Son değişiklik algılanmadı
     </div>
 
     <div
@@ -108,13 +108,13 @@ function formatTimeAgo(dateStr: string): string {
           v-else-if="change.change_type === 'new_asset'"
           class="mt-0.5 text-xs text-emerald-400/70"
         >
-          New asset discovered
+          Yeni cihaz keşfedildi
         </div>
         <div
           v-else-if="change.change_type === 'removed'"
           class="mt-0.5 text-xs text-rose-400/70"
         >
-          Asset no longer detected
+          Cihaz artık algılanmıyor
         </div>
       </div>
 

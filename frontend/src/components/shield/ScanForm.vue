@@ -15,9 +15,9 @@ const target = ref('')
 const depth = ref<ScanDepth>('standard')
 
 const depths: { value: ScanDepth; label: string; desc: string }[] = [
-  { value: 'quick', label: 'Quick', desc: '~30s' },
-  { value: 'standard', label: 'Standard', desc: '~2min' },
-  { value: 'deep', label: 'Deep', desc: '~5min' },
+  { value: 'quick', label: 'Hızlı', desc: '~30s' },
+  { value: 'standard', label: 'Standart', desc: '~2min' },
+  { value: 'deep', label: 'Derin', desc: '~5min' },
 ]
 
 function handleSubmit() {
@@ -33,12 +33,12 @@ function handleSubmit() {
       <!-- Target input -->
       <div>
         <label class="mb-1.5 block text-sm font-medium text-slate-300">
-          Target
+          Hedef
         </label>
         <input
           v-model="target"
           type="text"
-          placeholder="example.com or 192.168.1.0/24"
+          placeholder="example.com veya 192.168.1.0/24"
           :disabled="props.scanning"
           class="w-full rounded-lg border border-[var(--border-glass)] bg-white/5 px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition-colors focus:border-cyan-500/50 focus:bg-white/10 disabled:opacity-50"
         />
@@ -47,7 +47,7 @@ function handleSubmit() {
       <!-- Depth selector -->
       <div>
         <label class="mb-1.5 block text-sm font-medium text-slate-300">
-          Scan Depth
+          Tarama Derinliği
         </label>
         <div class="flex gap-2">
           <button
@@ -83,7 +83,7 @@ function handleSubmit() {
       >
         <Loader2 v-if="props.scanning" class="h-4 w-4 animate-spin" />
         <Shield v-else class="h-4 w-4" />
-        {{ props.scanning ? 'Scanning...' : 'Start Scan' }}
+        {{ props.scanning ? 'Taranıyor...' : 'Taramayı Başlat' }}
       </button>
     </form>
   </div>

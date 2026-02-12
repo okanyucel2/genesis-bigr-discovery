@@ -65,12 +65,12 @@ function formatTimeAgo(dateStr: string | null): string {
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffMin = Math.floor(diffMs / 60000)
-  if (diffMin < 1) return 'just now'
-  if (diffMin < 60) return `${diffMin}m ago`
+  if (diffMin < 1) return 'az önce'
+  if (diffMin < 60) return `${diffMin}dk önce`
   const diffHr = Math.floor(diffMin / 60)
-  if (diffHr < 24) return `${diffHr}h ago`
+  if (diffHr < 24) return `${diffHr}sa önce`
   const diffDay = Math.floor(diffHr / 24)
-  return `${diffDay}d ago`
+  return `${diffDay}g önce`
 }
 
 interface ColumnDef {
@@ -79,12 +79,12 @@ interface ColumnDef {
 }
 
 const columns: ColumnDef[] = [
-  { field: 'ip', label: 'IP Address' },
-  { field: 'hostname', label: 'Hostname' },
-  { field: 'vendor', label: 'Vendor' },
-  { field: 'bigr_category', label: 'Category' },
-  { field: 'confidence_score', label: 'Confidence' },
-  { field: 'last_seen', label: 'Last Seen' },
+  { field: 'ip', label: 'IP Adresi' },
+  { field: 'hostname', label: 'Cihaz Adı' },
+  { field: 'vendor', label: 'Üretici' },
+  { field: 'bigr_category', label: 'Kategori' },
+  { field: 'confidence_score', label: 'Güven' },
+  { field: 'last_seen', label: 'Son Görülme' },
 ]
 </script>
 
@@ -93,8 +93,8 @@ const columns: ColumnDef[] = [
     <EmptyState
       v-if="assets.length === 0"
       icon="search"
-      title="No assets found"
-      description="Try adjusting your filters or run a new scan to discover assets."
+      title="Cihaz bulunamadı"
+      description="Filtrelerinizi ayarlayın veya cihaz keşfi için yeni tarama başlatın."
     />
 
     <Table v-else>
@@ -122,7 +122,7 @@ const columns: ColumnDef[] = [
             </div>
           </TableHead>
           <TableHead>MAC</TableHead>
-          <TableHead>Ports</TableHead>
+          <TableHead>Portlar</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -152,12 +152,12 @@ const columns: ColumnDef[] = [
             {{ asset.mac ?? '-' }}
           </TableCell>
           <TableCell>
-            <TooltipProvider v-if="asset.open_ports.length > 0">
+            <TooltipProvider v-if="asset.open_ports?.length > 0">
               <Tooltip>
                 <TooltipTrigger as-child>
                   <Badge variant="secondary" class="cursor-default tabular-nums">
                     {{ asset.open_ports.length }}
-                    {{ asset.open_ports.length === 1 ? 'port' : 'ports' }}
+                    port
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent side="top">

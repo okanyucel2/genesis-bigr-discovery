@@ -64,9 +64,9 @@ watch(selectedSubnet, () => {
     <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-bold text-white">Network Topology</h1>
+        <h1 class="text-2xl font-bold text-white">Ağ Topolojisi</h1>
         <p class="mt-1 text-sm text-slate-400">
-          Force-directed graph of discovered network assets
+          Keşfedilen ağ cihazlarının kuvvet yönlendirmeli grafiği
         </p>
       </div>
       <div class="flex items-center gap-3">
@@ -76,7 +76,7 @@ watch(selectedSubnet, () => {
             v-model="selectedSubnet"
             class="appearance-none rounded-lg border border-white/10 bg-white/5 py-2 pl-3 pr-8 text-xs text-slate-300 backdrop-blur-sm transition-colors hover:bg-white/10 focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
           >
-            <option value="">All Subnets</option>
+            <option value="">Tüm Alt Ağlar</option>
             <option
               v-for="subnet in subnets"
               :key="subnet.id"
@@ -98,7 +98,7 @@ watch(selectedSubnet, () => {
           @click="refresh"
         >
           <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': loading }" />
-          Refresh
+          Yenile
         </button>
       </div>
     </div>
@@ -109,7 +109,7 @@ watch(selectedSubnet, () => {
       class="flex flex-1 flex-col items-center justify-center py-20"
     >
       <Loader2 class="h-8 w-8 animate-spin text-cyan-400" />
-      <p class="mt-3 text-sm text-slate-400">Loading topology data...</p>
+      <p class="mt-3 text-sm text-slate-400">Topoloji verileri yükleniyor...</p>
     </div>
 
     <!-- Error State -->
@@ -119,14 +119,14 @@ watch(selectedSubnet, () => {
     >
       <AlertTriangle class="h-10 w-10 text-amber-400" />
       <h2 class="mt-3 text-lg font-semibold text-white">
-        Unable to Load Topology
+        Topoloji Yüklenemedi
       </h2>
       <p class="mt-2 text-sm text-slate-400">{{ error }}</p>
       <button
         class="mt-4 rounded-lg bg-cyan-500/20 px-4 py-2 text-sm font-medium text-cyan-400 transition-colors hover:bg-cyan-500/30"
         @click="refresh"
       >
-        Try Again
+        Tekrar Dene
       </button>
     </div>
 
@@ -156,7 +156,7 @@ watch(selectedSubnet, () => {
             <div class="flex items-center justify-between border-b border-white/10 px-4 py-3">
               <div class="flex items-center gap-2">
                 <Network :size="16" class="text-cyan-400" />
-                <h3 class="text-sm font-semibold text-white">Node Details</h3>
+                <h3 class="text-sm font-semibold text-white">Düğüm Detayları</h3>
               </div>
               <button
                 class="rounded-md p-1 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
@@ -171,11 +171,11 @@ watch(selectedSubnet, () => {
               <!-- Identity -->
               <div class="space-y-2">
                 <h4 class="text-[10px] font-medium uppercase tracking-wider text-slate-500">
-                  Identity
+                  Kimlik
                 </h4>
                 <div class="space-y-1.5">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs text-slate-500">Label</span>
+                    <span class="text-xs text-slate-500">Etiket</span>
                     <span class="text-xs font-medium text-white">{{ selectedNode.label }}</span>
                   </div>
                   <div v-if="selectedNode.ip" class="flex items-center justify-between">
@@ -187,11 +187,11 @@ watch(selectedSubnet, () => {
                     <span class="font-mono text-xs text-slate-300">{{ selectedNode.mac }}</span>
                   </div>
                   <div v-if="selectedNode.hostname" class="flex items-center justify-between">
-                    <span class="text-xs text-slate-500">Hostname</span>
+                    <span class="text-xs text-slate-500">Cihaz Adı</span>
                     <span class="text-xs text-white">{{ selectedNode.hostname }}</span>
                   </div>
                   <div v-if="selectedNode.vendor" class="flex items-center justify-between">
-                    <span class="text-xs text-slate-500">Vendor</span>
+                    <span class="text-xs text-slate-500">Üretici</span>
                     <span class="text-xs text-white">{{ selectedNode.vendor }}</span>
                   </div>
                 </div>
@@ -200,11 +200,11 @@ watch(selectedSubnet, () => {
               <!-- Classification -->
               <div class="space-y-2">
                 <h4 class="text-[10px] font-medium uppercase tracking-wider text-slate-500">
-                  Classification
+                  Sınıflandırma
                 </h4>
                 <div class="space-y-1.5">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs text-slate-500">Type</span>
+                    <span class="text-xs text-slate-500">Tür</span>
                     <span
                       class="rounded-full px-2 py-0.5 text-[10px] font-medium"
                       :style="{
@@ -216,11 +216,11 @@ watch(selectedSubnet, () => {
                     </span>
                   </div>
                   <div class="flex items-center justify-between">
-                    <span class="text-xs text-slate-500">Category</span>
+                    <span class="text-xs text-slate-500">Kategori</span>
                     <BigrBadge :category="selectedNode.bigr_category" />
                   </div>
                   <div class="flex items-center justify-between">
-                    <span class="text-xs text-slate-500">Confidence</span>
+                    <span class="text-xs text-slate-500">Güven</span>
                     <span class="text-xs tabular-nums text-white">
                       {{ Math.round(selectedNode.confidence * 100) }}%
                     </span>
@@ -231,15 +231,15 @@ watch(selectedSubnet, () => {
               <!-- Network -->
               <div class="space-y-2">
                 <h4 class="text-[10px] font-medium uppercase tracking-wider text-slate-500">
-                  Network
+                  Ağ
                 </h4>
                 <div class="space-y-1.5">
                   <div v-if="selectedNode.subnet" class="flex items-center justify-between">
-                    <span class="text-xs text-slate-500">Subnet</span>
+                    <span class="text-xs text-slate-500">Alt Ağ</span>
                     <span class="font-mono text-xs text-slate-300">{{ selectedNode.subnet }}</span>
                   </div>
                   <div v-if="selectedNode.switch_port" class="flex items-center justify-between">
-                    <span class="text-xs text-slate-500">Switch Port</span>
+                    <span class="text-xs text-slate-500">Anahtar Portu</span>
                     <span class="font-mono text-xs text-slate-300">{{ selectedNode.switch_port }}</span>
                   </div>
                 </div>
@@ -248,7 +248,7 @@ watch(selectedSubnet, () => {
               <!-- Open Ports -->
               <div v-if="selectedNode.open_ports.length > 0" class="space-y-2">
                 <h4 class="text-[10px] font-medium uppercase tracking-wider text-slate-500">
-                  Open Ports
+                  Açık Portlar
                 </h4>
                 <div class="flex flex-wrap gap-1.5">
                   <span

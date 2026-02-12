@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { Radio, Wifi, MapPin, Clock, RefreshCw, Play, Check, X as XIcon, Terminal, Monitor, Copy, CheckCheck } from 'lucide-vue-next'
+import { Radio, Wifi, Clock, RefreshCw, Play, Check, X as XIcon, Terminal, Monitor, Copy, CheckCheck, Trash2 } from 'lucide-vue-next'
 import { useAgents } from '@/composables/useAgents'
 import AgentDetailModal from '@/components/agents/AgentDetailModal.vue'
 import type { Agent } from '@/types/api'
@@ -22,6 +22,7 @@ function statusDot(status: string): string {
     case 'online': return 'bg-emerald-400'
     case 'stale': return 'bg-amber-400'
     case 'pending': return 'bg-blue-400 animate-pulse'
+    case 'offline': return 'bg-slate-400'
     default: return 'bg-slate-500'
   }
 }
@@ -100,8 +101,7 @@ async function quickScan(agent: Agent, event: Event) {
 
 // Setup commands (defined here to avoid quote issues in template)
 const CMD_INSTALL = 'pip install bigr-discovery'
-const CMD_REGISTER = 'bigr agent register --api-url http://127.0.0.1:8090 --name "Ev Ağı"'
-const CMD_START = 'bigr agent start'
+const CMD_START = 'bigr agent install'
 
 // Copy-to-clipboard with feedback
 const copiedCmd = ref<string | null>(null)
@@ -114,6 +114,31 @@ async function copyCommand(text: string) {
   } catch {
     // fallback
   }
+}
+
+// Delete agent with confirmation
+const deletingAgent = ref<string | null>(null)
+async function deleteAgent(agent: Agent, event: Event) {
+  event.stopPropagation()
+  if (!confirm(`"${agent.name}" ajanını silmek istediğinize emin misiniz?`)) return
+  deletingAgent.value = agent.id
+  try {
+    await bigrApi.deleteAgent(agent.id)
+    await fetchAgents()
+  } catch {
+    // silent
+  } finally {
+    deletingAgent.value = null
+  }
+}
+
+// Refresh with visible animation (min 600ms so user sees feedback)
+const refreshing = ref(false)
+async function refreshAgents() {
+  refreshing.value = true
+  const minDelay = new Promise(r => setTimeout(r, 600))
+  await Promise.all([fetchAgents(), minDelay])
+  refreshing.value = false
 }
 
 onMounted(fetchAgents)
@@ -134,11 +159,12 @@ onUnmounted(() => {
         </p>
       </div>
       <button
-        class="flex items-center gap-2 rounded-lg bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
-        @click="fetchAgents"
+        class="flex items-center gap-2 rounded-lg bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600 disabled:opacity-50"
+        :disabled="refreshing"
+        @click="refreshAgents"
       >
-        <RefreshCw class="h-4 w-4" />
-        Yenile
+        <RefreshCw class="h-4 w-4 transition-transform" :class="refreshing ? 'animate-spin' : ''" />
+        {{ refreshing ? 'Yenileniyor...' : 'Yenile' }}
       </button>
     </div>
 
@@ -189,33 +215,12 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Step 2: Register -->
+          <!-- Step 2: Start (auto-registers) -->
           <div class="flex gap-4">
             <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/15 text-sm font-bold text-cyan-400">2</div>
             <div class="flex-1">
-              <p class="font-medium text-slate-200">Ajanı kaydedin</p>
-              <div class="mt-1.5 flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2">
-                <div class="flex items-center gap-2">
-                  <Terminal class="h-4 w-4 flex-shrink-0 text-slate-500" />
-                  <code class="text-sm text-cyan-400">{{ CMD_REGISTER }}</code>
-                </div>
-                <button
-                  class="rounded p-1 text-slate-500 transition-colors hover:text-slate-300"
-                  title="Kopyala"
-                  @click="copyCommand(CMD_REGISTER)"
-                >
-                  <CheckCheck v-if="copiedCmd === CMD_REGISTER" class="h-3.5 w-3.5 text-emerald-400" />
-                  <Copy v-else class="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Step 3: Start -->
-          <div class="flex gap-4">
-            <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/15 text-sm font-bold text-cyan-400">3</div>
-            <div class="flex-1">
-              <p class="font-medium text-slate-200">Taramayı başlatın</p>
+              <p class="font-medium text-slate-200">Ajanı kurun</p>
+              <p class="mt-0.5 text-xs text-slate-500">Ajan arka planda çalışır, giriş yapınca otomatik başlar</p>
               <div class="mt-1.5 flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2">
                 <div class="flex items-center gap-2">
                   <Terminal class="h-4 w-4 flex-shrink-0 text-slate-500" />
@@ -275,30 +280,41 @@ onUnmounted(() => {
               agent.status === 'online' ? 'bg-emerald-500/15 text-emerald-400 ring-emerald-500/30'
                 : agent.status === 'pending' ? 'bg-blue-500/15 text-blue-400 ring-blue-500/30'
                 : agent.status === 'stale' ? 'bg-amber-500/15 text-amber-400 ring-amber-500/30'
+                : agent.status === 'offline' ? 'bg-slate-500/15 text-slate-400 ring-slate-500/30'
                 : 'bg-slate-500/15 text-slate-400 ring-slate-500/30',
               'rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1',
             ]"
           >
-            {{ agent.status === 'online' ? 'Çevrimiçi' : agent.status === 'pending' ? 'Başlatılmadı' : agent.status === 'stale' ? 'Belirsiz' : 'Çevrimdışı' }}
+            {{ agent.status === 'online' ? 'Aktif' : agent.status === 'pending' ? 'Başlatılmadı' : agent.status === 'stale' ? 'Bağlantı Kesildi' : 'Durduruldu' }}
           </span>
         </div>
 
         <div class="mt-4 space-y-2 text-sm">
           <div class="flex items-center gap-2 text-slate-300">
-            <MapPin class="h-3.5 w-3.5 text-slate-500" />
-            <span>{{ agent.site_name || 'Konum belirtilmemiş' }}</span>
-            <span v-if="agent.location" class="text-slate-500">{{ agent.location }}</span>
+            <Wifi class="h-3.5 w-3.5 text-slate-500" />
+            <span v-if="agent.current_network">
+              {{ agent.current_network.ssid || agent.current_network.friendly_name || agent.current_network.gateway_ip }}
+            </span>
+            <span v-else class="text-slate-500">Ağ bilgisi yok</span>
           </div>
 
           <!-- Pending agent: show setup hint -->
           <div v-if="agent.status === 'pending'" class="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-blue-300">
-            Ajanı başlatmak için: <code class="rounded bg-slate-800 px-1 text-blue-400">bigr agent start</code>
+            Ajanı başlatmak için: <code class="rounded bg-slate-800 px-1 text-blue-400">bigr agent install</code>
           </div>
 
           <template v-else>
             <div class="flex items-center gap-2 text-slate-300">
               <Clock class="h-3.5 w-3.5 text-slate-500" />
               <span>Son görülme: {{ timeAgo(agent.last_seen) }}</span>
+            </div>
+            <!-- Offline agent: show restart hint -->
+            <div v-if="agent.status === 'offline'" class="rounded-lg border border-slate-500/20 bg-slate-500/5 px-3 py-2 text-xs text-slate-300">
+              Ajan durduruldu. Tekrar başlatmak için: <code class="rounded bg-slate-800 px-1 text-slate-400">bigr agent install</code>
+            </div>
+            <!-- Stale agent: show restart hint -->
+            <div v-else-if="agent.status === 'stale'" class="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+              Ajan yanıt vermiyor. Yeniden başlatın: <code class="rounded bg-slate-800 px-1 text-amber-400">bigr agent install</code>
             </div>
           </template>
 
@@ -311,27 +327,38 @@ onUnmounted(() => {
             <div v-if="agent.version" class="text-xs text-slate-500">
               v{{ agent.version }}
             </div>
-            <button
-              v-if="agent.status === 'online'"
-              :disabled="isScanActive(agent.id)"
-              :class="[
-                'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
-                scanStates[agent.id]?.status === 'done'
-                  ? 'bg-emerald-500/20 text-emerald-400'
-                  : scanStates[agent.id]?.status === 'failed'
-                    ? 'bg-rose-500/20 text-rose-400'
-                    : isScanActive(agent.id)
-                      ? 'bg-cyan-500/20 text-cyan-300'
-                      : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 hover:text-cyan-300',
-              ]"
-              @click="quickScan(agent, $event)"
-            >
-              <Check v-if="scanStates[agent.id]?.status === 'done'" class="h-3 w-3" />
-              <XIcon v-else-if="scanStates[agent.id]?.status === 'failed'" class="h-3 w-3" />
-              <div v-else-if="isScanActive(agent.id)" class="h-3 w-3 animate-spin rounded-full border border-cyan-400 border-t-transparent" />
-              <Play v-else class="h-3 w-3" />
-              {{ scanButtonLabel(agent.id) }}
-            </button>
+            <div class="flex items-center gap-2">
+              <button
+                v-if="agent.status !== 'online'"
+                :disabled="deletingAgent === agent.id"
+                class="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-slate-500 transition-all hover:bg-rose-500/10 hover:text-rose-400"
+                title="Ajanı sil"
+                @click="deleteAgent(agent, $event)"
+              >
+                <Trash2 class="h-3 w-3" />
+              </button>
+              <button
+                v-if="agent.status === 'online'"
+                :disabled="isScanActive(agent.id)"
+                :class="[
+                  'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
+                  scanStates[agent.id]?.status === 'done'
+                    ? 'bg-emerald-500/20 text-emerald-400'
+                    : scanStates[agent.id]?.status === 'failed'
+                      ? 'bg-rose-500/20 text-rose-400'
+                      : isScanActive(agent.id)
+                        ? 'bg-cyan-500/20 text-cyan-300'
+                        : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 hover:text-cyan-300',
+                ]"
+                @click="quickScan(agent, $event)"
+              >
+                <Check v-if="scanStates[agent.id]?.status === 'done'" class="h-3 w-3" />
+                <XIcon v-else-if="scanStates[agent.id]?.status === 'failed'" class="h-3 w-3" />
+                <div v-else-if="isScanActive(agent.id)" class="h-3 w-3 animate-spin rounded-full border border-cyan-400 border-t-transparent" />
+                <Play v-else class="h-3 w-3" />
+                {{ scanButtonLabel(agent.id) }}
+              </button>
+            </div>
           </div>
         </div>
       </div>

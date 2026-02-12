@@ -44,25 +44,25 @@ const quickStats = computed(() => {
   if (!asset.value) return []
   return [
     {
-      label: 'Open Ports',
+      label: 'Açık Portlar',
       value: asset.value.open_ports.length,
       icon: Wifi,
       color: 'text-cyan-400',
     },
     {
-      label: 'Confidence',
+      label: 'Güven',
       value: `${asset.value.confidence_score > 0 && asset.value.confidence_score <= 1 ? Math.round(asset.value.confidence_score * 10000) / 100 : Math.round(asset.value.confidence_score * 100) / 100}%`,
       icon: Shield,
       color: 'text-emerald-400',
     },
     {
-      label: 'Scan History',
+      label: 'Tarama Geçmişi',
       value: history.value.length,
       icon: History,
       color: 'text-purple-400',
     },
     {
-      label: 'Last Seen',
+      label: 'Son Görülme',
       value: asset.value.last_seen
         ? formatRelativeTime(asset.value.last_seen)
         : 'N/A',
@@ -80,11 +80,11 @@ function formatRelativeTime(dateStr: string): string {
   const diffHours = Math.floor(diffMins / 60)
   const diffDays = Math.floor(diffHours / 24)
 
-  if (diffMins < 1) return 'just now'
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  if (diffMins < 1) return 'az önce'
+  if (diffMins < 60) return `${diffMins}dk önce`
+  if (diffHours < 24) return `${diffHours}sa önce`
+  if (diffDays < 7) return `${diffDays}g önce`
+  return date.toLocaleDateString('tr-TR', { month: 'short', day: 'numeric' })
 }
 </script>
 
@@ -99,14 +99,14 @@ function formatRelativeTime(dateStr: string): string {
         @click="goBack"
       >
         <ArrowLeft :size="16" />
-        Back to Assets
+        Cihazlara Dön
       </Button>
     </div>
 
     <!-- Loading State -->
     <LoadingState
       v-if="loading && !asset"
-      message="Loading asset details..."
+      message="Cihaz detayları yükleniyor..."
     />
 
     <!-- Error State -->
@@ -116,7 +116,7 @@ function formatRelativeTime(dateStr: string): string {
     >
       <AlertTriangle class="mx-auto h-10 w-10 text-amber-400" />
       <h2 class="mt-3 text-lg font-semibold text-white">
-        Unable to Load Asset
+        Cihaz Yüklenemedi
       </h2>
       <p class="mt-2 text-sm text-slate-400">
         {{ error }}
@@ -128,13 +128,13 @@ function formatRelativeTime(dateStr: string): string {
           class="text-slate-400"
           @click="goBack"
         >
-          Go Back
+          Geri Dön
         </Button>
         <button
           class="rounded-lg bg-cyan-500/20 px-4 py-2 text-sm font-medium text-cyan-400 transition-colors hover:bg-cyan-500/30"
           @click="fetchDetail(route.params.ip as string)"
         >
-          Try Again
+          Tekrar Dene
         </button>
       </div>
     </div>
@@ -152,14 +152,14 @@ function formatRelativeTime(dateStr: string): string {
             class="gap-1.5 data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400"
           >
             <Monitor :size="14" />
-            Overview
+            Genel Bakış
           </TabsTrigger>
           <TabsTrigger
             value="history"
             class="gap-1.5 data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400"
           >
             <History :size="14" />
-            History
+            Geçmiş
             <span
               v-if="history.length > 0"
               class="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold"
@@ -172,7 +172,7 @@ function formatRelativeTime(dateStr: string): string {
             class="gap-1.5 data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400"
           >
             <Network :size="14" />
-            Ports
+            Portlar
             <span
               v-if="asset.open_ports.length > 0"
               class="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold"
@@ -208,7 +208,7 @@ function formatRelativeTime(dateStr: string): string {
           <!-- Ports Preview -->
           <div class="glass-panel rounded-xl p-5">
             <h3 class="mb-3 text-sm font-medium text-slate-300">
-              Open Ports
+              Açık Portlar
             </h3>
             <AssetPorts :ports="asset.open_ports" />
           </div>
@@ -219,7 +219,7 @@ function formatRelativeTime(dateStr: string): string {
             class="glass-panel rounded-xl p-5"
           >
             <h3 class="mb-3 text-sm font-medium text-slate-300">
-              Recent Scan History
+              Son Tarama Geçmişi
             </h3>
             <AssetHistory :history="history.slice(0, 5)" />
           </div>

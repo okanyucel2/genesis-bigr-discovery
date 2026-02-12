@@ -130,7 +130,6 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(hours / 24)}g önce`
 }
 
-const hasTargets = computed(() => selectedTargets.value.length > 0)
 const isPending = computed(() => props.agent.status === 'pending')
 const isOnline = computed(() => props.agent.status === 'online')
 
@@ -346,10 +345,21 @@ watch(() => networksExpanded.value, (expanded) => {
             <!-- Stale/offline warning -->
             <div
               v-if="!isOnline && !isPending && !tracker.isTracking.value"
-              class="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 text-sm text-amber-400"
+              class="space-y-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3"
             >
-              <AlertCircle class="h-4 w-4 flex-shrink-0" />
-              Ajan çevrimdışı — tarama tetiklenemez.
+              <div class="flex items-center gap-2 text-sm text-amber-400">
+                <AlertCircle class="h-4 w-4 flex-shrink-0" />
+                Ajan yanıt vermiyor — tarama tetiklenemez.
+              </div>
+              <div class="flex items-center gap-2">
+                <code class="flex-1 rounded bg-slate-800 px-3 py-1.5 text-xs text-amber-300 font-mono">bigr agent start</code>
+                <button
+                  class="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-700 hover:text-amber-400"
+                  @click="copyStartCmd"
+                >
+                  <component :is="copiedCmd ? CheckCheck : Copy" class="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           </template>
         </div>
