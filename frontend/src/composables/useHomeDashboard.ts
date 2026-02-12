@@ -14,6 +14,7 @@ import type {
   FirewallEvent,
   AssetChange,
   HumanNotification,
+  GuardianStatusResponse,
 } from '@/types/api'
 import type {
   KalkanData,
@@ -43,6 +44,7 @@ export function useHomeDashboard() {
   const changes = ref<AssetChange[]>([])
   const notifications = ref<HumanNotification[]>([])
   const assets = ref<{ total_assets: number; assets: { ip: string; mac: string; hostname: string | null; vendor: string | null; first_seen: string | null }[] } | null>(null)
+  const guardianStatus = ref<GuardianStatusResponse | null>(null)
 
   function calcKalkanState(score: number): KalkanState {
     if (score >= 80) return 'green'
@@ -70,7 +72,8 @@ export function useHomeDashboard() {
     const score = Math.round(compScore * 0.4 + (100 - riskAvg) * 0.3 + fwScore * 0.3)
     const state = calcKalkanState(score)
     const deviceCount = family.value?.devices.length ?? assets.value?.total_assets ?? 0
-    const blockedThisMonth = fwStats?.blocked ?? 0
+    const guardianBlocked = guardianStatus.value?.stats?.blocked_queries ?? 0
+    const blockedThisMonth = (fwStats?.blocked ?? 0) + guardianBlocked
 
     return {
       score,
@@ -202,6 +205,7 @@ export function useHomeDashboard() {
       bigrApi.getFirewallEvents(50),                    // 9
       bigrApi.getChanges(20),                           // 10
       bigrApi.getAssets(),                              // 11
+      bigrApi.getGuardianStatus(),                       // 12
     ])
 
     // Extract data from settled results — each card degrades independently
@@ -220,6 +224,7 @@ export function useHomeDashboard() {
       const d = results[11]!.value.data
       assets.value = { total_assets: d.total_assets, assets: d.assets.map((a) => ({ ip: a.ip, mac: a.mac, hostname: a.hostname, vendor: a.vendor, first_seen: a.first_seen })) }
     }
+    if (results[12]!.status === 'fulfilled') guardianStatus.value = results[12]!.value.data
 
     // If ALL failed, set error
     const allFailed = results.every((r) => r.status === 'rejected')

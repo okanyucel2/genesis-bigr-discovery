@@ -1,5 +1,7 @@
-import { ref, readonly } from 'vue'
+import { ref, readonly, computed } from 'vue'
+import { bigrApi } from '@/lib/api'
 import type { ShieldStatus } from '@/types/home-dashboard'
+import type { GuardianStatusResponse } from '@/types/api'
 
 const defaultStatus: ShieldStatus = {
   installed: false,
@@ -10,19 +12,27 @@ const defaultStatus: ShieldStatus = {
 
 export function useShieldStatus() {
   const shieldStatus = ref<ShieldStatus>({ ...defaultStatus })
+  const guardianData = ref<GuardianStatusResponse | null>(null)
 
   async function fetchShieldStatus(): Promise<void> {
-    // In production, this would call GET /api/shield/status
-    // For now, return default (no shield installed)
-    // Demo mode scenarios can override via setShieldStatus
     try {
-      // TODO: const res = await bigrApi.getShieldStatus()
-      // shieldStatus.value = res.data
-    } catch {
-      // Shield unreachable → mark as offline
-      if (shieldStatus.value.installed) {
-        shieldStatus.value = { ...shieldStatus.value, online: false }
+      const res = await bigrApi.getGuardianStatus()
+      const data = res.data
+      guardianData.value = data
+
+      shieldStatus.value = {
+        installed: true,
+        online: data.guardian_active,
+        deployment: 'standalone',
+        capabilities: {
+          dns: data.dns_filtering,
+          firewall: false,
+        },
       }
+    } catch {
+      // Guardian API unreachable — shield not available
+      shieldStatus.value = { ...defaultStatus }
+      guardianData.value = null
     }
   }
 
@@ -30,8 +40,19 @@ export function useShieldStatus() {
     shieldStatus.value = status
   }
 
+  const guardianBlockedCount = computed(
+    () => guardianData.value?.stats?.blocked_queries ?? 0,
+  )
+
+  const guardianDomainCount = computed(
+    () => guardianData.value?.blocked_domains_count ?? 0,
+  )
+
   return {
     shieldStatus: readonly(shieldStatus),
+    guardianData: readonly(guardianData),
+    guardianBlockedCount,
+    guardianDomainCount,
     fetchShieldStatus,
     setShieldStatus,
   }

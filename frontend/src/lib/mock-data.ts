@@ -46,6 +46,7 @@ import type {
   FamilyAlert,
   FirewallEvent,
   HumanNotification,
+  GuardianStatusResponse,
 } from '@/types/api'
 
 // ---------------------------------------------------------------------------
@@ -2200,6 +2201,25 @@ export function mockFirewallEvents(): FirewallEvent[] {
       direction: 'inbound',
     },
   ]
+}
+
+export function mockGuardianStatus(): GuardianStatusResponse {
+  return {
+    guardian_active: true,
+    dns_filtering: true,
+    blocked_domains_count: 45892,
+    stats: {
+      total_queries: 1847,
+      blocked_queries: 156,
+      allowed_queries: 1691,
+      cache_hit_rate: 0.42,
+    },
+    lifetime_stats: {
+      total_queries: 23456,
+      blocked_queries: 2341,
+      allowed_queries: 21115,
+    },
+  }
 }
 
 export function mockSampleNotifications(): HumanNotification[] {

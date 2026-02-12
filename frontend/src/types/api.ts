@@ -865,3 +865,72 @@ export interface ShieldFindingsListResponse {
   total: number
   severity_counts: Record<string, number>
 }
+
+// Guardian DNS Filtering
+export interface GuardianStatusResponse {
+  guardian_active: boolean
+  dns_filtering: boolean
+  blocked_domains_count: number
+  stats: {
+    total_queries: number
+    blocked_queries: number
+    allowed_queries: number
+    cache_hit_rate: number
+  }
+  lifetime_stats: {
+    total_queries: number
+    blocked_queries: number
+    allowed_queries: number
+  }
+}
+
+export interface GuardianStatsResponse {
+  current_period: {
+    total_queries: number
+    blocked_queries: number
+    allowed_queries: number
+    cache_hit_rate: number
+  }
+  lifetime: {
+    total_queries: number
+    blocked_queries: number
+    allowed_queries: number
+  }
+  top_blocked: { domain: string; count: number; category: string }[]
+}
+
+export interface GuardianRule {
+  id: string
+  action: string
+  domain: string
+  category: string
+  reason: string
+  hit_count: number
+  created_at: string
+}
+
+export interface GuardianRulesResponse {
+  rules: GuardianRule[]
+  total: number
+}
+
+export interface GuardianBlocklist {
+  id: string
+  name: string
+  url: string
+  format: string
+  category: string
+  domain_count: number
+  is_enabled: boolean
+  last_updated: string | null
+}
+
+export interface GuardianBlocklistsResponse {
+  blocklists: GuardianBlocklist[]
+}
+
+export interface GuardianHealthResponse {
+  status: 'healthy' | 'degraded' | 'offline'
+  checks: Record<string, { ok: boolean; detail?: string }>
+  message?: string
+}

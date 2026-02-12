@@ -62,6 +62,11 @@ import type {
   FamilyTimelineEntry,
   AddDeviceRequest,
   UpdateDeviceRequest,
+  GuardianStatusResponse,
+  GuardianStatsResponse,
+  GuardianRulesResponse,
+  GuardianBlocklistsResponse,
+  GuardianHealthResponse,
 } from '@/types/api'
 import type { ShieldScanResponse, ShieldFindingsResponse, ShieldModulesResponse } from '@/types/shield'
 import {
@@ -90,6 +95,7 @@ import {
   mockFamilyAlerts,
   mockFirewallEvents,
   mockSampleNotifications,
+  mockGuardianStatus,
 } from '@/lib/mock-data'
 
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
@@ -472,4 +478,33 @@ export const bigrApi = {
       : client.get<FamilyTimelineEntry[]>('/api/family/timeline', {
           params: { subscription_id: subscriptionId, limit },
         }),
+
+  // Guardian DNS Filtering
+  getGuardianStatus: () =>
+    DEMO_MODE
+      ? mockResponse(mockGuardianStatus())
+      : client.get<GuardianStatusResponse>('/api/guardian/status'),
+
+  getGuardianStats: () =>
+    client.get<GuardianStatsResponse>('/api/guardian/stats'),
+
+  getGuardianRules: () =>
+    client.get<GuardianRulesResponse>('/api/guardian/rules'),
+
+  addGuardianRule: (action: string, domain: string, category = 'custom', reason = '') =>
+    client.post<{ id: string; action: string; domain: string }>('/api/guardian/rules', {
+      action, domain, category, reason,
+    }),
+
+  deleteGuardianRule: (ruleId: string) =>
+    client.delete<{ status: string; id: string }>(`/api/guardian/rules/${ruleId}`),
+
+  updateGuardianBlocklists: () =>
+    client.post<{ status: string; results: unknown }>('/api/guardian/blocklist/update'),
+
+  getGuardianBlocklists: () =>
+    client.get<GuardianBlocklistsResponse>('/api/guardian/blocklists'),
+
+  getGuardianHealth: () =>
+    client.get<GuardianHealthResponse>('/api/guardian/health'),
 }
