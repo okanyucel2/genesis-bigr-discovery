@@ -547,11 +547,14 @@ class TestFamilyAPI:
 
     @pytest.mark.asyncio
     async def test_overview_invalid_subscription(self, client):
-        """GET /overview with non-existent subscription should return 404."""
+        """GET /overview with non-existent subscription returns empty data."""
         resp = await client.get(
             "/api/family/overview", params={"subscription_id": "fake-id"}
         )
-        assert resp.status_code == 404
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["devices"] == []
+        assert data["total_threats"] == 0
 
     @pytest.mark.asyncio
     async def test_add_device_endpoint(self, client, family_subscription):

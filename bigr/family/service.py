@@ -49,9 +49,22 @@ class FamilyService:
 
         Joins FamilyDeviceDB -> AgentDB to get live status.
         Calculates per-device safety scores from recent scans.
+        Returns empty overview if subscription not found (graceful degradation).
         """
-        # Verify subscription exists and is family plan
-        sub = await self._get_subscription(subscription_id, db)
+        # Try to find subscription — return empty overview if not found
+        sub = await self._find_subscription(subscription_id, db)
+        if sub is None:
+            return FamilyOverview(
+                family_name="Ailem",
+                plan_id="free",
+                devices=[],
+                max_devices=0,
+                total_threats=0,
+                avg_safety_score=0.0,
+                safety_level="safe",
+                devices_online=0,
+                last_scan=None,
+            )
         plan = PLANS.get(sub.plan_id, PLANS["family"])
 
         # Get all active family devices
@@ -338,7 +351,12 @@ class FamilyService:
 
         Pulls shield findings from agents linked to family devices
         and converts them to human-friendly FamilyAlert objects.
+        Returns empty list if subscription not found.
         """
+        sub = await self._find_subscription(subscription_id, db)
+        if sub is None:
+            return []
+
         # Get all device agent_ids for this subscription
         stmt = (
             select(FamilyDeviceDB)
@@ -410,7 +428,12 @@ class FamilyService:
         """Get activity timeline across all family devices.
 
         Merges scans and device additions into a chronological feed.
+        Returns empty list if subscription not found.
         """
+        sub = await self._find_subscription(subscription_id, db)
+        if sub is None:
+            return []
+
         # Get devices
         stmt = (
             select(FamilyDeviceDB)
@@ -481,14 +504,20 @@ class FamilyService:
     # Private helpers
     # ------------------------------------------------------------------ #
 
+    async def _find_subscription(
+        self, subscription_id: str, db: AsyncSession
+    ) -> SubscriptionDB | None:
+        """Fetch subscription or return None (graceful)."""
+        result = await db.execute(
+            select(SubscriptionDB).where(SubscriptionDB.id == subscription_id)
+        )
+        return result.scalar_one_or_none()
+
     async def _get_subscription(
         self, subscription_id: str, db: AsyncSession
     ) -> SubscriptionDB:
         """Fetch subscription or raise."""
-        result = await db.execute(
-            select(SubscriptionDB).where(SubscriptionDB.id == subscription_id)
-        )
-        sub = result.scalar_one_or_none()
+        sub = await self._find_subscription(subscription_id, db)
         if sub is None:
             raise ValueError(f"Abonelik bulunamadi: {subscription_id}")
         return sub
