@@ -61,10 +61,18 @@ def do_run_migrations(connection):
 
 async def run_migrations_online() -> None:
     """Run migrations in 'online' mode using async engine."""
-    connectable = create_async_engine(
-        _get_url(),
-        poolclass=pool.NullPool,
-    )
+    url = _get_url()
+    kwargs: dict = {"poolclass": pool.NullPool}
+
+    # Neon requires SSL — get_database_url strips ?sslmode=require
+    # so we must add SSL context explicitly (mirrors database.py logic)
+    if "neon.tech" in url:
+        import ssl
+
+        ssl_ctx = ssl.create_default_context()
+        kwargs["connect_args"] = {"ssl": ssl_ctx}
+
+    connectable = create_async_engine(url, **kwargs)
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await connectable.dispose()
