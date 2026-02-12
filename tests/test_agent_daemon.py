@@ -21,7 +21,7 @@ def tmp_bigr_dir(tmp_path):
 def daemon(tmp_bigr_dir):
     """Create an AgentDaemon that won't actually scan or connect."""
     return AgentDaemon(
-        api_url="http://localhost:8090",
+        api_url="http://localhost:9978",
         token="test-token-abc",
         targets=["10.0.0.0/24"],
         interval_seconds=60,
@@ -108,7 +108,7 @@ class TestScanCycle:
     def test_single_cycle_with_shield(self, tmp_bigr_dir):
         """When shield=True, shield methods should also be called."""
         d = AgentDaemon(
-            api_url="http://localhost:8090",
+            api_url="http://localhost:9978",
             token="t",
             targets=["10.0.0.0/24"],
             shield=True,

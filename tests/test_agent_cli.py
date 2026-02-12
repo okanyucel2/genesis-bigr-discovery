@@ -29,7 +29,7 @@ class TestAgentRegister:
         with patch("httpx.post", return_value=mock_resp):
             result = runner.invoke(app, [
                 "agent", "register",
-                "--api-url", "http://localhost:8090",
+                "--api-url", "http://localhost:9978",
                 "--name", "test-scanner",
                 "--site", "HQ",
                 "--config", str(config_path),
@@ -42,7 +42,7 @@ class TestAgentRegister:
         import yaml
         saved = yaml.safe_load(config_path.read_text())
         assert saved["agent_id"] == "agent-123"
-        assert saved["api_url"] == "http://localhost:8090"
+        assert saved["api_url"] == "http://localhost:9978"
 
     def test_register_api_error(self, tmp_path):
         import httpx
@@ -57,7 +57,7 @@ class TestAgentRegister:
         with patch("httpx.post", return_value=mock_resp):
             result = runner.invoke(app, [
                 "agent", "register",
-                "--api-url", "http://localhost:8090",
+                "--api-url", "http://localhost:9978",
                 "--name", "bad",
                 "--config", str(tmp_path / "agent.yaml"),
             ])

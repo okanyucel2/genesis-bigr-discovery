@@ -22,7 +22,7 @@ class AgentConfig:
     site_name: str = ""
     targets: list[str] = field(default_factory=list)
     interval_seconds: int = 300
-    shield: bool = False
+    shield: bool = True
 
     @classmethod
     def load(cls, path: Path | None = None) -> AgentConfig:
@@ -39,7 +39,7 @@ class AgentConfig:
             site_name=data.get("site_name", ""),
             targets=data.get("targets", []),
             interval_seconds=data.get("interval_seconds", 300),
-            shield=data.get("shield", False),
+            shield=data.get("shield", True),
         )
 
     def save(self, path: Path | None = None) -> Path:

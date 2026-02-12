@@ -56,12 +56,14 @@ class AgentDaemon:
         interval_seconds: int = 300,
         shield: bool = False,
         bigr_dir: Path | None = None,
+        auto_detect: bool = False,
     ) -> None:
         self._api_url = api_url.rstrip("/")
         self._token = token
         self._targets = targets
         self._interval = interval_seconds
         self._shield = shield
+        self._auto_detect = auto_detect
         self._dir = bigr_dir or _DEFAULT_DIR
         self._dir.mkdir(parents=True, exist_ok=True)
         self._pid_path = self._dir / "agent.pid"
@@ -114,8 +116,17 @@ class AgentDaemon:
         self._run_loop()
 
     def stop(self) -> None:
-        """Stop the daemon and clean up PID file."""
+        """Stop the daemon, notify API, and clean up PID file."""
         self._running = False
+        # Send offline heartbeat so dashboard updates immediately
+        try:
+            self._client.post(
+                f"{self._api_url}/api/agents/heartbeat",
+                json={"status": "offline"},
+            )
+            self._logger.info("Offline heartbeat sent.")
+        except Exception:
+            pass  # Best-effort — don't block shutdown
         self._logger.info("Agent stopped.")
         if self._pid_path.exists():
             try:
@@ -173,7 +184,10 @@ class AgentDaemon:
     def _run_single_cycle(self) -> None:
         """Execute one scan cycle: drain queue, scan each target, push results."""
         # Detect current network fingerprint (may return None)
-        from bigr.agent.network_fingerprint import detect_network_fingerprint
+        from bigr.agent.network_fingerprint import (
+            detect_local_subnet,
+            detect_network_fingerprint,
+        )
 
         fingerprint = detect_network_fingerprint()
         if fingerprint:
@@ -184,13 +198,25 @@ class AgentDaemon:
                 fingerprint.gateway_ip,
             )
 
+        # Resolve scan targets: auto-detect if configured
+        if self._auto_detect:
+            detected = detect_local_subnet()
+            if detected:
+                targets = [detected]
+                self._logger.info("Auto-detected subnet: %s", detected)
+            else:
+                self._logger.warning("Auto-detect failed — skipping this cycle")
+                return
+        else:
+            targets = self._targets
+
         # Drain any queued items from previous failures
         if self._queue.count() > 0:
             self._logger.info("Draining %d queued items...", self._queue.count())
             sent, failed = self._queue.drain(self._drain_send)
             self._logger.info("Drained: %d sent, %d failed", sent, failed)
 
-        for target in self._targets:
+        for target in targets:
             self._logger.info("Scanning %s ...", target)
             try:
                 scan_result = self._scan_target(target)

@@ -124,6 +124,64 @@ def compute_fingerprint_hash(gateway_mac: str | None, ssid: str | None) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def detect_local_subnet() -> str | None:
+    """Detect the local subnet CIDR for the default interface.
+
+    Returns e.g. "192.168.1.0/24" or "172.20.10.0/28".
+    Works on macOS and Linux.
+    """
+    if _SYSTEM == "Darwin":
+        # Get the default interface from route
+        output = _run_cmd(["route", "-n", "get", "default"])
+        if not output:
+            return None
+        iface = None
+        for line in output.splitlines():
+            if "interface:" in line:
+                iface = line.split(":")[-1].strip()
+                break
+        if not iface:
+            return None
+        # Get IP and netmask from ifconfig
+        ifconfig = _run_cmd(["ifconfig", iface])
+        if not ifconfig:
+            return None
+        ip_match = re.search(r"inet\s+(\d+\.\d+\.\d+\.\d+)\s+netmask\s+(0x[0-9a-fA-F]+)", ifconfig)
+        if not ip_match:
+            return None
+        ip_addr = ip_match.group(1)
+        netmask_hex = ip_match.group(2)
+        # Convert hex netmask to prefix length
+        mask_int = int(netmask_hex, 16)
+        prefix_len = bin(mask_int).count("1")
+        # Compute network address
+        import ipaddress
+        network = ipaddress.ip_network(f"{ip_addr}/{prefix_len}", strict=False)
+        cidr = str(network)
+        logger.info("Detected local subnet: %s (interface: %s)", cidr, iface)
+        return cidr
+
+    # Linux: ip -o -f inet addr show → find interface matching default route
+    gateway_ip = detect_default_gateway_ip()
+    if not gateway_ip:
+        return None
+    output = _run_cmd(["ip", "-o", "-f", "inet", "addr", "show"])
+    if not output:
+        return None
+    import ipaddress
+    for line in output.splitlines():
+        match = re.search(r"inet\s+(\d+\.\d+\.\d+\.\d+/\d+)", line)
+        if match:
+            try:
+                net = ipaddress.ip_network(match.group(1), strict=False)
+                if ipaddress.ip_address(gateway_ip) in net:
+                    logger.info("Detected local subnet: %s", str(net))
+                    return str(net)
+            except ValueError:
+                continue
+    return None
+
+
 def detect_network_fingerprint() -> NetworkFingerprint | None:
     """Detect current network fingerprint. Returns None if gateway cannot be found.
 
