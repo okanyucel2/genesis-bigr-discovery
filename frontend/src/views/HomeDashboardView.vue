@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useHomeDashboard } from '@/composables/useHomeDashboard'
+import { useShieldStatus } from '@/composables/useShieldStatus'
 import KalkanShield from '@/components/home/KalkanShield.vue'
 import HayatKarti from '@/components/home/HayatKarti.vue'
 import VerilerimContent from '@/components/home/VerilerimContent.vue'
@@ -19,11 +20,14 @@ const {
   evim,
   bolgem,
   deviceLookup,
+  localIp,
   firewallEvents,
   familyTimeline,
   changes,
   fetchDashboard,
 } = useHomeDashboard()
+
+const { shieldStatus, fetchShieldStatus } = useShieldStatus()
 
 function cardStatus(card: 'verilerim' | 'ailem' | 'evim' | 'bolgem'): 'ok' | 'warning' | 'danger' {
   switch (card) {
@@ -40,6 +44,7 @@ function cardStatus(card: 'verilerim' | 'ailem' | 'evim' | 'bolgem'): 'ok' | 'wa
 
 onMounted(() => {
   fetchDashboard()
+  fetchShieldStatus()
 })
 </script>
 
@@ -116,6 +121,8 @@ onMounted(() => {
         :family-timeline="familyTimeline"
         :changes="changes"
         :device-lookup="deviceLookup"
+        :local-ip="localIp"
+        :shield-status="shieldStatus"
       />
     </template>
   </div>

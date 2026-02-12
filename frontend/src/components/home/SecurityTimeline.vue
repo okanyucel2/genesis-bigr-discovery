@@ -8,6 +8,7 @@ import type {
   AssetChange,
   CollectiveSignalReport,
 } from '@/types/api'
+import type { ShieldStatus } from '@/types/home-dashboard'
 
 const props = defineProps<{
   firewallEvents: FirewallEvent[]
@@ -15,6 +16,8 @@ const props = defineProps<{
   changes: AssetChange[]
   collectiveThreats?: CollectiveSignalReport[]
   deviceLookup?: Record<string, string>
+  localIp?: string | null
+  shieldStatus?: ShieldStatus
 }>()
 
 const { visibleCount, buildTimeline, toggleExpand, isExpanded, showMore } = useTimeline()
@@ -26,6 +29,8 @@ const allItems = computed(() =>
     props.changes,
     props.collectiveThreats ?? [],
     props.deviceLookup ?? {},
+    props.localIp ?? null,
+    props.shieldStatus,
   ),
 )
 

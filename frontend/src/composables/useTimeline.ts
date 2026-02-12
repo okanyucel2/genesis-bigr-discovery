@@ -5,28 +5,220 @@ import type {
   AssetChange,
   CollectiveSignalReport,
 } from '@/types/api'
-import type { TimelineItem, TimelineSeverity } from '@/types/home-dashboard'
+import type {
+  TimelineItem,
+  TimelineSeverity,
+  TimelineRichDetail,
+  TimelineDetailField,
+  TimelineDetailAction,
+  ShieldStatus,
+} from '@/types/home-dashboard'
+import { getThreatContext } from '@/lib/threat-intel'
+import { getRuleCategory, buildBlockReason } from '@/lib/rule-descriptions'
 
 type DeviceLookup = Record<string, string>
+
+const defaultShield: ShieldStatus = {
+  installed: false,
+  online: false,
+  deployment: 'none',
+  capabilities: { dns: false, firewall: false },
+}
 
 function resolveIp(ip: string, lookup: DeviceLookup): string {
   return lookup[ip] ?? ip
 }
 
-function firewallToTimeline(events: FirewallEvent[], lookup: DeviceLookup): TimelineItem[] {
+function isLocalDevice(ip: string, localIp: string | null): boolean {
+  if (!localIp) return false
+  return ip === localIp
+}
+
+function buildRemoteActions(blockTargetIp: string, shield: ShieldStatus): TimelineDetailAction[] {
+  const actions: TimelineDetailAction[] = []
+
+  if (shield.installed && shield.online) {
+    // Shield active — direct actions based on capabilities
+    if (shield.capabilities.firewall) {
+      actions.push({
+        label: 'Shield ile Engelle',
+        variant: 'danger',
+        icon: '🛡️',
+        handler: 'shield-block',
+        metadata: { ip: blockTargetIp },
+      })
+    }
+    if (shield.capabilities.dns) {
+      actions.push({
+        label: 'DNS ile Engelle',
+        variant: 'primary',
+        icon: '🌐',
+        handler: 'shield-block',
+        metadata: { ip: blockTargetIp, method: 'dns' },
+      })
+    }
+  } else if (shield.installed && !shield.online) {
+    // Shield installed but offline — suggested actions with warning
+    actions.push({
+      label: 'DNS ile Kalici Engelle',
+      variant: 'primary',
+      icon: '🌐',
+      handler: 'suggest-dns',
+      metadata: { ip: blockTargetIp },
+      suggested: true,
+      suggestReason: 'Shield cevrimdisi — yeniden baslatildiginda uygulanacak',
+    })
+    actions.push({
+      label: "Router'da Kalici Engelle",
+      variant: 'secondary',
+      icon: '📡',
+      handler: 'suggest-router',
+      metadata: { ip: blockTargetIp },
+      suggested: true,
+      suggestReason: "Router'a kalici kural ekleyerek bu IP'nin tekrar erisimini engelleyin",
+    })
+  } else {
+    // No shield — suggest setup + manual actions
+    actions.push({
+      label: 'Shield Kur',
+      variant: 'primary',
+      icon: '🛡️',
+      handler: 'setup-shield',
+      metadata: { ip: blockTargetIp },
+      suggested: true,
+      suggestReason: 'Shield kurarak tum ag cihazlarinizi kalici olarak koruyun',
+    })
+    actions.push({
+      label: 'DNS ile Kalici Engelle',
+      variant: 'secondary',
+      icon: '🌐',
+      handler: 'suggest-dns',
+      metadata: { ip: blockTargetIp },
+      suggested: true,
+      suggestReason: 'Mevcut engelleme gecici — DNS filtreleme tum agi kalici olarak korur',
+    })
+    actions.push({
+      label: "Router'da Kalici Engelle",
+      variant: 'secondary',
+      icon: '📡',
+      handler: 'suggest-router',
+      metadata: { ip: blockTargetIp },
+      suggested: true,
+      suggestReason: "Router'a kalici kural ekleyerek bu IP'nin tekrar erisimini engelleyin",
+    })
+  }
+
+  return actions
+}
+
+function buildFirewallRichDetail(e: FirewallEvent, lookup: DeviceLookup, localIp: string | null, shield: ShieldStatus): TimelineRichDetail {
+  const srcName = resolveIp(e.source_ip, lookup)
+  const dstName = resolveIp(e.dest_ip, lookup)
+  const dirLabel = e.direction === 'inbound' ? 'Gelen' : 'Giden'
+  const proto = e.protocol.toUpperCase()
+
+  // Determine locality early — needed for summary wording
+  const affectedDeviceIp = e.direction === 'inbound' ? e.dest_ip : e.source_ip
+  const isLocal = isLocalDevice(affectedDeviceIp, localIp)
+
+  let summary: string
+  if (e.action === 'block') {
+    if (isLocal) {
+      summary = e.direction === 'inbound'
+        ? `${srcName} adresindan gelen ${proto} baglantisi engellendi.`
+        : `${dstName}:${e.dest_port} adresine giden ${proto} baglantisi engellendi.`
+    } else if (shield.installed && shield.online) {
+      const deviceName = e.direction === 'inbound' ? dstName : srcName
+      summary = e.direction === 'inbound'
+        ? `${srcName} adresindan ${deviceName} cihazina yonelik ${proto} baglantisi Shield tarafindan engellendi.`
+        : `${deviceName} cihazindan ${dstName}:${e.dest_port} adresine giden ${proto} baglantisi Shield tarafindan engellendi.`
+    } else {
+      const deviceName = e.direction === 'inbound' ? dstName : srcName
+      summary = e.direction === 'inbound'
+        ? `${srcName} adresindan ${deviceName} cihazina yonelik ${proto} baglantisi tespit edildi. Mevcut kural ile engellendi ancak kalici koruma onerilir.`
+        : `${deviceName} cihazindan ${dstName}:${e.dest_port} adresine giden ${proto} baglantisi tespit edildi. Mevcut kural ile engellendi ancak kalici koruma onerilir.`
+    }
+  } else {
+    summary = e.direction === 'inbound'
+      ? `${srcName} adresindan ${dstName}:${e.dest_port} portuna gelen ${proto} baglantisina izin verildi.`
+      : `${srcName} adresindan ${dstName}:${e.dest_port} portuna giden ${proto} baglantisina izin verildi.`
+  }
+
+  const fields: TimelineDetailField[] = [
+    { icon: '🔌', label: 'Protokol', value: proto },
+    { icon: e.direction === 'inbound' ? '↙️' : '↗️', label: 'Yon', value: dirLabel },
+  ]
+  if (e.process_name) {
+    fields.push({ icon: '⚙️', label: 'Islem', value: e.process_name })
+  }
+  if (e.rule_id) {
+    fields.push({ icon: '📋', label: 'Kural', value: e.rule_id })
+  }
+
+  const actions: TimelineDetailAction[] = []
+  if (e.action === 'block') {
+    const blockTargetIp = e.direction === 'inbound' ? e.source_ip : e.dest_ip
+
+    if (isLocal) {
+      // Local device: direct action — agent can apply iptables/pf rules
+      actions.push({
+        label: 'Kalici Engelle',
+        variant: 'danger',
+        icon: '🚫',
+        handler: 'block-permanent',
+        metadata: { ip: blockTargetIp },
+      })
+    } else {
+      // Remote device: actions depend on Shield status
+      actions.push(...buildRemoteActions(blockTargetIp, shield))
+    }
+    if (e.rule_id) {
+      actions.push({
+        label: 'Kural Detayi',
+        variant: 'secondary',
+        icon: '📋',
+        handler: 'view-rule',
+        metadata: { ruleId: e.rule_id },
+      })
+    }
+  }
+
+  const threatContext = getThreatContext(e.source_ip, e.dest_ip, e.direction)
+
+  const ruleCat = getRuleCategory(e.rule_id)
+  const reason = buildBlockReason(e.rule_id, e.process_name)
+  const ruleContext = ruleCat && reason
+    ? { category: ruleCat.category, label: ruleCat.label, reason, bannerVariant: ruleCat.bannerVariant }
+    : undefined
+
+  return { summary, fields, actions, threatContext, ruleContext }
+}
+
+function buildFirewallMessage(e: FirewallEvent, lookup: DeviceLookup, localIp: string | null): string {
+  const src = resolveIp(e.source_ip, lookup)
+  const dst = resolveIp(e.dest_ip, lookup)
+  const affectedIp = e.direction === 'inbound' ? e.dest_ip : e.source_ip
+  const isLocal = isLocalDevice(affectedIp, localIp)
+
+  if (e.action !== 'block') {
+    return `${src} → ${dst}:${e.dest_port} izin verildi`
+  }
+
+  if (isLocal) {
+    return `${src} → ${dst}:${e.dest_port} engellendi`
+  }
+
+  // Remote device — clarify this is observed, not directly blocked by agent
+  return `${src} → ${dst}:${e.dest_port} — ag izleme ile tespit edildi`
+}
+
+function firewallToTimeline(events: FirewallEvent[], lookup: DeviceLookup, localIp: string | null, shield: ShieldStatus): TimelineItem[] {
   return events.map((e) => ({
     id: `fw_${e.id}`,
     source: 'firewall' as const,
     severity: e.action === 'block' ? 'medium' as TimelineSeverity : 'info' as TimelineSeverity,
-    message: e.action === 'block'
-      ? `${resolveIp(e.source_ip, lookup)} → ${resolveIp(e.dest_ip, lookup)}:${e.dest_port} engellendi`
-      : `${resolveIp(e.source_ip, lookup)} → ${resolveIp(e.dest_ip, lookup)}:${e.dest_port} izin verildi`,
-    detail: [
-      `Protokol: ${e.protocol.toUpperCase()}`,
-      `Yon: ${e.direction === 'inbound' ? 'Gelen' : 'Giden'}`,
-      e.process_name ? `Islem: ${e.process_name}` : null,
-      e.rule_id ? `Kural: ${e.rule_id}` : null,
-    ].filter(Boolean).join(' | '),
+    message: buildFirewallMessage(e, lookup, localIp),
+    detail: buildFirewallRichDetail(e, lookup, localIp, shield),
     timestamp: e.timestamp,
     icon: e.action === 'block' ? '🛡️' : '✅',
   }))
@@ -88,9 +280,11 @@ export function useTimeline() {
     changesList: AssetChange[],
     collectiveThreats: CollectiveSignalReport[],
     deviceLookup: DeviceLookup = {},
+    localIp: string | null = null,
+    shield: ShieldStatus = defaultShield,
   ): TimelineItem[] {
     const all = [
-      ...firewallToTimeline(firewallEvents, deviceLookup),
+      ...firewallToTimeline(firewallEvents, deviceLookup, localIp, shield),
       ...familyToTimeline(familyEntries),
       ...changesToTimeline(changesList, deviceLookup),
       ...collectiveToTimeline(collectiveThreats),

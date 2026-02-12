@@ -172,6 +172,11 @@ export function useHomeDashboard() {
     buildDeviceLookup(assets.value?.assets ?? []),
   )
 
+  // The IP of the machine running the BİGR agent.
+  // In production this would come from /api/agent/info.
+  // In demo mode we use 192.168.1.103 (the unclassified device running chrome).
+  const localIp = ref<string | null>('192.168.1.103')
+
   const dashboardData = computed<HomeDashboardData>(() => ({
     kalkan: kalkan.value,
     verilerim: verilerim.value,
@@ -235,6 +240,7 @@ export function useHomeDashboard() {
     evim,
     bolgem,
     deviceLookup,
+    localIp,
     firewallEvents,
     familyTimeline,
     familyAlerts,
