@@ -3,6 +3,8 @@ import type { BigrCategory } from './bigr'
 // GET /api/data
 export type SensitivityLevel = 'fragile' | 'cautious' | 'safe'
 
+export type DeviceStatus = 'acknowledged' | 'ignored' | 'new' | 'unknown'
+
 export interface Asset {
   ip: string
   mac: string
@@ -18,6 +20,8 @@ export interface Asset {
   first_seen: string | null
   last_seen: string | null
   manual_override: boolean
+  manual_category?: string | null
+  is_ignored?: number
   sensitivity_level?: SensitivityLevel | null
 }
 

@@ -11,7 +11,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bigr.agent.routes import router as agent_router
@@ -213,22 +213,43 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, status_code=500)
 
+    async def _resolve_mac(db: AsyncSession, ip: str) -> str | None:
+        """Find MAC address for an IP. MAC is the stable device identifier."""
+        result = await db.execute(
+            select(AssetDB.mac).where(AssetDB.ip == ip).limit(1)
+        )
+        return result.scalar_one_or_none()
+
     @app.post("/api/assets/{ip}/acknowledge", response_class=JSONResponse)
     async def api_acknowledge_asset(ip: str, db: AsyncSession = Depends(get_db)):
-        """Mark an asset as acknowledged (known device)."""
+        """Mark an asset as acknowledged (known device). Uses MAC for persistence across IP changes."""
         try:
-            await services.tag_asset_async(db, ip, "acknowledged", "Kullanici tarafindan tanindi")
+            mac = await _resolve_mac(db, ip)
+            if mac:
+                # Tag ALL records with this MAC (covers IP changes)
+                stmt = (
+                    update(AssetDB)
+                    .where(AssetDB.mac == mac)
+                    .values(manual_category="acknowledged", manual_note="Kullanici tarafindan tanindi")
+                )
+                await db.execute(stmt)
+                await db.commit()
+            else:
+                # Fallback to IP if no MAC (rare edge case)
+                await services.tag_asset_async(db, ip, "acknowledged", "Kullanici tarafindan tanindi")
             return {"status": "ok", "ip": ip, "message": "Cihaz tanindi."}
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, status_code=500)
 
     @app.post("/api/assets/{ip}/ignore", response_class=JSONResponse)
     async def api_ignore_asset(ip: str, db: AsyncSession = Depends(get_db)):
-        """Mark an asset as ignored (blocked/hidden)."""
+        """Mark an asset as ignored (blocked/hidden). Uses MAC for persistence across IP changes."""
         try:
+            mac = await _resolve_mac(db, ip)
+            where_clause = AssetDB.mac == mac if mac else AssetDB.ip == ip
             stmt = (
                 update(AssetDB)
-                .where(AssetDB.ip == ip)
+                .where(where_clause)
                 .values(is_ignored=1, manual_note="Kullanici tarafindan engellendi")
             )
             result = await db.execute(stmt)

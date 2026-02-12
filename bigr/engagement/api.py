@@ -22,10 +22,13 @@ async def get_streak(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Get safety streak for a subscription."""
-    stmt = select(SafetyStreakDB).where(
-        SafetyStreakDB.subscription_id == subscription_id
-    )
-    row = (await db.execute(stmt)).scalar_one_or_none()
+    try:
+        stmt = select(SafetyStreakDB).where(
+            SafetyStreakDB.subscription_id == subscription_id
+        )
+        row = (await db.execute(stmt)).scalar_one_or_none()
+    except Exception:
+        row = None
 
     if row is None:
         # No streak data yet — return defaults

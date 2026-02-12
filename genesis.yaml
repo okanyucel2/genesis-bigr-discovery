@@ -1,0 +1,23 @@
+# genesis.yaml - BİGR Discovery Configuration
+# GENESIS Process Manager v2.0 (Smart Port Allocation)
+#
+# Project: genesis-bigr-discovery
+# Type: fullstack (Python FastAPI + Vue 3 frontend)
+#
+# Port Allocation (hash-based):
+#   - Backend:   9978
+#   - Frontend: 19978
+#   - WebSocket: 29978
+
+services:
+  backend:
+    start: "uvicorn bigr.dashboard.app:create_app --host 0.0.0.0 --port ${PORT} --factory"
+    health_check:
+      url: "http://localhost:${PORT}/api/health"
+      method: GET
+
+  frontend:
+    start: "cd frontend && npx vite --port ${PORT}"
+    health_check:
+      url: "http://localhost:${PORT}/"
+      method: GET
