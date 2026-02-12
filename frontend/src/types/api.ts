@@ -1,6 +1,8 @@
 import type { BigrCategory } from './bigr'
 
 // GET /api/data
+export type SensitivityLevel = 'fragile' | 'cautious' | 'safe'
+
 export interface Asset {
   ip: string
   mac: string
@@ -16,6 +18,7 @@ export interface Asset {
   first_seen: string | null
   last_seen: string | null
   manual_override: boolean
+  sensitivity_level?: SensitivityLevel | null
 }
 
 export interface AssetsResponse {
@@ -978,4 +981,29 @@ export interface WatcherAlert {
 export interface WatcherAlertsResponse {
   alerts: WatcherAlert[]
   total: number
+}
+
+// ---------------------------------------------------------------------------
+// Engagement (Safety Streak)
+// ---------------------------------------------------------------------------
+
+export interface StreakMilestone {
+  badge: string
+  title_tr: string
+  days_required: number
+}
+
+export interface StreakNextMilestone {
+  badge: string
+  title_tr: string
+  days_required: number
+  days_remaining: number
+}
+
+export interface StreakResponse {
+  current_streak_days: number
+  longest_streak_days: number
+  total_safe_days: number
+  milestone: StreakMilestone | null
+  next_milestone: StreakNextMilestone | null
 }

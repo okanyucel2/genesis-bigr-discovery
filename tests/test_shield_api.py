@@ -68,6 +68,47 @@ class TestOrchestratorCreateScan:
         assert scan.target_type == "domain"
 
 
+class TestOrchestratorSensitivity:
+    """Test sensitivity-based module filtering in create_scan()."""
+
+    @pytest.mark.asyncio
+    async def test_fragile_restricts_to_passive(self):
+        orch = ShieldOrchestrator()
+        scan = await orch.create_scan("192.168.1.50", depth=ScanDepth.DEEP, sensitivity="fragile")
+        assert set(scan.modules_enabled) == {"tls", "dns", "headers"}
+        assert scan.sensitivity == "fragile"
+
+    @pytest.mark.asyncio
+    async def test_cautious_excludes_creds_owasp(self):
+        orch = ShieldOrchestrator()
+        scan = await orch.create_scan("192.168.1.60", depth=ScanDepth.DEEP, sensitivity="cautious")
+        assert "creds" not in scan.modules_enabled
+        assert "owasp" not in scan.modules_enabled
+        assert "cve" not in scan.modules_enabled
+        assert "tls" in scan.modules_enabled
+        assert "ports" in scan.modules_enabled
+
+    @pytest.mark.asyncio
+    async def test_safe_no_restriction(self):
+        orch = ShieldOrchestrator()
+        scan = await orch.create_scan("192.168.1.1", depth=ScanDepth.DEEP, sensitivity="safe")
+        # safe = no restriction, full deep modules
+        assert "creds" in scan.modules_enabled
+        assert "owasp" in scan.modules_enabled
+
+    @pytest.mark.asyncio
+    async def test_none_sensitivity_no_restriction(self):
+        orch = ShieldOrchestrator()
+        scan = await orch.create_scan("192.168.1.1", depth=ScanDepth.DEEP)
+        assert "creds" in scan.modules_enabled
+
+    @pytest.mark.asyncio
+    async def test_sensitivity_stored_in_scan(self):
+        orch = ShieldOrchestrator()
+        scan = await orch.create_scan("192.168.1.50", sensitivity="fragile")
+        assert scan.to_dict()["sensitivity"] == "fragile"
+
+
 class TestOrchestratorGetScan:
     """Test ShieldOrchestrator.get_scan()."""
 

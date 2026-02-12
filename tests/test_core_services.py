@@ -131,9 +131,10 @@ class TestGetAllAssets:
         expected_keys = {
             "id", "ip", "mac", "hostname", "vendor", "os_hint",
             "bigr_category", "confidence_score", "scan_method",
-            "first_seen", "last_seen", "manual_category", "manual_note",
+            "first_seen", "last_seen", "sensitivity_level",
+            "manual_category", "manual_note",
             "is_ignored", "switch_host", "switch_port", "switch_port_index",
-            "agent_id", "site_name",
+            "agent_id", "site_name", "network_id",
         }
         assert set(result[0].keys()) == expected_keys
 
@@ -388,6 +389,22 @@ class TestTagUntag:
         await db_session.refresh(asset)
         assert asset.manual_category is None
         assert asset.manual_note is None
+
+
+class TestUpdateSensitivity:
+    async def test_update_existing_asset(self, db_session):
+        await _seed_scan_with_assets(db_session)
+
+        updated = await services.update_asset_sensitivity(db_session, "192.168.1.1", "fragile")
+        assert updated is True
+
+        stmt = select(AssetDB).where(AssetDB.ip == "192.168.1.1")
+        asset = (await db_session.execute(stmt)).scalar_one()
+        assert asset.sensitivity_level == "fragile"
+
+    async def test_update_nonexistent_returns_false(self, db_session):
+        updated = await services.update_asset_sensitivity(db_session, "10.10.10.10", "safe")
+        assert updated is False
 
 
 class TestSubnetOps:

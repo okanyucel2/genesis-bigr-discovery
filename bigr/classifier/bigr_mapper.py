@@ -17,7 +17,7 @@ from bigr.classifier.rules_engine import (
     apply_vendor_rules,
     load_rules,
 )
-from bigr.models import Asset, BigrCategory
+from bigr.models import Asset, BigrCategory, derive_sensitivity
 
 
 @dataclass
@@ -223,6 +223,11 @@ def classify_asset(asset: Asset, do_fingerprint: bool = True) -> Asset:
     # Restore mDNS evidence so it persists in output
     if mdns_services:
         asset.raw_evidence["mdns_services"] = mdns_services
+
+    # Derive IoT sensitivity level for safe-mode scanning
+    asset.sensitivity_level = derive_sensitivity(
+        asset.bigr_category, asset.vendor, asset.hostname, asset.os_hint,
+    ).value
 
     return asset
 

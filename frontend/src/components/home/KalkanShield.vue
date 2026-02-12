@@ -28,6 +28,12 @@ const stateGlow = computed(() => {
   }
 })
 
+const streakEmoji = computed(() => {
+  if (props.data.streakDays >= 90) return '\u2B50'  // star
+  if (props.data.streakDays >= 30) return '\uD83D\uDEE1\uFE0F'  // shield
+  return '\uD83D\uDD25'  // fire
+})
+
 const stateColor = computed(() => {
   switch (props.data.state) {
     case 'green':
@@ -76,6 +82,19 @@ const stateColor = computed(() => {
     <p class="mt-6 max-w-md text-center text-base font-medium text-slate-200 md:text-lg">
       {{ data.message }}
     </p>
+
+    <!-- Streak counter -->
+    <div
+      v-if="data.streakDays > 0"
+      class="mt-4 flex flex-col items-center gap-1"
+    >
+      <p class="text-sm font-semibold text-amber-400">
+        {{ streakEmoji }} {{ data.streakDays }} Gun kesintisiz guvende
+      </p>
+      <p v-if="data.streakMilestone" class="text-xs text-slate-400">
+        {{ data.streakMilestone }}
+      </p>
+    </div>
 
     <!-- Micro data row -->
     <div class="mt-4 flex items-center gap-6 text-xs text-slate-400">

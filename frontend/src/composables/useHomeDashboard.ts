@@ -15,6 +15,7 @@ import type {
   AssetChange,
   HumanNotification,
   GuardianStatusResponse,
+  StreakResponse,
 } from '@/types/api'
 import type {
   KalkanData,
@@ -43,8 +44,9 @@ export function useHomeDashboard() {
   const firewallEvents = ref<FirewallEvent[]>([])
   const changes = ref<AssetChange[]>([])
   const notifications = ref<HumanNotification[]>([])
-  const assets = ref<{ total_assets: number; assets: { ip: string; mac: string; hostname: string | null; vendor: string | null; first_seen: string | null }[] } | null>(null)
+  const assets = ref<{ total_assets: number; assets: { ip: string; mac: string; hostname: string | null; vendor: string | null; first_seen: string | null; sensitivity_level: string | null }[] } | null>(null)
   const guardianStatus = ref<GuardianStatusResponse | null>(null)
+  const streak = ref<StreakResponse | null>(null)
 
   function calcKalkanState(score: number): KalkanState {
     if (score >= 80) return 'green'
@@ -75,6 +77,7 @@ export function useHomeDashboard() {
     const guardianBlocked = guardianStatus.value?.stats?.blocked_queries ?? 0
     const blockedThisMonth = (fwStats?.blocked ?? 0) + guardianBlocked
 
+    const streakData = streak.value
     return {
       score,
       state,
@@ -84,6 +87,9 @@ export function useHomeDashboard() {
       complianceScore: compScore,
       riskScore: riskAvg,
       firewallScore: fwScore,
+      streakDays: streakData?.current_streak_days ?? 0,
+      longestStreak: streakData?.longest_streak_days ?? 0,
+      streakMilestone: streakData?.milestone?.title_tr ?? null,
     }
   })
 
@@ -150,10 +156,20 @@ export function useHomeDashboard() {
         firstSeen: a.first_seen,
       }))
 
+    // Sensitive devices (fragile/cautious IoT)
+    const sensitiveDevices = assetList
+      .filter((a) => a.sensitivity_level && a.sensitivity_level !== 'safe')
+      .map((a) => ({
+        ip: a.ip,
+        hostname: a.hostname,
+        sensitivity: a.sensitivity_level!,
+      }))
+
     return {
       totalDevices: assets.value?.total_assets ?? 0,
       deviceTypes,
       newDevices,
+      sensitiveDevices,
       lastScan: family.value?.last_scan ?? null,
     }
   })
@@ -206,6 +222,7 @@ export function useHomeDashboard() {
       bigrApi.getChanges(20),                           // 10
       bigrApi.getAssets(),                              // 11
       bigrApi.getGuardianStatus(),                       // 12
+      bigrApi.getStreak(),                               // 13
     ])
 
     // Extract data from settled results — each card degrades independently
@@ -222,9 +239,10 @@ export function useHomeDashboard() {
     if (results[10]!.status === 'fulfilled') changes.value = results[10]!.value.data.changes
     if (results[11]!.status === 'fulfilled') {
       const d = results[11]!.value.data
-      assets.value = { total_assets: d.total_assets, assets: d.assets.map((a) => ({ ip: a.ip, mac: a.mac, hostname: a.hostname, vendor: a.vendor, first_seen: a.first_seen })) }
+      assets.value = { total_assets: d.total_assets, assets: d.assets.map((a) => ({ ip: a.ip, mac: a.mac, hostname: a.hostname, vendor: a.vendor, first_seen: a.first_seen, sensitivity_level: a.sensitivity_level ?? null })) }
     }
     if (results[12]!.status === 'fulfilled') guardianStatus.value = results[12]!.value.data
+    if (results[13]!.status === 'fulfilled') streak.value = results[13]!.value.data
 
     // If ALL failed, set error
     const allFailed = results.every((r) => r.status === 'rejected')

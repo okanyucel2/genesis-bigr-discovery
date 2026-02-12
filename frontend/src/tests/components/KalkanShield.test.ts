@@ -13,6 +13,9 @@ function makeKalkan(overrides: Partial<KalkanData> = {}): KalkanData {
     complianceScore: 85,
     riskScore: 25,
     firewallScore: 100,
+    streakDays: 0,
+    longestStreak: 0,
+    streakMilestone: null,
     ...overrides,
   }
 }

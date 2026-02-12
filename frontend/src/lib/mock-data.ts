@@ -74,6 +74,7 @@ import type {
   AbuseIPDBSettings,
   CollectiveSignalReport,
   FamilyDevice,
+  StreakResponse,
 } from '@/types/api'
 
 // ---------------------------------------------------------------------------
@@ -122,6 +123,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(90),
     last_seen: daysAgo(0),
     manual_override: false,
+    sensitivity_level: 'safe',
   },
   {
     ip: '192.168.1.2',
@@ -138,6 +140,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(90),
     last_seen: daysAgo(0),
     manual_override: false,
+    sensitivity_level: 'safe',
   },
   {
     ip: '192.168.1.3',
@@ -154,6 +157,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(85),
     last_seen: daysAgo(0),
     manual_override: false,
+    sensitivity_level: 'safe',
   },
   {
     ip: '192.168.1.10',
@@ -170,6 +174,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(60),
     last_seen: daysAgo(0),
     manual_override: false,
+    sensitivity_level: 'safe',
   },
   {
     ip: '192.168.1.20',
@@ -186,6 +191,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(45),
     last_seen: daysAgo(0),
     manual_override: false,
+    sensitivity_level: 'safe',
   },
   {
     ip: '192.168.1.50',
@@ -202,6 +208,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(70),
     last_seen: daysAgo(0),
     manual_override: false,
+    sensitivity_level: 'cautious',
   },
   {
     ip: '192.168.1.51',
@@ -218,6 +225,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(40),
     last_seen: daysAgo(0),
     manual_override: false,
+    sensitivity_level: 'fragile',
   },
   {
     ip: '192.168.1.52',
@@ -234,6 +242,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(40),
     last_seen: daysAgo(0),
     manual_override: false,
+    sensitivity_level: 'fragile',
   },
   {
     ip: '192.168.1.100',
@@ -250,6 +259,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(30),
     last_seen: daysAgo(0),
     manual_override: false,
+    sensitivity_level: 'safe',
   },
   {
     ip: '192.168.1.101',
@@ -266,6 +276,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(25),
     last_seen: daysAgo(1),
     manual_override: false,
+    sensitivity_level: 'safe',
   },
   {
     ip: '192.168.1.102',
@@ -282,6 +293,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(3),
     last_seen: daysAgo(1),
     manual_override: false,
+    sensitivity_level: null,
   },
   {
     ip: '192.168.1.103',
@@ -298,6 +310,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(1),
     last_seen: daysAgo(0),
     manual_override: false,
+    sensitivity_level: null,
   },
   // ── Server VLAN 10.0.0.0/24 ──
   {
@@ -315,6 +328,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(120),
     last_seen: daysAgo(0),
     manual_override: false,
+    sensitivity_level: 'safe',
   },
   {
     ip: '10.0.0.10',
@@ -331,6 +345,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(100),
     last_seen: daysAgo(0),
     manual_override: false,
+    sensitivity_level: 'safe',
   },
   {
     ip: '10.0.0.11',
@@ -347,6 +362,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(100),
     last_seen: daysAgo(0),
     manual_override: false,
+    sensitivity_level: 'safe',
   },
   {
     ip: '10.0.0.20',
@@ -363,6 +379,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(100),
     last_seen: daysAgo(0),
     manual_override: true,
+    sensitivity_level: 'safe',
   },
   {
     ip: '10.0.0.30',
@@ -379,6 +396,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(110),
     last_seen: daysAgo(0),
     manual_override: false,
+    sensitivity_level: 'safe',
   },
   {
     ip: '10.0.0.40',
@@ -395,6 +413,7 @@ const MOCK_ASSETS: Asset[] = [
     first_seen: daysAgo(80),
     last_seen: daysAgo(0),
     manual_override: false,
+    sensitivity_level: 'safe',
   },
 ]
 
@@ -2035,6 +2054,16 @@ export function mockContributionStatus(): ContributionStatus {
     is_contributing: true,
     opt_in: true,
     privacy_level: 'anonymous',
+  }
+}
+
+export function mockStreak(): StreakResponse {
+  return {
+    current_streak_days: 42,
+    longest_streak_days: 67,
+    total_safe_days: 128,
+    milestone: { badge: 'shield', title_tr: 'Aylik Koruyucu', days_required: 30 },
+    next_milestone: { badge: 'star', title_tr: 'Ceyrek Sampiyonu', days_required: 90, days_remaining: 48 },
   }
 }
 

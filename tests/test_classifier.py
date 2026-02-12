@@ -223,3 +223,37 @@ class TestClassifyAsset:
         result = classify_asset(asset, do_fingerprint=False)
         assert result.bigr_category == BigrCategory.UNCLASSIFIED
         assert result.confidence_score < 0.3
+
+
+class TestClassifyAssetSensitivity:
+    """Integration tests: classify_asset sets sensitivity_level."""
+
+    def test_camera_classified_as_fragile(self):
+        asset = Asset(
+            ip="10.0.0.50",
+            mac="a4:14:37:00:11:22",
+            hostname="cam-entrance",
+            open_ports=[80, 554],
+        )
+        result = classify_asset(asset, do_fingerprint=False)
+        assert result.sensitivity_level == "fragile"
+
+    def test_printer_classified_as_cautious(self):
+        asset = Asset(
+            ip="10.0.0.60",
+            hostname="printer-floor3",
+            open_ports=[9100, 80],
+        )
+        result = classify_asset(asset, do_fingerprint=False)
+        assert result.bigr_category == BigrCategory.IOT
+        assert result.sensitivity_level == "cautious"
+
+    def test_switch_classified_as_safe(self):
+        asset = Asset(
+            ip="10.0.0.1",
+            mac="00:1e:bd:aa:bb:cc",
+            hostname="core-sw-01",
+            open_ports=[22, 80, 443, 161],
+        )
+        result = classify_asset(asset, do_fingerprint=False)
+        assert result.sensitivity_level == "safe"

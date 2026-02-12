@@ -128,6 +128,7 @@ class ShieldScan:
     shield_score: float | None = None
     grade: ShieldGrade | None = None
     scan_depth: ScanDepth = ScanDepth.QUICK
+    sensitivity: str | None = None
     modules_enabled: list[str] = field(default_factory=lambda: ["tls"])
     total_checks: int = 0
     passed_checks: int = 0
@@ -161,6 +162,7 @@ class ShieldScan:
             "shield_score": round(self.shield_score, 2) if self.shield_score is not None else None,
             "grade": self.grade.value if self.grade else None,
             "scan_depth": self.scan_depth.value,
+            "sensitivity": self.sensitivity,
             "modules_enabled": self.modules_enabled,
             "total_checks": self.total_checks,
             "passed_checks": self.passed_checks,

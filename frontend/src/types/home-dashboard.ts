@@ -26,6 +26,9 @@ export interface KalkanData {
   complianceScore: number
   riskScore: number
   firewallScore: number
+  streakDays: number
+  longestStreak: number
+  streakMilestone: string | null
 }
 
 // 4 Hayat Kartlari
@@ -61,6 +64,11 @@ export interface EvimCard {
     hostname: string | null
     vendor: string | null
     firstSeen: string | null
+  }[]
+  sensitiveDevices: {
+    ip: string
+    hostname: string | null
+    sensitivity: string
   }[]
   lastScan: string | null
 }

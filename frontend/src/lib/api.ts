@@ -70,6 +70,7 @@ import type {
   WatcherStatus,
   WatcherHistoryResponse,
   WatcherAlertsResponse,
+  StreakResponse,
 } from '@/types/api'
 import type { ShieldScanResponse, ShieldFindingsResponse, ShieldModulesResponse } from '@/types/shield'
 import {
@@ -127,6 +128,7 @@ import {
   mockCollectiveThreats,
   mockCollectiveFeed,
   mockFamilyDevices,
+  mockStreak,
 } from '@/lib/mock-data'
 
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
@@ -701,4 +703,10 @@ export const bigrApi = {
       : client.post<{ status: string; subnet: string }>('/api/watcher/scan-now', null, {
           params: subnet ? { subnet } : {},
         }),
+
+  // Engagement
+  getStreak: (subscriptionId = 'default') =>
+    DEMO_MODE
+      ? mockResponse(mockStreak())
+      : client.get<StreakResponse>('/api/engagement/streak', { params: { subscription_id: subscriptionId } }),
 }

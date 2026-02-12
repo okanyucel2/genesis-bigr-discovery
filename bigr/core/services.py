@@ -170,6 +170,7 @@ async def get_all_assets(
             "scan_method": a.scan_method,
             "first_seen": a.first_seen,
             "last_seen": a.last_seen,
+            "sensitivity_level": a.sensitivity_level,
             "manual_category": a.manual_category,
             "manual_note": a.manual_note,
             "is_ignored": a.is_ignored,
@@ -572,6 +573,25 @@ async def tag_asset_async(
     )
     await session.execute(stmt)
     await session.commit()
+
+
+async def update_asset_sensitivity(
+    session: AsyncSession,
+    ip: str,
+    sensitivity: str,
+) -> bool:
+    """Update an asset's sensitivity level manually.
+
+    Returns True if the asset was found and updated, False otherwise.
+    """
+    stmt = (
+        update(AssetDB)
+        .where(AssetDB.ip == ip)
+        .values(sensitivity_level=sensitivity)
+    )
+    result = await session.execute(stmt)
+    await session.commit()
+    return result.rowcount > 0
 
 
 async def untag_asset_async(session: AsyncSession, ip: str) -> None:

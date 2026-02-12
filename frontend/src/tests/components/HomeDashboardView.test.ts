@@ -18,6 +18,7 @@ vi.mock('@/lib/api', () => ({
     getChanges: vi.fn(),
     getAssets: vi.fn(),
     getGuardianStatus: vi.fn(),
+    getStreak: vi.fn(),
   },
 }))
 
@@ -37,6 +38,7 @@ function mockAllApis() {
   vi.mocked(bigrApi.getChanges).mockResolvedValue({ data: { changes: [] } } as never)
   vi.mocked(bigrApi.getAssets).mockResolvedValue({ data: { assets: [], total_assets: 12, target: '', scan_method: '', duration_seconds: 0, category_summary: {} } } as never)
   vi.mocked(bigrApi.getGuardianStatus).mockResolvedValue({ data: { guardian_active: true, dns_filtering: true, blocked_domains_count: 45000, stats: { total_queries: 1000, blocked_queries: 120, allowed_queries: 880, cache_hit_rate: 0.4 }, lifetime_stats: { total_queries: 5000, blocked_queries: 600, allowed_queries: 4400 } } } as never)
+  vi.mocked(bigrApi.getStreak).mockResolvedValue({ data: { current_streak_days: 42, longest_streak_days: 67, total_safe_days: 128, streak_broken_count: 3, milestone: { badge: 'fire', title_tr: 'Aylik Koruyucu', days_required: 30 }, next_milestone: { badge: 'star', title_tr: 'Ceyrek Sampiyonu', days_remaining: 48 } } } as never)
 }
 
 describe('HomeDashboardView', () => {
@@ -60,6 +62,7 @@ describe('HomeDashboardView', () => {
     vi.mocked(bigrApi.getChanges).mockReturnValue(new Promise(() => {}) as never)
     vi.mocked(bigrApi.getAssets).mockReturnValue(new Promise(() => {}) as never)
     vi.mocked(bigrApi.getGuardianStatus).mockReturnValue(new Promise(() => {}) as never)
+    vi.mocked(bigrApi.getStreak).mockReturnValue(new Promise(() => {}) as never)
 
     const wrapper = mount(HomeDashboardView)
     await wrapper.vm.$nextTick()
@@ -93,6 +96,7 @@ describe('HomeDashboardView', () => {
     vi.mocked(bigrApi.getChanges).mockReturnValue(rejection() as never)
     vi.mocked(bigrApi.getAssets).mockReturnValue(rejection() as never)
     vi.mocked(bigrApi.getGuardianStatus).mockReturnValue(rejection() as never)
+    vi.mocked(bigrApi.getStreak).mockReturnValue(rejection() as never)
 
     const wrapper = mount(HomeDashboardView)
     await flushPromises()

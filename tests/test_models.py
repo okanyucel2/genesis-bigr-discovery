@@ -2,7 +2,17 @@
 
 from datetime import datetime, timezone
 
-from bigr.models import Asset, BigrCategory, ConfidenceLevel, ScanMethod, ScanResult, is_randomized_mac, normalize_mac
+from bigr.models import (
+    Asset,
+    BigrCategory,
+    ConfidenceLevel,
+    ScanMethod,
+    ScanResult,
+    SensitivityLevel,
+    derive_sensitivity,
+    is_randomized_mac,
+    normalize_mac,
+)
 
 
 class TestBigrCategory:
@@ -101,6 +111,36 @@ class TestScanResult:
         assert d["target"] == "192.168.1.0/24"
         assert d["total_assets"] == 0
         assert d["duration_seconds"] == 60.0
+
+
+class TestDeriveSensitivity:
+    def test_iot_camera_hostname_is_fragile(self):
+        result = derive_sensitivity(BigrCategory.IOT, "Hikvision", "cam-entrance", None)
+        assert result == SensitivityLevel.FRAGILE
+
+    def test_iot_sensor_hostname_is_fragile(self):
+        result = derive_sensitivity(BigrCategory.IOT, "Acme", "sensor-temp", None)
+        assert result == SensitivityLevel.FRAGILE
+
+    def test_iot_embedded_os_is_fragile(self):
+        result = derive_sensitivity(BigrCategory.IOT, "Generic", "device-01", "Embedded Linux 4.x")
+        assert result == SensitivityLevel.FRAGILE
+
+    def test_iot_printer_is_cautious(self):
+        result = derive_sensitivity(BigrCategory.IOT, "HP", "printer-floor1", None)
+        assert result == SensitivityLevel.CAUTIOUS
+
+    def test_iot_generic_is_cautious(self):
+        result = derive_sensitivity(BigrCategory.IOT, "Unknown", "smart-plug-01", None)
+        assert result == SensitivityLevel.CAUTIOUS
+
+    def test_ag_ve_sistemler_is_safe(self):
+        result = derive_sensitivity(BigrCategory.AG_VE_SISTEMLER, "Cisco", "sw-core-01", None)
+        assert result == SensitivityLevel.SAFE
+
+    def test_uygulamalar_is_safe(self):
+        result = derive_sensitivity(BigrCategory.UYGULAMALAR, "Dell", "web-srv-01", "Ubuntu 22.04")
+        assert result == SensitivityLevel.SAFE
 
 
 class TestNormalizeMac:

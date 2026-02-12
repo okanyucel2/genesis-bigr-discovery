@@ -96,6 +96,7 @@ class AssetDB(Base):
     )
     first_seen: Mapped[str] = mapped_column(String, nullable=False)
     last_seen: Mapped[str] = mapped_column(String, nullable=False)
+    sensitivity_level: Mapped[str | None] = mapped_column(String, nullable=True)
     manual_category: Mapped[str | None] = mapped_column(String, nullable=True)
     manual_note: Mapped[str | None] = mapped_column(String, nullable=True)
     is_ignored: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -362,3 +363,18 @@ class FirewallEventDB(Base):
     protocol: Mapped[str] = mapped_column(String, nullable=False, default="tcp")
     process_name: Mapped[str | None] = mapped_column(String, nullable=True)
     direction: Mapped[str] = mapped_column(String, nullable=False, default="outbound")
+
+
+class SafetyStreakDB(Base):
+    """Safety streak tracking for Kalkan Shield engagement."""
+
+    __tablename__ = "safety_streaks"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    subscription_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    current_streak_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    longest_streak_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    streak_start_date: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_check_date: Mapped[str | None] = mapped_column(String, nullable=True)
+    streak_broken_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_safe_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

@@ -29,6 +29,7 @@ from bigr.firewall.api import router as firewall_router
 from bigr.threat.abuseipdb_api import router as abuseipdb_router
 from bigr.threat.api import router as threat_router
 from bigr.guardian.api.routes import router as guardian_router
+from bigr.engagement.api import router as engagement_router
 from bigr.watcher_api import router as watcher_router
 from bigr.topology import build_subnet_topology, build_topology
 
@@ -101,6 +102,7 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
     app.include_router(family_router)
     app.include_router(firewall_router)
     app.include_router(guardian_router)
+    app.include_router(engagement_router)
     app.include_router(watcher_router)
     _data_path = Path(data_path)
 
@@ -185,6 +187,27 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
                 return JSONResponse({"error": "Asset not found"}, status_code=404)
             history = await services.get_asset_history(db, ip=ip)
             return {"asset": asset, "history": history}
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+    @app.patch("/api/assets/{ip}/sensitivity", response_class=JSONResponse)
+    async def api_update_sensitivity(
+        ip: str,
+        sensitivity: str,
+        db: AsyncSession = Depends(get_db),
+    ):
+        """Update an asset's sensitivity level."""
+        valid = {"fragile", "cautious", "safe"}
+        if sensitivity not in valid:
+            return JSONResponse(
+                {"error": f"Invalid sensitivity. Valid: {', '.join(sorted(valid))}"},
+                status_code=400,
+            )
+        try:
+            updated = await services.update_asset_sensitivity(db, ip, sensitivity)
+            if not updated:
+                return JSONResponse({"error": "Asset not found"}, status_code=404)
+            return {"ip": ip, "sensitivity_level": sensitivity}
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, status_code=500)
 

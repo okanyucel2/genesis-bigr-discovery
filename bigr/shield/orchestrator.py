@@ -32,6 +32,13 @@ DEPTH_MODULES: dict[ScanDepth, list[str]] = {
     ScanDepth.DEEP: ["tls", "ports", "cve", "headers", "dns", "creds", "owasp"],
 }
 
+# IoT safe-mode: restrict modules based on device sensitivity
+SENSITIVITY_MODULES: dict[str, list[str]] = {
+    "fragile": ["tls", "dns", "headers"],           # passive only
+    "cautious": ["tls", "dns", "headers", "ports"],  # no creds/owasp/nuclei
+    "safe": [],                                       # no restriction
+}
+
 
 class ShieldOrchestrator:
     """Orchestrates Shield scans across multiple modules."""
@@ -54,6 +61,7 @@ class ShieldOrchestrator:
         target: str,
         depth: ScanDepth = ScanDepth.QUICK,
         modules: list[str] | None = None,
+        sensitivity: str | None = None,
     ) -> ShieldScan:
         """Create and queue a new scan.
 
@@ -61,12 +69,21 @@ class ShieldOrchestrator:
             target: The target to scan (domain, IP, or CIDR).
             depth: Scan depth controlling which modules run.
             modules: Explicit module list (overrides depth default).
+            sensitivity: Device sensitivity level (fragile/cautious/safe).
+                When set and not "safe", the enabled modules are intersected
+                with the allowed modules for that sensitivity tier.
 
         Returns:
             The created ShieldScan instance.
         """
         if modules is None:
-            modules = DEPTH_MODULES.get(depth, ["tls"])
+            modules = list(DEPTH_MODULES.get(depth, ["tls"]))
+
+        # Apply sensitivity filter — restrict modules for fragile/cautious devices
+        if sensitivity and sensitivity != "safe":
+            allowed = SENSITIVITY_MODULES.get(sensitivity)
+            if allowed is not None:
+                modules = [m for m in modules if m in allowed]
 
         # Determine target type
         target_type = _detect_target_type(target)
@@ -75,6 +92,7 @@ class ShieldOrchestrator:
             target=target,
             target_type=target_type,
             scan_depth=depth,
+            sensitivity=sensitivity,
             modules_enabled=modules,
         )
         self._scans[scan.id] = scan

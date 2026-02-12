@@ -19,11 +19,15 @@ router = APIRouter(prefix="/api/shield", tags=["shield"])
 orchestrator = ShieldOrchestrator()
 
 
+_VALID_SENSITIVITY = {"fragile", "cautious", "safe"}
+
+
 @router.post("/scan", status_code=202)
 async def start_scan(
     target: str,
     depth: str = "quick",
     modules: list[str] | None = None,
+    sensitivity: str | None = None,
 ) -> JSONResponse:
     """Start a new Shield scan (async).
 
@@ -38,8 +42,14 @@ async def start_scan(
             detail=f"Invalid depth: '{depth}'. Valid values: quick, standard, deep",
         )
 
+    if sensitivity is not None and sensitivity not in _VALID_SENSITIVITY:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid sensitivity: '{sensitivity}'. Valid values: fragile, cautious, safe",
+        )
+
     scan = await orchestrator.create_scan(
-        target=target, depth=scan_depth, modules=modules
+        target=target, depth=scan_depth, modules=modules, sensitivity=sensitivity,
     )
 
     # Run scan in background — return immediately so frontend can poll
@@ -108,14 +118,24 @@ async def list_modules() -> dict:
 
 
 @router.post("/quick")
-async def quick_scan(target: str, db: AsyncSession = Depends(get_db)) -> dict:
+async def quick_scan(
+    target: str,
+    sensitivity: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
     """Quick scan - creates, runs, and returns results inline.
 
     This is a convenience endpoint that runs a quick-depth scan
     and returns the full results in a single request.
     """
+    if sensitivity is not None and sensitivity not in _VALID_SENSITIVITY:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid sensitivity: '{sensitivity}'. Valid values: fragile, cautious, safe",
+        )
+
     scan = await orchestrator.create_scan(
-        target=target, depth=ScanDepth.QUICK
+        target=target, depth=ScanDepth.QUICK, sensitivity=sensitivity,
     )
 
     try:

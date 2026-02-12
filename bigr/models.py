@@ -79,6 +79,46 @@ class ConfidenceLevel(str, enum.Enum):
         return cls.UNCLASSIFIED
 
 
+class SensitivityLevel(str, enum.Enum):
+    FRAGILE = "fragile"
+    CAUTIOUS = "cautious"
+    SAFE = "safe"
+
+
+_FRAGILE_HOSTNAME_PATTERNS = {"cam", "camera", "sensor", "thermostat"}
+_FRAGILE_OS_KEYWORDS = {"embedded"}
+
+
+def derive_sensitivity(
+    category: BigrCategory | str,
+    vendor: str | None,
+    hostname: str | None,
+    os_hint: str | None,
+) -> SensitivityLevel:
+    """Derive device sensitivity level for safe-mode scanning.
+
+    - fragile: IoT + hostname contains cam/camera/sensor/thermostat OR os_hint contains embedded
+    - cautious: IoT (all remaining, including printers)
+    - safe: everything else
+    """
+    cat_value = category.value if isinstance(category, BigrCategory) else category
+    if cat_value != "iot":
+        return SensitivityLevel.SAFE
+
+    # IoT device — check for fragile indicators
+    hn = (hostname or "").lower()
+    for pattern in _FRAGILE_HOSTNAME_PATTERNS:
+        if pattern in hn:
+            return SensitivityLevel.FRAGILE
+
+    os_lower = (os_hint or "").lower()
+    for keyword in _FRAGILE_OS_KEYWORDS:
+        if keyword in os_lower:
+            return SensitivityLevel.FRAGILE
+
+    return SensitivityLevel.CAUTIOUS
+
+
 class ScanMethod(str, enum.Enum):
     PASSIVE = "passive"
     ACTIVE = "active"
@@ -99,6 +139,7 @@ class Asset:
     first_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     raw_evidence: dict = field(default_factory=dict)
+    sensitivity_level: str | None = None
 
     @property
     def confidence_level(self) -> ConfidenceLevel:
@@ -120,6 +161,7 @@ class Asset:
             "first_seen": self.first_seen.isoformat(),
             "last_seen": self.last_seen.isoformat(),
             "raw_evidence": self.raw_evidence,
+            "sensitivity_level": self.sensitivity_level,
         }
 
 
