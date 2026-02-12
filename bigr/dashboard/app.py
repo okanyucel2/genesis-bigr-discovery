@@ -76,10 +76,10 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         for origin in os.environ.get("CORS_ORIGINS", "").split(",")
         if origin.strip()
     ]
-    if settings.DEBUG:
-        allowed_origins.append("http://localhost:5173")
-        allowed_origins.append("http://localhost:19978")
-        allowed_origins.append("http://127.0.0.1:19978")
+    # Always allow localhost for local development (safe — only reachable locally)
+    for local in ("http://localhost:5173", "http://localhost:19978", "http://127.0.0.1:19978"):
+        if local not in allowed_origins:
+            allowed_origins.append(local)
     if allowed_origins:
         app.add_middleware(
             CORSMiddleware,
