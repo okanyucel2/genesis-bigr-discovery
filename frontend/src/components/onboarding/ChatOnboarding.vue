@@ -20,13 +20,19 @@ const chatPhase = ref<'scanning' | 'identifying' | 'complete'>('scanning')
 const messages = ref<ChatMessage[]>([])
 const chatContainer = ref<HTMLElement | null>(null)
 
-const discoveredDevices = ref<{ type: string; name: string; vendor: string | null; model: string | null; ip: string }[]>([])
+interface DiscoveredDevice { type: string; name: string; vendor: string | null; model: string | null }
+
+const MAX_ASK_DEVICES = 3
+
+const allDevices = ref<DiscoveredDevice[]>([])
+const notableDevices = ref<DiscoveredDevice[]>([])
 const currentDeviceIdx = ref(0)
 const identifiedCount = ref(0)
 
-const currentDevice = computed(() => discoveredDevices.value[currentDeviceIdx.value] ?? null)
+const currentDevice = computed(() => notableDevices.value[currentDeviceIdx.value] ?? null)
+const remainingCount = computed(() => Math.max(0, allDevices.value.length - notableDevices.value.length))
 const animDevices = computed(() =>
-  discoveredDevices.value.map((d) => ({ type: d.type, name: d.name })),
+  allDevices.value.map((d) => ({ type: d.type, name: d.name })),
 )
 
 function addMessage(msg: Omit<ChatMessage, 'id'>) {
@@ -42,39 +48,40 @@ async function startScanning() {
   // Start the actual scan
   await store.startScan()
 
-  // Simulate discovered devices with human-friendly names
-  const mockDeviceProfiles = [
+  // Simulate discovered devices with human-friendly names (each unique)
+  const mockDeviceProfiles: { vendor: string | null; hostname: string | null; model: string | null }[] = [
     { vendor: 'Apple', hostname: 'Okan\'in iPhone\'u', model: 'iPhone 15 Pro' },
     { vendor: 'Samsung', hostname: null, model: 'Galaxy Smart TV 55"' },
     { vendor: 'Apple', hostname: 'MacBook Pro', model: 'MacBook Pro M3' },
     { vendor: 'TP-Link', hostname: null, model: 'Archer AX73' },
     { vendor: 'Apple', hostname: 'iPad', model: 'iPad Air' },
-    { vendor: null, hostname: null, model: null },
     { vendor: 'Samsung', hostname: null, model: 'Galaxy S24' },
     { vendor: 'LG', hostname: null, model: 'Yatak Odasi TV' },
+    { vendor: null, hostname: null, model: null },
   ]
 
   const deviceCount = store.networkInfo ? Math.max(store.networkInfo.device_count, 4) : 4
-  const devices = Array.from({ length: deviceCount }, (_, i) => {
-    const profile = mockDeviceProfiles[i % mockDeviceProfiles.length]!
+  // Build unique device list — never cycle/repeat profiles
+  const devices: DiscoveredDevice[] = Array.from({ length: deviceCount }, (_, i) => {
+    const profile = i < mockDeviceProfiles.length
+      ? mockDeviceProfiles[i]!
+      : { vendor: null, hostname: null, model: null }
     const guess = guessDeviceFromVendor(profile.vendor)
     const displayName = profile.hostname ?? profile.model ?? guess.label
-    return {
-      type: guess.type,
-      name: displayName,
-      vendor: profile.vendor,
-      model: profile.model,
-      ip: `192.168.1.${100 + i}`,
-    }
+    return { type: guess.type, name: displayName, vendor: profile.vendor, model: profile.model }
   })
 
-  discoveredDevices.value = devices
+  allDevices.value = devices
+
+  // Pick notable devices to ask about: ones with a known vendor/hostname (max MAX_ASK_DEVICES)
+  const notable = devices.filter((d) => d.vendor !== null).slice(0, MAX_ASK_DEVICES)
+  notableDevices.value = notable
 
   setTimeout(() => {
     const count = devices.length
     addMessage({
       sender: 'bigr',
-      text: `${count} cihaz buldum! Simdi bunlari tanimlamamda yardim eder misin?`,
+      text: `${count} cihaz buldum! En onemli ${notable.length} tanesini sana soracagim.`,
     })
 
     chatPhase.value = 'identifying'
@@ -127,13 +134,20 @@ function handleDeviceResponse(value: string) {
 
 function finishIdentification() {
   chatPhase.value = 'complete'
-  const total = discoveredDevices.value.length
+  const total = allDevices.value.length
   const score = Math.round(store.safetyScore * 100)
 
   addMessage({
     sender: 'bigr',
-    text: `Harika! ${identifiedCount.value}/${total} cihaz tanimlandi. Guvenlik skorunuz: ${score}. Aileniz koruma altinda! 🛡️`,
+    text: `Harika! ${identifiedCount.value} cihaz tanimlandi. Guvenlik skorunuz: ${score}. Aileniz koruma altinda! 🛡️`,
   })
+
+  if (remainingCount.value > 0) {
+    addMessage({
+      sender: 'bigr',
+      text: `Geri kalan ${remainingCount.value} cihazi dashboard'dan toplu tanimlayabilirsin. Simdilik hepsini izliyorum. 👀`,
+    })
+  }
 
   addMessage({
     sender: 'bigr',

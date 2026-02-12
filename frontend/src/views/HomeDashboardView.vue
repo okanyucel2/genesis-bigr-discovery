@@ -18,6 +18,7 @@ const {
   ailem,
   evim,
   bolgem,
+  deviceLookup,
   firewallEvents,
   familyTimeline,
   changes,
@@ -114,6 +115,7 @@ onMounted(() => {
         :firewall-events="firewallEvents"
         :family-timeline="familyTimeline"
         :changes="changes"
+        :device-lookup="deviceLookup"
       />
     </template>
   </div>

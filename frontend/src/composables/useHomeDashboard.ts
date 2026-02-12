@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { bigrApi } from '@/lib/api'
+import { buildDeviceLookup } from '@/lib/device-icons'
 import type {
   ComplianceResponse,
   RiskResponse,
@@ -167,6 +168,10 @@ export function useHomeDashboard() {
     }
   })
 
+  const deviceLookup = computed<Record<string, string>>(() =>
+    buildDeviceLookup(assets.value?.assets ?? []),
+  )
+
   const dashboardData = computed<HomeDashboardData>(() => ({
     kalkan: kalkan.value,
     verilerim: verilerim.value,
@@ -229,6 +234,7 @@ export function useHomeDashboard() {
     ailem,
     evim,
     bolgem,
+    deviceLookup,
     firewallEvents,
     familyTimeline,
     familyAlerts,

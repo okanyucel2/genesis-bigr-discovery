@@ -7,14 +7,20 @@ import type {
 } from '@/types/api'
 import type { TimelineItem, TimelineSeverity } from '@/types/home-dashboard'
 
-function firewallToTimeline(events: FirewallEvent[]): TimelineItem[] {
+type DeviceLookup = Record<string, string>
+
+function resolveIp(ip: string, lookup: DeviceLookup): string {
+  return lookup[ip] ?? ip
+}
+
+function firewallToTimeline(events: FirewallEvent[], lookup: DeviceLookup): TimelineItem[] {
   return events.map((e) => ({
     id: `fw_${e.id}`,
     source: 'firewall' as const,
     severity: e.action === 'block' ? 'medium' as TimelineSeverity : 'info' as TimelineSeverity,
     message: e.action === 'block'
-      ? `${e.source_ip} → ${e.dest_ip}:${e.dest_port} engellendi`
-      : `${e.source_ip} → ${e.dest_ip}:${e.dest_port} izin verildi`,
+      ? `${resolveIp(e.source_ip, lookup)} → ${resolveIp(e.dest_ip, lookup)}:${e.dest_port} engellendi`
+      : `${resolveIp(e.source_ip, lookup)} → ${resolveIp(e.dest_ip, lookup)}:${e.dest_port} izin verildi`,
     detail: [
       `Protokol: ${e.protocol.toUpperCase()}`,
       `Yon: ${e.direction === 'inbound' ? 'Gelen' : 'Giden'}`,
@@ -44,14 +50,14 @@ function familyToTimeline(entries: FamilyTimelineEntry[]): TimelineItem[] {
   })
 }
 
-function changesToTimeline(changes: AssetChange[]): TimelineItem[] {
+function changesToTimeline(changes: AssetChange[], lookup: DeviceLookup): TimelineItem[] {
   return changes.map((c) => ({
     id: `chg_${c.id}`,
     source: 'change' as const,
     severity: c.change_type === 'new' ? 'medium' as TimelineSeverity : 'info' as TimelineSeverity,
     message: c.change_type === 'new'
-      ? `Yeni cihaz: ${c.ip}`
-      : `${c.ip} - ${c.field_name ?? 'alan'} degisti`,
+      ? `Yeni cihaz: ${resolveIp(c.ip, lookup)}`
+      : `${resolveIp(c.ip, lookup)} - ${c.field_name ?? 'alan'} degisti`,
     detail: c.old_value || c.new_value
       ? `${c.old_value ?? '(yok)'} → ${c.new_value ?? '(yok)'}`
       : null,
@@ -81,11 +87,12 @@ export function useTimeline() {
     familyEntries: FamilyTimelineEntry[],
     changesList: AssetChange[],
     collectiveThreats: CollectiveSignalReport[],
+    deviceLookup: DeviceLookup = {},
   ): TimelineItem[] {
     const all = [
-      ...firewallToTimeline(firewallEvents),
+      ...firewallToTimeline(firewallEvents, deviceLookup),
       ...familyToTimeline(familyEntries),
-      ...changesToTimeline(changesList),
+      ...changesToTimeline(changesList, deviceLookup),
       ...collectiveToTimeline(collectiveThreats),
     ]
 

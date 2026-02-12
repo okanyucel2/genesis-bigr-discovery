@@ -14,6 +14,7 @@ const props = defineProps<{
   familyTimeline: FamilyTimelineEntry[]
   changes: AssetChange[]
   collectiveThreats?: CollectiveSignalReport[]
+  deviceLookup?: Record<string, string>
 }>()
 
 const { visibleCount, buildTimeline, toggleExpand, isExpanded, showMore } = useTimeline()
@@ -24,6 +25,7 @@ const allItems = computed(() =>
     props.familyTimeline,
     props.changes,
     props.collectiveThreats ?? [],
+    props.deviceLookup ?? {},
   ),
 )
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { EvimCard } from '@/types/home-dashboard'
+import { resolveDeviceName } from '@/lib/device-icons'
 
 defineProps<{
   data: EvimCard
@@ -37,7 +38,7 @@ defineEmits<{
     >
       <p class="text-xs font-medium text-amber-300">Yeni cihaz algilandi</p>
       <p class="mt-0.5 text-[10px] text-slate-400">
-        {{ device.hostname ?? device.vendor ?? device.ip }}
+        {{ resolveDeviceName(device.ip, device.hostname, device.vendor) }}
       </p>
       <div class="mt-2 flex gap-2">
         <button

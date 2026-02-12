@@ -49,6 +49,29 @@ export function guessDeviceFromVendor(vendor: string | null): DeviceGuess {
   return DEFAULT_GUESS
 }
 
+/**
+ * Best human-readable name for a device.
+ * Priority: hostname > vendor > ip (last resort)
+ */
+export function resolveDeviceName(ip: string, hostname: string | null, vendor: string | null): string {
+  if (hostname) return hostname
+  if (vendor) return `${vendor} Cihaz`
+  return ip
+}
+
+/**
+ * Build an IP → display name lookup map from an asset list.
+ */
+export function buildDeviceLookup(
+  assets: { ip: string; hostname: string | null; vendor: string | null }[],
+): Record<string, string> {
+  const map: Record<string, string> = {}
+  for (const a of assets) {
+    map[a.ip] = resolveDeviceName(a.ip, a.hostname, a.vendor)
+  }
+  return map
+}
+
 export function getDeviceIcon(deviceType: string): string {
   const iconMap: Record<string, string> = {
     phone: '📱',
