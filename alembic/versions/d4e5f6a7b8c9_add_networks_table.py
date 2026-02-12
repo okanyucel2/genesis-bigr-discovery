@@ -20,37 +20,47 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    from sqlalchemy import inspect as sa_inspect
+    conn = op.get_bind()
+    inspector = sa_inspect(conn)
+    existing = set(inspector.get_table_names())
+
     # 1. Create networks table
-    op.create_table(
-        'networks',
-        sa.Column('id', sa.String(), nullable=False),
-        sa.Column('fingerprint_hash', sa.String(), nullable=False),
-        sa.Column('gateway_mac', sa.String(), nullable=True),
-        sa.Column('gateway_ip', sa.String(), nullable=True),
-        sa.Column('ssid', sa.String(), nullable=True),
-        sa.Column('friendly_name', sa.String(), nullable=True),
-        sa.Column('agent_id', sa.String(), nullable=True),
-        sa.Column('first_seen', sa.String(), nullable=False),
-        sa.Column('last_seen', sa.String(), nullable=False),
-        sa.Column('asset_count', sa.Integer(), nullable=False, server_default='0'),
-        sa.ForeignKeyConstraint(['agent_id'], ['agents.id']),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('fingerprint_hash', name='uq_network_fingerprint'),
-    )
+    if 'networks' not in existing:
+        op.create_table(
+            'networks',
+            sa.Column('id', sa.String(), nullable=False),
+            sa.Column('fingerprint_hash', sa.String(), nullable=False),
+            sa.Column('gateway_mac', sa.String(), nullable=True),
+            sa.Column('gateway_ip', sa.String(), nullable=True),
+            sa.Column('ssid', sa.String(), nullable=True),
+            sa.Column('friendly_name', sa.String(), nullable=True),
+            sa.Column('agent_id', sa.String(), nullable=True),
+            sa.Column('first_seen', sa.String(), nullable=False),
+            sa.Column('last_seen', sa.String(), nullable=False),
+            sa.Column('asset_count', sa.Integer(), nullable=False, server_default='0'),
+            sa.ForeignKeyConstraint(['agent_id'], ['agents.id']),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('fingerprint_hash', name='uq_network_fingerprint'),
+        )
 
     # 2. Add network_id FK to scans
-    op.add_column('scans', sa.Column('network_id', sa.String(), nullable=True))
-    op.create_foreign_key(
-        'fk_scans_network_id', 'scans', 'networks',
-        ['network_id'], ['id'],
-    )
+    scans_cols = {c['name'] for c in inspector.get_columns('scans')}
+    if 'network_id' not in scans_cols:
+        op.add_column('scans', sa.Column('network_id', sa.String(), nullable=True))
+        op.create_foreign_key(
+            'fk_scans_network_id', 'scans', 'networks',
+            ['network_id'], ['id'],
+        )
 
     # 3. Add network_id FK to assets
-    op.add_column('assets', sa.Column('network_id', sa.String(), nullable=True))
-    op.create_foreign_key(
-        'fk_assets_network_id', 'assets', 'networks',
-        ['network_id'], ['id'],
-    )
+    assets_cols = {c['name'] for c in inspector.get_columns('assets')}
+    if 'network_id' not in assets_cols:
+        op.add_column('assets', sa.Column('network_id', sa.String(), nullable=True))
+        op.create_foreign_key(
+            'fk_assets_network_id', 'assets', 'networks',
+            ['network_id'], ['id'],
+        )
 
 
 def downgrade() -> None:

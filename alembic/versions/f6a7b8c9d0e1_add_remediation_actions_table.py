@@ -20,19 +20,24 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        'remediation_actions',
-        sa.Column('id', sa.String(), nullable=False),
-        sa.Column('asset_ip', sa.String(), nullable=False),
-        sa.Column('action_type', sa.String(), nullable=False),
-        sa.Column('title', sa.String(), nullable=False),
-        sa.Column('severity', sa.String(), nullable=False, server_default='medium'),
-        sa.Column('status', sa.String(), nullable=False, server_default='pending'),
-        sa.Column('executed_at', sa.String(), nullable=True),
-        sa.Column('result', sa.Text(), nullable=True),
-        sa.Column('created_at', sa.String(), nullable=False),
-        sa.PrimaryKeyConstraint('id'),
-    )
+    from sqlalchemy import inspect as sa_inspect
+    conn = op.get_bind()
+    existing = set(sa_inspect(conn).get_table_names())
+
+    if 'remediation_actions' not in existing:
+        op.create_table(
+            'remediation_actions',
+            sa.Column('id', sa.String(), nullable=False),
+            sa.Column('asset_ip', sa.String(), nullable=False),
+            sa.Column('action_type', sa.String(), nullable=False),
+            sa.Column('title', sa.String(), nullable=False),
+            sa.Column('severity', sa.String(), nullable=False, server_default='medium'),
+            sa.Column('status', sa.String(), nullable=False, server_default='pending'),
+            sa.Column('executed_at', sa.String(), nullable=True),
+            sa.Column('result', sa.Text(), nullable=True),
+            sa.Column('created_at', sa.String(), nullable=False),
+            sa.PrimaryKeyConstraint('id'),
+        )
 
 
 def downgrade() -> None:

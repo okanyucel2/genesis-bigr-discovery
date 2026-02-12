@@ -20,22 +20,27 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        'subscriptions',
-        sa.Column('id', sa.String(), nullable=False),
-        sa.Column('device_id', sa.String(), nullable=False),
-        sa.Column('plan_id', sa.String(), nullable=False, server_default='free'),
-        sa.Column('activated_at', sa.String(), nullable=False),
-        sa.Column('expires_at', sa.String(), nullable=True),
-        sa.Column('is_active', sa.Integer(), nullable=False, server_default='1'),
-        sa.Column('stripe_customer_id', sa.String(), nullable=True),
-        sa.PrimaryKeyConstraint('id'),
-    )
-    op.create_index(
-        'ix_subscriptions_device_id',
-        'subscriptions',
-        ['device_id'],
-    )
+    from sqlalchemy import inspect as sa_inspect
+    conn = op.get_bind()
+    existing = set(sa_inspect(conn).get_table_names())
+
+    if 'subscriptions' not in existing:
+        op.create_table(
+            'subscriptions',
+            sa.Column('id', sa.String(), nullable=False),
+            sa.Column('device_id', sa.String(), nullable=False),
+            sa.Column('plan_id', sa.String(), nullable=False, server_default='free'),
+            sa.Column('activated_at', sa.String(), nullable=False),
+            sa.Column('expires_at', sa.String(), nullable=True),
+            sa.Column('is_active', sa.Integer(), nullable=False, server_default='1'),
+            sa.Column('stripe_customer_id', sa.String(), nullable=True),
+            sa.PrimaryKeyConstraint('id'),
+        )
+        op.create_index(
+            'ix_subscriptions_device_id',
+            'subscriptions',
+            ['device_id'],
+        )
 
 
 def downgrade() -> None:

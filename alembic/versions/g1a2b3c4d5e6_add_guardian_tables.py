@@ -20,73 +20,82 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "guardian_blocklists",
-        sa.Column("id", sa.String(), nullable=False),
-        sa.Column("name", sa.String(), nullable=False),
-        sa.Column("url", sa.String(), nullable=False),
-        sa.Column("format", sa.String(), nullable=False, server_default="hosts"),
-        sa.Column("category", sa.String(), nullable=False, server_default="malware"),
-        sa.Column("domain_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("is_enabled", sa.Integer(), nullable=False, server_default="1"),
-        sa.Column("last_updated", sa.String(), nullable=True),
-        sa.Column("etag", sa.String(), nullable=True),
-        sa.PrimaryKeyConstraint("id"),
-    )
+    from sqlalchemy import inspect as sa_inspect
+    conn = op.get_bind()
+    existing = set(sa_inspect(conn).get_table_names())
 
-    op.create_table(
-        "guardian_blocked_domains",
-        sa.Column("domain", sa.String(), nullable=False),
-        sa.Column("blocklist_id", sa.String(), nullable=False),
-        sa.Column("category", sa.String(), nullable=False, server_default="malware"),
-        sa.PrimaryKeyConstraint("domain"),
-        sa.ForeignKeyConstraint(["blocklist_id"], ["guardian_blocklists.id"]),
-    )
-    op.create_index(
-        "ix_guardian_blocked_domains_domain",
-        "guardian_blocked_domains",
-        ["domain"],
-    )
+    if "guardian_blocklists" not in existing:
+        op.create_table(
+            "guardian_blocklists",
+            sa.Column("id", sa.String(), nullable=False),
+            sa.Column("name", sa.String(), nullable=False),
+            sa.Column("url", sa.String(), nullable=False),
+            sa.Column("format", sa.String(), nullable=False, server_default="hosts"),
+            sa.Column("category", sa.String(), nullable=False, server_default="malware"),
+            sa.Column("domain_count", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("is_enabled", sa.Integer(), nullable=False, server_default="1"),
+            sa.Column("last_updated", sa.String(), nullable=True),
+            sa.Column("etag", sa.String(), nullable=True),
+            sa.PrimaryKeyConstraint("id"),
+        )
 
-    op.create_table(
-        "guardian_custom_rules",
-        sa.Column("id", sa.String(), nullable=False),
-        sa.Column("action", sa.String(), nullable=False),
-        sa.Column("domain", sa.String(), nullable=False),
-        sa.Column("category", sa.String(), nullable=False, server_default="custom"),
-        sa.Column("reason", sa.String(), nullable=False, server_default=""),
-        sa.Column("hit_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("is_active", sa.Integer(), nullable=False, server_default="1"),
-        sa.Column("created_at", sa.String(), nullable=False),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(
-        "ix_guardian_custom_rules_domain",
-        "guardian_custom_rules",
-        ["domain"],
-    )
+    if "guardian_blocked_domains" not in existing:
+        op.create_table(
+            "guardian_blocked_domains",
+            sa.Column("domain", sa.String(), nullable=False),
+            sa.Column("blocklist_id", sa.String(), nullable=False),
+            sa.Column("category", sa.String(), nullable=False, server_default="malware"),
+            sa.PrimaryKeyConstraint("domain"),
+            sa.ForeignKeyConstraint(["blocklist_id"], ["guardian_blocklists.id"]),
+        )
+        op.create_index(
+            "ix_guardian_blocked_domains_domain",
+            "guardian_blocked_domains",
+            ["domain"],
+        )
 
-    op.create_table(
-        "guardian_query_stats",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("date", sa.String(), nullable=False),
-        sa.Column("hour", sa.Integer(), nullable=False),
-        sa.Column("total_queries", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("blocked_queries", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("allowed_queries", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("cache_hits", sa.Integer(), nullable=False, server_default="0"),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("date", "hour", name="uq_guardian_stats_date_hour"),
-    )
+    if "guardian_custom_rules" not in existing:
+        op.create_table(
+            "guardian_custom_rules",
+            sa.Column("id", sa.String(), nullable=False),
+            sa.Column("action", sa.String(), nullable=False),
+            sa.Column("domain", sa.String(), nullable=False),
+            sa.Column("category", sa.String(), nullable=False, server_default="custom"),
+            sa.Column("reason", sa.String(), nullable=False, server_default=""),
+            sa.Column("hit_count", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("is_active", sa.Integer(), nullable=False, server_default="1"),
+            sa.Column("created_at", sa.String(), nullable=False),
+            sa.PrimaryKeyConstraint("id"),
+        )
+        op.create_index(
+            "ix_guardian_custom_rules_domain",
+            "guardian_custom_rules",
+            ["domain"],
+        )
 
-    op.create_table(
-        "guardian_top_domains",
-        sa.Column("domain", sa.String(), nullable=False),
-        sa.Column("block_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("category", sa.String(), nullable=False, server_default=""),
-        sa.Column("last_blocked", sa.String(), nullable=True),
-        sa.PrimaryKeyConstraint("domain"),
-    )
+    if "guardian_query_stats" not in existing:
+        op.create_table(
+            "guardian_query_stats",
+            sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+            sa.Column("date", sa.String(), nullable=False),
+            sa.Column("hour", sa.Integer(), nullable=False),
+            sa.Column("total_queries", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("blocked_queries", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("allowed_queries", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("cache_hits", sa.Integer(), nullable=False, server_default="0"),
+            sa.PrimaryKeyConstraint("id"),
+            sa.UniqueConstraint("date", "hour", name="uq_guardian_stats_date_hour"),
+        )
+
+    if "guardian_top_domains" not in existing:
+        op.create_table(
+            "guardian_top_domains",
+            sa.Column("domain", sa.String(), nullable=False),
+            sa.Column("block_count", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("category", sa.String(), nullable=False, server_default=""),
+            sa.Column("last_blocked", sa.String(), nullable=True),
+            sa.PrimaryKeyConstraint("domain"),
+        )
 
 
 def downgrade() -> None:

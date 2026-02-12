@@ -20,33 +20,38 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        'collective_signals',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('subnet_hash', sa.String(), nullable=False),
-        sa.Column('signal_type', sa.String(), nullable=False),
-        sa.Column('severity', sa.Float(), nullable=False),
-        sa.Column('port', sa.Integer(), nullable=True),
-        sa.Column('agent_hash', sa.String(), nullable=False),
-        sa.Column('reported_at', sa.String(), nullable=False),
-        sa.Column('is_noised', sa.Integer(), nullable=False, server_default='1'),
-        sa.PrimaryKeyConstraint('id'),
-    )
-    op.create_index(
-        'ix_collective_signals_subnet_hash',
-        'collective_signals',
-        ['subnet_hash'],
-    )
-    op.create_index(
-        'ix_collective_signals_reported_at',
-        'collective_signals',
-        ['reported_at'],
-    )
-    op.create_index(
-        'ix_collective_signals_agent_hash',
-        'collective_signals',
-        ['agent_hash'],
-    )
+    from sqlalchemy import inspect as sa_inspect
+    conn = op.get_bind()
+    existing = set(sa_inspect(conn).get_table_names())
+
+    if 'collective_signals' not in existing:
+        op.create_table(
+            'collective_signals',
+            sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+            sa.Column('subnet_hash', sa.String(), nullable=False),
+            sa.Column('signal_type', sa.String(), nullable=False),
+            sa.Column('severity', sa.Float(), nullable=False),
+            sa.Column('port', sa.Integer(), nullable=True),
+            sa.Column('agent_hash', sa.String(), nullable=False),
+            sa.Column('reported_at', sa.String(), nullable=False),
+            sa.Column('is_noised', sa.Integer(), nullable=False, server_default='1'),
+            sa.PrimaryKeyConstraint('id'),
+        )
+        op.create_index(
+            'ix_collective_signals_subnet_hash',
+            'collective_signals',
+            ['subnet_hash'],
+        )
+        op.create_index(
+            'ix_collective_signals_reported_at',
+            'collective_signals',
+            ['reported_at'],
+        )
+        op.create_index(
+            'ix_collective_signals_agent_hash',
+            'collective_signals',
+            ['agent_hash'],
+        )
 
 
 def downgrade() -> None:

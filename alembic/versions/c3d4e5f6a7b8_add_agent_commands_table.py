@@ -20,20 +20,25 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        'agent_commands',
-        sa.Column('id', sa.String(), nullable=False),
-        sa.Column('agent_id', sa.String(), nullable=False),
-        sa.Column('command_type', sa.String(), nullable=False),
-        sa.Column('params', sa.Text(), nullable=True),
-        sa.Column('status', sa.String(), nullable=False, server_default='pending'),
-        sa.Column('created_at', sa.String(), nullable=False),
-        sa.Column('started_at', sa.String(), nullable=True),
-        sa.Column('completed_at', sa.String(), nullable=True),
-        sa.Column('result', sa.Text(), nullable=True),
-        sa.ForeignKeyConstraint(['agent_id'], ['agents.id']),
-        sa.PrimaryKeyConstraint('id'),
-    )
+    from sqlalchemy import inspect as sa_inspect
+    conn = op.get_bind()
+    existing = set(sa_inspect(conn).get_table_names())
+
+    if 'agent_commands' not in existing:
+        op.create_table(
+            'agent_commands',
+            sa.Column('id', sa.String(), nullable=False),
+            sa.Column('agent_id', sa.String(), nullable=False),
+            sa.Column('command_type', sa.String(), nullable=False),
+            sa.Column('params', sa.Text(), nullable=True),
+            sa.Column('status', sa.String(), nullable=False, server_default='pending'),
+            sa.Column('created_at', sa.String(), nullable=False),
+            sa.Column('started_at', sa.String(), nullable=True),
+            sa.Column('completed_at', sa.String(), nullable=True),
+            sa.Column('result', sa.Text(), nullable=True),
+            sa.ForeignKeyConstraint(['agent_id'], ['agents.id']),
+            sa.PrimaryKeyConstraint('id'),
+        )
 
 
 def downgrade() -> None:

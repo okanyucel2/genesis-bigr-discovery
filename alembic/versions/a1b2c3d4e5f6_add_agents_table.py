@@ -20,38 +20,48 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    from sqlalchemy import inspect as sa_inspect
+    conn = op.get_bind()
+    inspector = sa_inspect(conn)
+    existing = set(inspector.get_table_names())
+
     # Create agents table
-    op.create_table(
-        'agents',
-        sa.Column('id', sa.String(), nullable=False),
-        sa.Column('name', sa.String(), nullable=False),
-        sa.Column('site_name', sa.String(), nullable=False, server_default=''),
-        sa.Column('location', sa.String(), nullable=True),
-        sa.Column('token_hash', sa.String(), nullable=False),
-        sa.Column('is_active', sa.Integer(), nullable=False, server_default='1'),
-        sa.Column('registered_at', sa.String(), nullable=False),
-        sa.Column('last_seen', sa.String(), nullable=True),
-        sa.Column('status', sa.String(), nullable=False, server_default='offline'),
-        sa.Column('version', sa.String(), nullable=True),
-        sa.Column('subnets', sa.Text(), nullable=True),
-        sa.PrimaryKeyConstraint('id'),
-    )
+    if 'agents' not in existing:
+        op.create_table(
+            'agents',
+            sa.Column('id', sa.String(), nullable=False),
+            sa.Column('name', sa.String(), nullable=False),
+            sa.Column('site_name', sa.String(), nullable=False, server_default=''),
+            sa.Column('location', sa.String(), nullable=True),
+            sa.Column('token_hash', sa.String(), nullable=False),
+            sa.Column('is_active', sa.Integer(), nullable=False, server_default='1'),
+            sa.Column('registered_at', sa.String(), nullable=False),
+            sa.Column('last_seen', sa.String(), nullable=True),
+            sa.Column('status', sa.String(), nullable=False, server_default='offline'),
+            sa.Column('version', sa.String(), nullable=True),
+            sa.Column('subnets', sa.Text(), nullable=True),
+            sa.PrimaryKeyConstraint('id'),
+        )
 
     # Add nullable agent_id and site_name columns to scans
-    with op.batch_alter_table('scans') as batch_op:
-        batch_op.add_column(sa.Column('agent_id', sa.String(), nullable=True))
-        batch_op.add_column(sa.Column('site_name', sa.String(), nullable=True))
-        batch_op.create_foreign_key(
-            'fk_scans_agent_id', 'agents', ['agent_id'], ['id']
-        )
+    scans_cols = {c['name'] for c in inspector.get_columns('scans')}
+    if 'agent_id' not in scans_cols:
+        with op.batch_alter_table('scans') as batch_op:
+            batch_op.add_column(sa.Column('agent_id', sa.String(), nullable=True))
+            batch_op.add_column(sa.Column('site_name', sa.String(), nullable=True))
+            batch_op.create_foreign_key(
+                'fk_scans_agent_id', 'agents', ['agent_id'], ['id']
+            )
 
     # Add nullable agent_id and site_name columns to assets
-    with op.batch_alter_table('assets') as batch_op:
-        batch_op.add_column(sa.Column('agent_id', sa.String(), nullable=True))
-        batch_op.add_column(sa.Column('site_name', sa.String(), nullable=True))
-        batch_op.create_foreign_key(
-            'fk_assets_agent_id', 'agents', ['agent_id'], ['id']
-        )
+    assets_cols = {c['name'] for c in inspector.get_columns('assets')}
+    if 'agent_id' not in assets_cols:
+        with op.batch_alter_table('assets') as batch_op:
+            batch_op.add_column(sa.Column('agent_id', sa.String(), nullable=True))
+            batch_op.add_column(sa.Column('site_name', sa.String(), nullable=True))
+            batch_op.create_foreign_key(
+                'fk_assets_agent_id', 'agents', ['agent_id'], ['id']
+            )
 
 
 def downgrade() -> None:
