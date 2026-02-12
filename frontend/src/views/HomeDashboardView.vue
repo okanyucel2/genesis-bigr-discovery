@@ -25,6 +25,8 @@ const {
   familyTimeline,
   changes,
   fetchDashboard,
+  acknowledgeDevice,
+  blockDevice,
 } = useHomeDashboard()
 
 const { shieldStatus, fetchShieldStatus } = useShieldStatus()
@@ -103,7 +105,7 @@ onMounted(() => {
           :status="cardStatus('evim')"
           :class="{ 'order-first md:order-none': cardStatus('evim') !== 'ok' }"
         >
-          <EvimContent :data="evim" />
+          <EvimContent :data="evim" @identify="acknowledgeDevice" @block="blockDevice" />
         </HayatKarti>
 
         <HayatKarti

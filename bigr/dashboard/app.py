@@ -11,6 +11,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bigr.agent.routes import router as agent_router
@@ -18,6 +19,7 @@ from bigr.ai.api import router as ai_router
 from bigr.collective.api import router as collective_router
 from bigr.core import services
 from bigr.core.database import get_db
+from bigr.core.models_db import AssetDB
 from bigr.core.settings import settings
 from bigr.family.api import router as family_router
 from bigr.language.api import router as language_router
@@ -208,6 +210,32 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
             if not updated:
                 return JSONResponse({"error": "Asset not found"}, status_code=404)
             return {"ip": ip, "sensitivity_level": sensitivity}
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+    @app.post("/api/assets/{ip}/acknowledge", response_class=JSONResponse)
+    async def api_acknowledge_asset(ip: str, db: AsyncSession = Depends(get_db)):
+        """Mark an asset as acknowledged (known device)."""
+        try:
+            await services.tag_asset_async(db, ip, "acknowledged", "Kullanici tarafindan tanindi")
+            return {"status": "ok", "ip": ip, "message": "Cihaz tanindi."}
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+    @app.post("/api/assets/{ip}/ignore", response_class=JSONResponse)
+    async def api_ignore_asset(ip: str, db: AsyncSession = Depends(get_db)):
+        """Mark an asset as ignored (blocked/hidden)."""
+        try:
+            stmt = (
+                update(AssetDB)
+                .where(AssetDB.ip == ip)
+                .values(is_ignored=1, manual_note="Kullanici tarafindan engellendi")
+            )
+            result = await db.execute(stmt)
+            await db.commit()
+            if result.rowcount == 0:
+                return JSONResponse({"error": "Asset not found"}, status_code=404)
+            return {"status": "ok", "ip": ip, "message": "Cihaz engellendi."}
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, status_code=500)
 

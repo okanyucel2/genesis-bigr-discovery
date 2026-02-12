@@ -203,6 +203,31 @@ export function useHomeDashboard() {
     bolgem: bolgem.value,
   }))
 
+  async function acknowledgeDevice(ip: string) {
+    try {
+      await bigrApi.acknowledgeDevice(ip)
+      // Remove from newDevices list reactively
+      if (assets.value) {
+        assets.value.assets = assets.value.assets.filter((a) => a.ip !== ip)
+      }
+    } catch (e) {
+      console.error('Failed to acknowledge device:', e)
+    }
+  }
+
+  async function blockDevice(ip: string) {
+    try {
+      await bigrApi.blockDevice(ip)
+      // Remove from newDevices list reactively
+      if (assets.value) {
+        assets.value.assets = assets.value.assets.filter((a) => a.ip !== ip)
+        assets.value.total_assets = assets.value.assets.length
+      }
+    } catch (e) {
+      console.error('Failed to block device:', e)
+    }
+  }
+
   async function fetchDashboard() {
     loading.value = true
     error.value = null
@@ -269,5 +294,7 @@ export function useHomeDashboard() {
     changes,
     notifications,
     fetchDashboard,
+    acknowledgeDevice,
+    blockDevice,
   }
 }

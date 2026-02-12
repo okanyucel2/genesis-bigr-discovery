@@ -704,6 +704,17 @@ export const bigrApi = {
           params: subnet ? { subnet } : {},
         }),
 
+  // Asset Actions
+  acknowledgeDevice: (ip: string) =>
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', ip, message: 'Cihaz tanindi.' })
+      : client.post<{ status: string; ip: string; message: string }>(`/api/assets/${ip}/acknowledge`),
+
+  blockDevice: (ip: string) =>
+    DEMO_MODE
+      ? mockResponse({ status: 'ok', ip, message: 'Cihaz engellendi.' })
+      : client.post<{ status: string; ip: string; message: string }>(`/api/assets/${ip}/ignore`),
+
   // Engagement
   getStreak: (subscriptionId = 'default') =>
     DEMO_MODE
