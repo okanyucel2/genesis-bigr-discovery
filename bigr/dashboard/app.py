@@ -29,6 +29,7 @@ from bigr.firewall.api import router as firewall_router
 from bigr.threat.abuseipdb_api import router as abuseipdb_router
 from bigr.threat.api import router as threat_router
 from bigr.guardian.api.routes import router as guardian_router
+from bigr.watcher_api import router as watcher_router
 from bigr.topology import build_subnet_topology, build_topology
 
 
@@ -76,6 +77,8 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
     ]
     if settings.DEBUG:
         allowed_origins.append("http://localhost:5173")
+        allowed_origins.append("http://localhost:19978")
+        allowed_origins.append("http://127.0.0.1:19978")
     if allowed_origins:
         app.add_middleware(
             CORSMiddleware,
@@ -98,6 +101,7 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
     app.include_router(family_router)
     app.include_router(firewall_router)
     app.include_router(guardian_router)
+    app.include_router(watcher_router)
     _data_path = Path(data_path)
 
     async def _load_data_async(db: AsyncSession) -> dict:

@@ -13,6 +13,7 @@ import pytest
 from bigr.watcher import (
     WatcherDaemon,
     WatcherStatus,
+    build_channels,
     get_pid_path,
     get_watcher_status,
 )
@@ -222,3 +223,171 @@ class TestWatcherIntegration:
         watcher._run_single_cycle()
 
         assert "192.168.1.0/24" in scanned_subnets
+
+
+class TestWatcherAlertIntegration:
+    """Tests for alert dispatch, per-target scheduling, and history."""
+
+    def test_watcher_dispatches_alerts_on_diff(self, tmp_path):
+        """Scan diff with changes should dispatch alerts to channels."""
+        pid_path = tmp_path / "watcher.pid"
+        log_path = tmp_path / "watcher.log"
+
+        call_count = 0
+
+        def fake_scan(subnet: str) -> list[dict]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return [
+                    {"ip": "192.168.1.1", "mac": "aa:bb:cc:dd:ee:01",
+                     "open_ports": [80], "bigr_category": "ag_ve_sistemler",
+                     "hostname": "router", "vendor": "Cisco", "confidence_score": 0.9},
+                ]
+            # Second scan: new device appeared
+            return [
+                {"ip": "192.168.1.1", "mac": "aa:bb:cc:dd:ee:01",
+                 "open_ports": [80], "bigr_category": "ag_ve_sistemler",
+                 "hostname": "router", "vendor": "Cisco", "confidence_score": 0.9},
+                {"ip": "192.168.1.2", "mac": "aa:bb:cc:dd:ee:02",
+                 "open_ports": [22], "bigr_category": "uygulamalar",
+                 "hostname": "server", "vendor": "Dell", "confidence_score": 0.8},
+            ]
+
+        mock_channel = MagicMock()
+        mock_channel.send.return_value = True
+
+        watcher = WatcherDaemon(
+            targets=[{"subnet": "192.168.1.0/24", "interval_seconds": 0}],
+            bigr_dir=tmp_path,
+            pid_path=pid_path,
+            log_path=log_path,
+            scan_func=fake_scan,
+            channels=[mock_channel],
+        )
+
+        # First scan — initial, no diff
+        watcher._run_single_cycle()
+        assert mock_channel.send.call_count == 0
+
+        # Reset scan time so it scans again
+        watcher._last_scan_time.clear()
+
+        # Second scan — diff detected, alert dispatched
+        watcher._run_single_cycle()
+        assert mock_channel.send.call_count > 0
+
+    def test_watcher_per_target_interval(self, tmp_path):
+        """Targets with different intervals should be scanned independently."""
+        pid_path = tmp_path / "watcher.pid"
+        log_path = tmp_path / "watcher.log"
+
+        scan_mock = MagicMock(return_value=[])
+
+        watcher = WatcherDaemon(
+            targets=[
+                {"subnet": "10.0.0.0/24", "interval_seconds": 0},
+                {"subnet": "10.0.1.0/24", "interval_seconds": 9999},
+            ],
+            bigr_dir=tmp_path,
+            pid_path=pid_path,
+            log_path=log_path,
+            scan_func=scan_mock,
+        )
+
+        # First cycle: both scan (no last_scan_time yet)
+        watcher._run_single_cycle()
+        assert scan_mock.call_count == 2
+
+        scan_mock.reset_mock()
+
+        # Second cycle: only 10.0.0.0/24 should scan (interval=0)
+        # 10.0.1.0/24 has interval 9999s so it won't be due
+        watcher._run_single_cycle()
+        assert scan_mock.call_count == 1
+        scan_mock.assert_called_with("10.0.0.0/24")
+
+    def test_watcher_signal_handler(self, tmp_path):
+        """SIGTERM handler should set _running to False."""
+        pid_path = tmp_path / "watcher.pid"
+        log_path = tmp_path / "watcher.log"
+
+        watcher = WatcherDaemon(
+            targets=[],
+            bigr_dir=tmp_path,
+            pid_path=pid_path,
+            log_path=log_path,
+        )
+        watcher._running = True
+        watcher._handle_signal(signal.SIGTERM, None)
+        assert watcher._running is False
+
+    def test_watcher_scan_history_maintained(self, tmp_path):
+        """Scan history should record each scan."""
+        pid_path = tmp_path / "watcher.pid"
+        log_path = tmp_path / "watcher.log"
+
+        scan_mock = MagicMock(return_value=[
+            {"ip": "10.0.0.1", "mac": "aa:bb:cc:dd:ee:01",
+             "open_ports": [80], "bigr_category": "iot",
+             "hostname": "cam", "vendor": "Hikvision", "confidence_score": 0.7},
+        ])
+
+        watcher = WatcherDaemon(
+            targets=[{"subnet": "10.0.0.0/24", "interval_seconds": 0}],
+            bigr_dir=tmp_path,
+            pid_path=pid_path,
+            log_path=log_path,
+            scan_func=scan_mock,
+        )
+
+        watcher._run_single_cycle()
+        assert watcher.scan_count == 1
+        assert len(watcher.scan_history) == 1
+
+        entry = watcher.scan_history[0]
+        assert entry["subnet"] == "10.0.0.0/24"
+        assert entry["asset_count"] == 1
+        assert "started_at" in entry
+        assert "completed_at" in entry
+
+    def test_watcher_channel_config(self, tmp_path):
+        """build_channels should create correct channel instances."""
+        from bigr.alerts.channels import DesktopChannel, LogChannel, WebhookChannel
+
+        channels = build_channels([
+            {"type": "log", "path": str(tmp_path / "alert.log")},
+            {"type": "webhook", "url": "https://hooks.example.com/test"},
+            {"type": "desktop"},
+            {"type": "unknown"},  # ignored
+        ])
+
+        assert len(channels) == 3
+        assert isinstance(channels[0], LogChannel)
+        assert isinstance(channels[1], WebhookChannel)
+        assert isinstance(channels[2], DesktopChannel)
+
+    def test_watcher_skips_target_not_due(self, tmp_path):
+        """_should_scan should return False when target is not yet due."""
+        pid_path = tmp_path / "watcher.pid"
+        log_path = tmp_path / "watcher.log"
+
+        scan_mock = MagicMock(return_value=[])
+
+        watcher = WatcherDaemon(
+            targets=[{"subnet": "10.0.0.0/24", "interval_seconds": 9999}],
+            bigr_dir=tmp_path,
+            pid_path=pid_path,
+            log_path=log_path,
+            scan_func=scan_mock,
+        )
+
+        # First cycle scans (no previous scan time)
+        watcher._run_single_cycle()
+        assert scan_mock.call_count == 1
+
+        scan_mock.reset_mock()
+
+        # Second cycle should skip (9999s interval not elapsed)
+        watcher._run_single_cycle()
+        assert scan_mock.call_count == 0

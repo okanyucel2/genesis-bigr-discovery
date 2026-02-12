@@ -90,6 +90,16 @@ const router = createRouter({
       component: () => import('@/views/FirewallView.vue'),
     },
     {
+      path: '/guardian',
+      name: 'guardian',
+      component: () => import('@/views/GuardianView.vue'),
+    },
+    {
+      path: '/watcher',
+      name: 'watcher',
+      component: () => import('@/views/WatcherView.vue'),
+    },
+    {
       path: '/collective',
       name: 'collective',
       component: () => import('@/views/CollectiveView.vue'),

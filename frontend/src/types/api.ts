@@ -934,3 +934,48 @@ export interface GuardianHealthResponse {
   checks: Record<string, { ok: boolean; detail?: string }>
   message?: string
 }
+
+// ---------------------------------------------------------------------------
+// Watcher (Daemon Mode)
+// ---------------------------------------------------------------------------
+
+export interface WatcherTarget {
+  subnet: string
+  interval_seconds: number
+}
+
+export interface WatcherStatus {
+  is_running: boolean
+  pid: number | null
+  uptime_seconds: number
+  targets: WatcherTarget[]
+  last_scan_at: string | null
+  scan_count: number
+}
+
+export interface WatcherScan {
+  subnet: string
+  started_at: string
+  completed_at: string
+  asset_count: number
+  changes_count: number
+  status: string
+}
+
+export interface WatcherHistoryResponse {
+  scans: WatcherScan[]
+  total: number
+}
+
+export interface WatcherAlert {
+  alert_type: string
+  severity: string
+  ip: string
+  message: string
+  timestamp: string
+}
+
+export interface WatcherAlertsResponse {
+  alerts: WatcherAlert[]
+  total: number
+}

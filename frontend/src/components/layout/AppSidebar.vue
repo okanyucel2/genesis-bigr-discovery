@@ -22,6 +22,7 @@ import {
   Users,
   Home,
   Flame,
+  Eye,
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-vue-next'
@@ -79,6 +80,8 @@ const advancedNavSections: NavSection[] = [
       { name: 'shield', label: 'Kalkan', icon: ShieldCheck, path: '/shield' },
       { name: 'shield-findings', label: 'Bulgular', icon: ShieldAlert, path: '/shield-findings' },
       { name: 'firewall', label: 'Güvenlik Duvarı', icon: Flame, path: '/firewall' },
+      { name: 'guardian', label: 'Guardian', icon: Shield, path: '/guardian' },
+      { name: 'watcher', label: 'İzleme', icon: Eye, path: '/watcher' },
       { name: 'vulnerabilities', label: 'Açıklar', icon: Bug, path: '/vulnerabilities' },
       { name: 'risk', label: 'Risk', icon: AlertTriangle, path: '/risk' },
     ],
