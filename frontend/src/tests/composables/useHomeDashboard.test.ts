@@ -18,6 +18,8 @@ vi.mock('@/lib/api', () => ({
     getAssets: vi.fn(),
     getGuardianStatus: vi.fn(),
     getStreak: vi.fn(),
+    getTrackerStats: vi.fn(),
+    getTrackerEvents: vi.fn(),
   },
 }))
 
@@ -80,6 +82,8 @@ function mockSettled() {
   vi.mocked(bigrApi.getAssets).mockResolvedValue({ data: { assets: [], total_assets: 12, target: '', scan_method: '', duration_seconds: 0, category_summary: {} } } as never)
   vi.mocked(bigrApi.getGuardianStatus).mockResolvedValue({ data: { guardian_active: false, dns_filtering: false, blocked_domains_count: 0, stats: { total_queries: 0, blocked_queries: 0, allowed_queries: 0, cache_hit_rate: 0 }, lifetime_stats: { total_queries: 0, blocked_queries: 0, allowed_queries: 0 } } } as never)
   vi.mocked(bigrApi.getStreak).mockResolvedValue({ data: { current_streak_days: 42, longest_streak_days: 67, total_safe_days: 128, streak_broken_count: 3, milestone: { badge: 'fire', title_tr: 'Aylik Koruyucu', days_required: 30 }, next_milestone: { badge: 'star', title_tr: 'Ceyrek Sampiyonu', days_remaining: 48 } } } as never)
+  vi.mocked(bigrApi.getTrackerStats).mockResolvedValue({ data: { total_blocked: 127, by_category: { advertising: 68, analytics: 35, social: 18, fingerprinting: 6 }, period_days: 7 } } as never)
+  vi.mocked(bigrApi.getTrackerEvents).mockResolvedValue({ data: [] } as never)
 }
 
 describe('useHomeDashboard', () => {
@@ -187,6 +191,8 @@ describe('useHomeDashboard', () => {
     vi.mocked(bigrApi.getAssets).mockReturnValue(rejection() as never)
     vi.mocked(bigrApi.getGuardianStatus).mockReturnValue(rejection() as never)
     vi.mocked(bigrApi.getStreak).mockReturnValue(rejection() as never)
+    vi.mocked(bigrApi.getTrackerStats).mockReturnValue(rejection() as never)
+    vi.mocked(bigrApi.getTrackerEvents).mockReturnValue(rejection() as never)
 
     const { error, fetchDashboard } = useHomeDashboard()
     await fetchDashboard()

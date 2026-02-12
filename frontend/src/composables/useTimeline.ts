@@ -4,6 +4,7 @@ import type {
   FamilyTimelineEntry,
   AssetChange,
   CollectiveSignalReport,
+  TrackerEvent,
 } from '@/types/api'
 import type {
   TimelineItem,
@@ -258,6 +259,25 @@ function changesToTimeline(changes: AssetChange[], lookup: DeviceLookup): Timeli
   }))
 }
 
+const _trackerCategoryLabels: Record<string, string> = {
+  advertising: 'reklam sunucusu',
+  analytics: 'analitik takipci',
+  social: 'sosyal medya pikseli',
+  fingerprinting: 'parmak izi okuyucu',
+}
+
+function trackerToTimeline(events: TrackerEvent[]): TimelineItem[] {
+  return events.map((e, i) => ({
+    id: `trk_${i}`,
+    source: 'tracker' as const,
+    severity: 'medium' as TimelineSeverity,
+    message: `${e.domain} engellendi — ${_trackerCategoryLabels[e.category] || e.category}`,
+    detail: `${e.block_count} kez engellendi`,
+    timestamp: e.last_blocked || new Date().toISOString(),
+    icon: '🚫',
+  }))
+}
+
 function collectiveToTimeline(threats: CollectiveSignalReport[]): TimelineItem[] {
   return threats.map((t, i) => ({
     id: `col_${i}`,
@@ -282,12 +302,14 @@ export function useTimeline() {
     deviceLookup: DeviceLookup = {},
     localIp: string | null = null,
     shield: ShieldStatus = defaultShield,
+    trackerEventsList: TrackerEvent[] = [],
   ): TimelineItem[] {
     const all = [
       ...firewallToTimeline(firewallEvents, deviceLookup, localIp, shield),
       ...familyToTimeline(familyEntries),
       ...changesToTimeline(changesList, deviceLookup),
       ...collectiveToTimeline(collectiveThreats),
+      ...trackerToTimeline(trackerEventsList),
     ]
 
     // Sort by timestamp descending (newest first)

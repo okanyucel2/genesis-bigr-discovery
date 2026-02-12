@@ -38,7 +38,7 @@ defineEmits<{
         :key="device.ip"
         class="flex items-center justify-between rounded bg-white/5 px-2 py-1"
       >
-        <span class="text-[10px] text-slate-300 truncate">{{ device.hostname || device.ip }}</span>
+        <span class="text-[10px] text-slate-300 truncate">{{ device.friendlyName || device.hostname || device.ip }}</span>
         <span
           v-if="device.sensitivity === 'fragile'"
           class="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-medium text-amber-300"

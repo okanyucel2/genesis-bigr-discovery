@@ -180,6 +180,9 @@ async def get_all_assets(
             "agent_id": a.agent_id,
             "site_name": a.site_name,
             "network_id": a.network_id,
+            "friendly_name": a.friendly_name,
+            "device_model": a.device_model,
+            "device_manufacturer": a.device_manufacturer,
         }
         for a in result.scalars().all()
     ]
@@ -506,6 +509,9 @@ async def _upsert_asset_async(
             agent_id=agent_id,
             site_name=site_name,
             network_id=network_id,
+            friendly_name=asset_data.get("friendly_name"),
+            device_model=asset_data.get("device_model"),
+            device_manufacturer=asset_data.get("device_manufacturer"),
         )
         session.add(new_asset)
         await session.flush()
@@ -553,6 +559,9 @@ async def _upsert_asset_async(
     existing.confidence_score = asset_data.get("confidence_score", 0.0)
     existing.scan_method = asset_data.get("scan_method", "passive")
     existing.last_seen = asset_data.get("last_seen", now_iso)
+    existing.friendly_name = asset_data.get("friendly_name") or existing.friendly_name
+    existing.device_model = asset_data.get("device_model") or existing.device_model
+    existing.device_manufacturer = asset_data.get("device_manufacturer") or existing.device_manufacturer
     if network_id:
         existing.network_id = network_id
 

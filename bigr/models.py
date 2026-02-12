@@ -140,6 +140,9 @@ class Asset:
     last_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     raw_evidence: dict = field(default_factory=dict)
     sensitivity_level: str | None = None
+    friendly_name: str | None = None
+    device_model: str | None = None
+    device_manufacturer: str | None = None
 
     @property
     def confidence_level(self) -> ConfidenceLevel:
@@ -162,6 +165,9 @@ class Asset:
             "last_seen": self.last_seen.isoformat(),
             "raw_evidence": self.raw_evidence,
             "sensitivity_level": self.sensitivity_level,
+            "friendly_name": self.friendly_name,
+            "device_model": self.device_model,
+            "device_manufacturer": self.device_manufacturer,
         }
 
 

@@ -75,6 +75,8 @@ import type {
   CollectiveSignalReport,
   FamilyDevice,
   StreakResponse,
+  TrackerStats,
+  TrackerEvent,
 } from '@/types/api'
 
 // ---------------------------------------------------------------------------
@@ -124,6 +126,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: false,
     sensitivity_level: 'safe',
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
   {
     ip: '192.168.1.2',
@@ -141,6 +146,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: false,
     sensitivity_level: 'safe',
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
   {
     ip: '192.168.1.3',
@@ -158,6 +166,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: false,
     sensitivity_level: 'safe',
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
   {
     ip: '192.168.1.10',
@@ -175,6 +186,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: false,
     sensitivity_level: 'safe',
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
   {
     ip: '192.168.1.20',
@@ -192,6 +206,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: false,
     sensitivity_level: 'safe',
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
   {
     ip: '192.168.1.50',
@@ -209,6 +226,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: false,
     sensitivity_level: 'cautious',
+    friendly_name: 'Kat 1 Yazici',
+    device_model: 'HP LaserJet Pro M404n',
+    device_manufacturer: 'HP Inc.',
   },
   {
     ip: '192.168.1.51',
@@ -226,6 +246,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: false,
     sensitivity_level: 'fragile',
+    friendly_name: 'Giris Kamerasi',
+    device_model: 'DS-2CD2043G2-I',
+    device_manufacturer: 'Hikvision',
   },
   {
     ip: '192.168.1.52',
@@ -243,6 +266,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: false,
     sensitivity_level: 'fragile',
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
   {
     ip: '192.168.1.100',
@@ -260,6 +286,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: false,
     sensitivity_level: 'safe',
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
   {
     ip: '192.168.1.101',
@@ -277,6 +306,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(1),
     manual_override: false,
     sensitivity_level: 'safe',
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
   {
     ip: '192.168.1.102',
@@ -294,6 +326,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(1),
     manual_override: false,
     sensitivity_level: null,
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
   {
     ip: '192.168.1.103',
@@ -311,6 +346,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: false,
     sensitivity_level: null,
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
   // ── Server VLAN 10.0.0.0/24 ──
   {
@@ -329,6 +367,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: false,
     sensitivity_level: 'safe',
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
   {
     ip: '10.0.0.10',
@@ -346,6 +387,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: false,
     sensitivity_level: 'safe',
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
   {
     ip: '10.0.0.11',
@@ -363,6 +407,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: false,
     sensitivity_level: 'safe',
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
   {
     ip: '10.0.0.20',
@@ -380,6 +427,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: true,
     sensitivity_level: 'safe',
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
   {
     ip: '10.0.0.30',
@@ -397,6 +447,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: false,
     sensitivity_level: 'safe',
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
   {
     ip: '10.0.0.40',
@@ -414,6 +467,9 @@ const MOCK_ASSETS: Asset[] = [
     last_seen: daysAgo(0),
     manual_override: false,
     sensitivity_level: 'safe',
+    friendly_name: null,
+    device_model: null,
+    device_manufacturer: null,
   },
 ]
 
@@ -2065,6 +2121,34 @@ export function mockStreak(): StreakResponse {
     milestone: { badge: 'shield', title_tr: 'Aylik Koruyucu', days_required: 30 },
     next_milestone: { badge: 'star', title_tr: 'Ceyrek Sampiyonu', days_required: 90, days_remaining: 48 },
   }
+}
+
+export function mockTrackerStats(): TrackerStats {
+  return {
+    total_blocked: 127,
+    by_category: {
+      advertising: 42,
+      analytics: 61,
+      social: 18,
+      fingerprinting: 6,
+    },
+    period: 'weekly',
+  }
+}
+
+export function mockTrackerEvents(): TrackerEvent[] {
+  return [
+    { domain: 'ads.doubleclick.net', category: 'advertising', block_count: 15, last_blocked: daysAgo(0) },
+    { domain: 'analytics.google.com', category: 'analytics', block_count: 23, last_blocked: daysAgo(0) },
+    { domain: 'tracking.ad-network.com', category: 'advertising', block_count: 8, last_blocked: daysAgo(0) },
+    { domain: 'pixel.facebook.com', category: 'social', block_count: 12, last_blocked: daysAgo(0) },
+    { domain: 'telemetry.iot-cloud.cn', category: 'analytics', block_count: 7, last_blocked: daysAgo(1) },
+    { domain: 'canvas-fingerprint.tracker.io', category: 'fingerprinting', block_count: 4, last_blocked: daysAgo(1) },
+    { domain: 'ads.adserver.example.com', category: 'advertising', block_count: 11, last_blocked: daysAgo(0) },
+    { domain: 'twitter-pixel.syndication.twimg.com', category: 'social', block_count: 6, last_blocked: daysAgo(2) },
+    { domain: 'segment.analytics.io', category: 'analytics', block_count: 19, last_blocked: daysAgo(0) },
+    { domain: 'fp.fingerprinting-service.com', category: 'fingerprinting', block_count: 2, last_blocked: daysAgo(3) },
+  ]
 }
 
 export function mockFamilyOverview(): FamilyOverview {

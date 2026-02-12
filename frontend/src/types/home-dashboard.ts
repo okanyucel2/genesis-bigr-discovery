@@ -38,6 +38,8 @@ export interface VerilerimCard {
   expiringCerts: number
   selfSignedCerts: number
   complianceGrade: string
+  trackersBlocked: number
+  trackerCategories: Record<string, number>
 }
 
 export interface AilemCard {
@@ -68,6 +70,7 @@ export interface EvimCard {
   sensitiveDevices: {
     ip: string
     hostname: string | null
+    friendlyName: string | null
     sensitivity: string
   }[]
   lastScan: string | null
@@ -84,7 +87,7 @@ export interface BolgemCard {
 
 // Timeline
 export type TimelineSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info'
-export type TimelineSource = 'firewall' | 'family' | 'change' | 'collective'
+export type TimelineSource = 'firewall' | 'family' | 'change' | 'collective' | 'tracker'
 
 export interface TimelineDetailField {
   icon: string

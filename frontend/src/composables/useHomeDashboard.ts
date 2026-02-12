@@ -16,6 +16,8 @@ import type {
   HumanNotification,
   GuardianStatusResponse,
   StreakResponse,
+  TrackerStats,
+  TrackerEvent,
 } from '@/types/api'
 import type {
   KalkanData,
@@ -44,9 +46,11 @@ export function useHomeDashboard() {
   const firewallEvents = ref<FirewallEvent[]>([])
   const changes = ref<AssetChange[]>([])
   const notifications = ref<HumanNotification[]>([])
-  const assets = ref<{ total_assets: number; assets: { ip: string; mac: string; hostname: string | null; vendor: string | null; first_seen: string | null; sensitivity_level: string | null }[] } | null>(null)
+  const assets = ref<{ total_assets: number; assets: { ip: string; mac: string; hostname: string | null; vendor: string | null; first_seen: string | null; sensitivity_level: string | null; friendly_name: string | null; device_model: string | null; device_manufacturer: string | null }[] } | null>(null)
   const guardianStatus = ref<GuardianStatusResponse | null>(null)
   const streak = ref<StreakResponse | null>(null)
+  const trackerStats = ref<TrackerStats | null>(null)
+  const trackerEvents = ref<TrackerEvent[]>([])
 
   function calcKalkanState(score: number): KalkanState {
     if (score >= 80) return 'green'
@@ -99,12 +103,15 @@ export function useHomeDashboard() {
     const expiringCerts = certs.filter((c) => c.days_until_expiry !== null && c.days_until_expiry <= 30).length
     const selfSignedCerts = certs.filter((c) => c.is_self_signed).length
 
+    const ts = trackerStats.value
     return {
       httpsCount,
       totalCertificates: certs.length,
       expiringCerts,
       selfSignedCerts,
       complianceGrade: compliance.value?.grade ?? '-',
+      trackersBlocked: ts?.total_blocked ?? 0,
+      trackerCategories: ts?.by_category ?? { advertising: 0, analytics: 0, social: 0, fingerprinting: 0 },
     }
   })
 
@@ -162,6 +169,7 @@ export function useHomeDashboard() {
       .map((a) => ({
         ip: a.ip,
         hostname: a.hostname,
+        friendlyName: a.friendly_name ?? null,
         sensitivity: a.sensitivity_level!,
       }))
 
@@ -223,6 +231,8 @@ export function useHomeDashboard() {
       bigrApi.getAssets(),                              // 11
       bigrApi.getGuardianStatus(),                       // 12
       bigrApi.getStreak(),                               // 13
+      bigrApi.getTrackerStats(),                         // 14
+      bigrApi.getTrackerEvents(20),                      // 15
     ])
 
     // Extract data from settled results — each card degrades independently
@@ -239,10 +249,12 @@ export function useHomeDashboard() {
     if (results[10]!.status === 'fulfilled') changes.value = results[10]!.value.data.changes
     if (results[11]!.status === 'fulfilled') {
       const d = results[11]!.value.data
-      assets.value = { total_assets: d.total_assets, assets: d.assets.map((a) => ({ ip: a.ip, mac: a.mac, hostname: a.hostname, vendor: a.vendor, first_seen: a.first_seen, sensitivity_level: a.sensitivity_level ?? null })) }
+      assets.value = { total_assets: d.total_assets, assets: d.assets.map((a) => ({ ip: a.ip, mac: a.mac, hostname: a.hostname, vendor: a.vendor, first_seen: a.first_seen, sensitivity_level: a.sensitivity_level ?? null, friendly_name: a.friendly_name ?? null, device_model: a.device_model ?? null, device_manufacturer: a.device_manufacturer ?? null })) }
     }
     if (results[12]!.status === 'fulfilled') guardianStatus.value = results[12]!.value.data
     if (results[13]!.status === 'fulfilled') streak.value = results[13]!.value.data
+    if (results[14]!.status === 'fulfilled') trackerStats.value = results[14]!.value.data
+    if (results[15]!.status === 'fulfilled') trackerEvents.value = results[15]!.value.data
 
     // If ALL failed, set error
     const allFailed = results.every((r) => r.status === 'rejected')
@@ -269,6 +281,7 @@ export function useHomeDashboard() {
     familyAlerts,
     changes,
     notifications,
+    trackerEvents,
     fetchDashboard,
   }
 }

@@ -1,6 +1,6 @@
 import { test } from '@playwright/test'
 
-const BASE_URL = 'http://localhost:18090'
+const BASE_URL = 'http://localhost:19978'
 
 const pages = [
   { name: 'dashboard', path: '/' },

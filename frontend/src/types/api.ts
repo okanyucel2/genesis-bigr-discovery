@@ -19,6 +19,9 @@ export interface Asset {
   last_seen: string | null
   manual_override: boolean
   sensitivity_level?: SensitivityLevel | null
+  friendly_name?: string | null
+  device_model?: string | null
+  device_manufacturer?: string | null
 }
 
 export interface AssetsResponse {
@@ -1006,4 +1009,32 @@ export interface StreakResponse {
   total_safe_days: number
   milestone: StreakMilestone | null
   next_milestone: StreakNextMilestone | null
+}
+
+// ---------------------------------------------------------------------------
+// Privacy (Tracker Intelligence)
+// ---------------------------------------------------------------------------
+
+export interface TrackerStats {
+  total_blocked: number
+  by_category: {
+    advertising: number
+    analytics: number
+    social: number
+    fingerprinting: number
+  }
+  period: 'daily' | 'weekly' | 'monthly'
+}
+
+export interface TrackerEvent {
+  domain: string
+  category: string
+  block_count: number
+  last_blocked: string | null
+}
+
+export interface DeviceTrackerReport {
+  ip: string
+  tracker_attempts: number
+  domains: string[]
 }

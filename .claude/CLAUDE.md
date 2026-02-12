@@ -19,7 +19,9 @@
 
 | Service | Port |
 |---------|------|
-| Dashboard | 8090 |
+| Backend | 9978 |
+| Frontend | 19978 |
+| WebSocket | 29978 |
 
 ---
 
@@ -37,7 +39,7 @@ sudo bigr scan --target 192.168.1.0/24  # full mode with ARP sweep
 bigr report --format detailed
 
 # Dashboard
-bigr serve --port 8090
+bigr serve --port 9978
 
 # Tests
 pytest
