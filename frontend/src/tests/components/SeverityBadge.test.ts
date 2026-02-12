@@ -4,11 +4,11 @@ import SeverityBadge from '@/components/shared/SeverityBadge.vue'
 
 describe('SeverityBadge', () => {
   const severityLevels = [
-    { severity: 'critical', label: 'Critical', color: 'text-red-400' },
-    { severity: 'high', label: 'High', color: 'text-orange-400' },
-    { severity: 'medium', label: 'Medium', color: 'text-yellow-400' },
-    { severity: 'low', label: 'Low', color: 'text-blue-400' },
-    { severity: 'none', label: 'None', color: 'text-gray-400' },
+    { severity: 'critical', label: 'Kritik', color: 'text-red-400' },
+    { severity: 'high', label: 'Yüksek', color: 'text-orange-400' },
+    { severity: 'medium', label: 'Orta', color: 'text-yellow-400' },
+    { severity: 'low', label: 'Düşük', color: 'text-blue-400' },
+    { severity: 'none', label: 'Yok', color: 'text-gray-400' },
   ]
 
   it.each(severityLevels)(
@@ -43,24 +43,23 @@ describe('SeverityBadge', () => {
     const wrapper = mount(SeverityBadge, {
       props: { severity: 'high' },
     })
-    // Only the label should be present, no decimal number
-    expect(wrapper.text()).toBe('High')
+    expect(wrapper.text()).toBe('Yüksek')
   })
 
   it('handles case-insensitive severity input', () => {
     const wrapper = mount(SeverityBadge, {
       props: { severity: 'CRITICAL' },
     })
-    expect(wrapper.text()).toContain('Critical')
+    expect(wrapper.text()).toContain('Kritik')
     const classes = wrapper.find('span').classes().join(' ')
     expect(classes).toContain('text-red-400')
   })
 
-  it('falls back to "None" for unknown severity', () => {
+  it('falls back to "Yok" for unknown severity', () => {
     const wrapper = mount(SeverityBadge, {
       props: { severity: 'unknown' },
     })
-    expect(wrapper.text()).toContain('None')
+    expect(wrapper.text()).toContain('Yok')
     const classes = wrapper.find('span').classes().join(' ')
     expect(classes).toContain('text-gray-400')
   })

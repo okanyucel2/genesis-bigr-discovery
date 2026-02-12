@@ -139,7 +139,7 @@ function finishIdentification() {
 
   addMessage({
     sender: 'bigr',
-    text: `Harika! ${identifiedCount.value} cihaz tanimlandi. Guvenlik skorunuz: ${score}. Aileniz koruma altinda! 🛡️`,
+    text: `Harika! ${total} cihazdan ${identifiedCount.value} tanesi tanimlandi. Guvenlik skorunuz: ${score}. Aileniz koruma altinda! 🛡️`,
   })
 
   if (remainingCount.value > 0) {

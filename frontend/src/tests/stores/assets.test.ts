@@ -183,7 +183,7 @@ describe('useAssetsStore', () => {
       const store = useAssetsStore()
       await store.fetchAssets('10.0.0.0/24')
 
-      expect(mockedGetAssets).toHaveBeenCalledWith('10.0.0.0/24')
+      expect(mockedGetAssets).toHaveBeenCalledWith('10.0.0.0/24', undefined, undefined)
     })
   })
 
