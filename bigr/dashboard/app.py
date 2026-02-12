@@ -31,6 +31,7 @@ from bigr.threat.api import router as threat_router
 from bigr.guardian.api.routes import router as guardian_router
 from bigr.engagement.api import router as engagement_router
 from bigr.watcher_api import router as watcher_router
+from bigr.privacy.api import router as privacy_router
 from bigr.topology import build_subnet_topology, build_topology
 
 
@@ -104,6 +105,7 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
     app.include_router(guardian_router)
     app.include_router(engagement_router)
     app.include_router(watcher_router)
+    app.include_router(privacy_router)
     _data_path = Path(data_path)
 
     async def _load_data_async(db: AsyncSession) -> dict:

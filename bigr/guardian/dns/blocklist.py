@@ -26,6 +26,40 @@ _NEVER_BLOCK = frozenset({
 })
 
 
+def _categorize_domain(domain: str, blocklist_name: str) -> str | None:
+    """Categorize a domain based on blocklist source name and domain patterns.
+
+    Returns a category string like "advertising", "analytics", "social",
+    "fingerprinting", "malware", or None if unknown.
+    """
+    bl_lower = blocklist_name.lower()
+
+    # Blocklist-source-based categorization
+    if any(kw in bl_lower for kw in ("ads", "adguard", "easylist")):
+        return "advertising"
+    if any(kw in bl_lower for kw in ("track", "analytic", "telemetry")):
+        return "analytics"
+    if any(kw in bl_lower for kw in ("social", "facebook", "twitter")):
+        return "social"
+    if any(kw in bl_lower for kw in ("fingerprint",)):
+        return "fingerprinting"
+    if any(kw in bl_lower for kw in ("malware", "phishing", "ransomware")):
+        return "malware"
+
+    # Domain-pattern-based fallback
+    domain_lower = domain.lower()
+    if any(kw in domain_lower for kw in ("ads.", "ad.", "adserver", "doubleclick", "adsystem")):
+        return "advertising"
+    if any(kw in domain_lower for kw in ("tracker", "tracking", "analytics", "telemetry")):
+        return "analytics"
+    if any(kw in domain_lower for kw in ("pixel", "facebook", "fbcdn", "twitter")):
+        return "social"
+    if "fingerprint" in domain_lower:
+        return "fingerprinting"
+
+    return None
+
+
 class BlocklistManager:
     """Manage domain blocklists: download, parse, store, and query.
 
@@ -112,9 +146,10 @@ class BlocklistManager:
         await session.flush()
 
         for domain in domains:
+            cat = _categorize_domain(domain, source.name) or source.category
             session.add(
                 GuardianBlockedDomainDB(
-                    domain=domain, blocklist_id=bl_id, category=source.category
+                    domain=domain, blocklist_id=bl_id, category=cat
                 )
             )
 

@@ -135,6 +135,7 @@ class TestGetAllAssets:
             "manual_category", "manual_note",
             "is_ignored", "switch_host", "switch_port", "switch_port_index",
             "agent_id", "site_name", "network_id",
+            "friendly_name", "device_model", "device_manufacturer",
         }
         assert set(result[0].keys()) == expected_keys
 

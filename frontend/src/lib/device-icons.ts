@@ -53,7 +53,13 @@ export function guessDeviceFromVendor(vendor: string | null): DeviceGuess {
  * Best human-readable name for a device.
  * Priority: hostname > vendor > ip (last resort)
  */
-export function resolveDeviceName(ip: string, hostname: string | null, vendor: string | null): string {
+export function resolveDeviceName(
+  ip: string,
+  hostname: string | null,
+  vendor: string | null,
+  friendlyName?: string | null,
+): string {
+  if (friendlyName) return friendlyName
   if (hostname) return hostname
   if (vendor) return `${vendor} Cihaz`
   return ip

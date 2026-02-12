@@ -110,6 +110,9 @@ class AssetDB(Base):
     network_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("networks.id"), nullable=True
     )
+    friendly_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    device_model: Mapped[str | None] = mapped_column(String, nullable=True)
+    device_manufacturer: Mapped[str | None] = mapped_column(String, nullable=True)
 
     scan_assets: Mapped[list[ScanAssetDB]] = relationship(
         "ScanAssetDB", back_populates="asset", cascade="all, delete-orphan"

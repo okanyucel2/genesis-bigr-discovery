@@ -165,6 +165,31 @@ def discover_mdns_services(timeout: float = 8.0) -> list[MdnsService]:
     return collector.services
 
 
+def _extract_manufacturer(service: MdnsService) -> str | None:
+    """Extract manufacturer from mDNS TXT records or service type."""
+    props = service.properties
+
+    # Direct manufacturer property
+    if props.get("manufacturer"):
+        return props["manufacturer"]
+
+    # Infer from service type
+    type_hints = {
+        "_googlecast._tcp.local.": "Google",
+        "_airplay._tcp.local.": "Apple",
+        "_raop._tcp.local.": "Apple",
+        "_hap._tcp.local.": "Apple",
+        "_homekit._tcp.local.": "Apple",
+        "_companion-link._tcp.local.": "Apple",
+        "_sonos._tcp.local.": "Sonos",
+        "_spotify-connect._tcp.local.": None,
+    }
+    if service.service_type in type_hints:
+        return type_hints[service.service_type]
+
+    return None
+
+
 def enrich_assets_with_mdns(
     assets: list[Asset],
     services: list[MdnsService],
@@ -199,6 +224,27 @@ def enrich_assets_with_mdns(
                 if svc.hostname:
                     asset.hostname = svc.hostname
                     break
+
+        # Extract friendly name, model, and manufacturer from mDNS properties
+        for svc in matched:
+            props = svc.properties
+            # Friendly name: fn (Chromecast), md (HomeKit), or service name
+            if asset.friendly_name is None:
+                asset.friendly_name = (
+                    props.get("fn")
+                    or props.get("md")
+                    or svc.name.split("._")[0]  # Strip service type suffix
+                )
+            # Device model
+            if asset.device_model is None:
+                asset.device_model = (
+                    props.get("md")
+                    or props.get("model")
+                    or props.get("ty")  # Printers use "ty" for product name
+                )
+            # Manufacturer
+            if asset.device_manufacturer is None:
+                asset.device_manufacturer = _extract_manufacturer(svc)
 
         # Add service evidence to raw_evidence
         mdns_evidence = []

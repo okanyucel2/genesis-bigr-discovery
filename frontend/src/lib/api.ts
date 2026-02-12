@@ -71,6 +71,9 @@ import type {
   WatcherHistoryResponse,
   WatcherAlertsResponse,
   StreakResponse,
+  TrackerStats,
+  TrackerEvent,
+  DeviceTrackerReport,
 } from '@/types/api'
 import type { ShieldScanResponse, ShieldFindingsResponse, ShieldModulesResponse } from '@/types/shield'
 import {
@@ -129,6 +132,8 @@ import {
   mockCollectiveFeed,
   mockFamilyDevices,
   mockStreak,
+  mockTrackerStats,
+  mockTrackerEvents,
 } from '@/lib/mock-data'
 
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
@@ -709,4 +714,20 @@ export const bigrApi = {
     DEMO_MODE
       ? mockResponse(mockStreak())
       : client.get<StreakResponse>('/api/engagement/streak', { params: { subscription_id: subscriptionId } }),
+
+  // Privacy (Tracker Intelligence)
+  getTrackerStats: () =>
+    DEMO_MODE
+      ? mockResponse(mockTrackerStats())
+      : client.get<TrackerStats>('/api/privacy/stats'),
+
+  getTrackerEvents: (limit = 20) =>
+    DEMO_MODE
+      ? mockResponse(mockTrackerEvents().slice(0, limit))
+      : client.get<TrackerEvent[]>('/api/privacy/events', { params: { limit } }),
+
+  getDeviceTrackerReport: (ip: string) =>
+    DEMO_MODE
+      ? mockResponse({ ip, tracker_attempts: 3, domains: ['tracking.ad-network.com', 'analytics.google.com', 'pixel.facebook.com'] } as DeviceTrackerReport)
+      : client.get<DeviceTrackerReport>(`/api/privacy/device/${ip}`),
 }
