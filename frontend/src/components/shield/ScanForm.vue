@@ -2,17 +2,19 @@
 import { ref } from 'vue'
 import { Shield, Loader2 } from 'lucide-vue-next'
 import type { ScanDepth } from '@/types/shield'
+import type { SensitivityLevel } from '@/types/api'
 
 const props = defineProps<{
   scanning?: boolean
 }>()
 
 const emit = defineEmits<{
-  scan: [target: string, depth: ScanDepth]
+  scan: [target: string, depth: ScanDepth, sensitivity: SensitivityLevel]
 }>()
 
 const target = ref('')
 const depth = ref<ScanDepth>('standard')
+const sensitivity = ref<SensitivityLevel>('safe')
 
 const depths: { value: ScanDepth; label: string; desc: string }[] = [
   { value: 'quick', label: 'Hızlı', desc: '~30s' },
@@ -20,10 +22,16 @@ const depths: { value: ScanDepth; label: string; desc: string }[] = [
   { value: 'deep', label: 'Derin', desc: '~5min' },
 ]
 
+const sensitivities: { value: SensitivityLevel; label: string; desc: string }[] = [
+  { value: 'safe', label: 'Tam', desc: 'Tum moduller' },
+  { value: 'cautious', label: 'Dikkatli', desc: 'Exploit yok' },
+  { value: 'fragile', label: 'Hassas', desc: 'Sadece pasif' },
+]
+
 function handleSubmit() {
   const trimmed = target.value.trim()
   if (!trimmed) return
-  emit('scan', trimmed, depth.value)
+  emit('scan', trimmed, depth.value, sensitivity.value)
 }
 </script>
 
@@ -66,6 +74,36 @@ function handleSubmit() {
           >
             <div class="font-medium">{{ d.label }}</div>
             <div class="mt-0.5 text-xs opacity-60">{{ d.desc }}</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Sensitivity selector -->
+      <div>
+        <label class="mb-1.5 block text-sm font-medium text-slate-300">
+          Cihaz Duyarlılığı
+        </label>
+        <div class="flex gap-2">
+          <button
+            v-for="s in sensitivities"
+            :key="s.value"
+            type="button"
+            :disabled="props.scanning"
+            @click="sensitivity = s.value"
+            :class="[
+              'flex-1 rounded-lg border px-3 py-2 text-center text-sm transition-all',
+              sensitivity === s.value
+                ? s.value === 'fragile'
+                  ? 'border-amber-500/50 bg-amber-500/10 text-amber-400'
+                  : s.value === 'cautious'
+                    ? 'border-yellow-500/50 bg-yellow-500/10 text-yellow-400'
+                    : 'border-cyan-500/50 bg-cyan-500/10 text-cyan-400'
+                : 'border-[var(--border-glass)] bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-300',
+              props.scanning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
+            ]"
+          >
+            <div class="font-medium">{{ s.label }}</div>
+            <div class="mt-0.5 text-xs opacity-60">{{ s.desc }}</div>
           </button>
         </div>
       </div>

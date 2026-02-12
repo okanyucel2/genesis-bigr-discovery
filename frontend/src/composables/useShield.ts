@@ -26,12 +26,12 @@ export function useShield() {
     }
   }
 
-  async function startScan(target: string, depth: ScanDepth, modules?: string[]) {
+  async function startScan(target: string, depth: ScanDepth, modules?: string[], sensitivity?: string) {
     loading.value = true
     scanning.value = true
     error.value = null
     try {
-      const res = await bigrApi.startShieldScan(target, depth, modules)
+      const res = await bigrApi.startShieldScan(target, depth, modules, sensitivity)
       const scan = (res.data as ShieldScanResponse).scan
       currentScan.value = scan
       store.addScan(scan)

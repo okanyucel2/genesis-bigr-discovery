@@ -361,10 +361,10 @@ export const bigrApi = {
   },
 
   // Shield
-  startShieldScan: (target: string, depth?: string, modules?: string[]) =>
+  startShieldScan: (target: string, depth?: string, modules?: string[], sensitivity?: string) =>
     DEMO_MODE
       ? mockResponse<ShieldScanResponse>(mockShieldScan())
-      : client.post<ShieldScanResponse>('/api/shield/scan', null, { params: { target, depth: depth || 'quick', modules: modules?.join(',') } }),
+      : client.post<ShieldScanResponse>('/api/shield/scan', null, { params: { target, depth: depth || 'quick', modules: modules?.join(','), sensitivity } }),
 
   getShieldScan: (scanId: string) =>
     DEMO_MODE

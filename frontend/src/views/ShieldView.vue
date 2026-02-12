@@ -10,6 +10,7 @@ import {
 } from 'lucide-vue-next'
 import { useShield } from '@/composables/useShield'
 import type { ScanDepth } from '@/types/shield'
+import type { SensitivityLevel } from '@/types/api'
 import ScanForm from '@/components/shield/ScanForm.vue'
 import ShieldScore from '@/components/shield/ShieldScore.vue'
 import ModuleScoreCards from '@/components/shield/ModuleScoreCards.vue'
@@ -36,8 +37,8 @@ const {
   fetchScan,
 } = useShield()
 
-async function handleScan(target: string, depth: ScanDepth) {
-  await startScan(target, depth)
+async function handleScan(target: string, depth: ScanDepth, sensitivity: SensitivityLevel) {
+  await startScan(target, depth, undefined, sensitivity)
 }
 
 function handleRefresh() {
