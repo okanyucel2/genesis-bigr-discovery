@@ -28,6 +28,7 @@ from bigr.remediation.api import router as remediation_router
 from bigr.firewall.api import router as firewall_router
 from bigr.threat.abuseipdb_api import router as abuseipdb_router
 from bigr.threat.api import router as threat_router
+from bigr.guardian.api.routes import router as guardian_router
 from bigr.topology import build_subnet_topology, build_topology
 
 
@@ -96,19 +97,22 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
     app.include_router(subscription_router)
     app.include_router(family_router)
     app.include_router(firewall_router)
+    app.include_router(guardian_router)
     _data_path = Path(data_path)
 
     async def _load_data_async(db: AsyncSession) -> dict:
-        """Load scan data from file, falling back to async database."""
-        if _data_path.exists():
-            with _data_path.open(encoding="utf-8") as f:
-                return json.load(f)
+        """Load scan data from database, falling back to JSON file."""
+        # Prefer database (kept up-to-date by ingest pipeline)
         try:
             latest = await services.get_latest_scan(db)
-            if latest:
+            if latest and latest.get("assets"):
                 return latest
         except Exception:
             pass
+        # Fallback to static JSON file (initial/demo data)
+        if _data_path.exists():
+            with _data_path.open(encoding="utf-8") as f:
+                return json.load(f)
         return {"assets": [], "category_summary": {}, "total_assets": 0}
 
     @app.get("/api/data", response_class=JSONResponse)
@@ -118,13 +122,16 @@ def create_app(data_path: str = "assets.json", db_path: Path | None = None) -> F
         network: str | None = None,
         db: AsyncSession = Depends(get_db),
     ):
-        # If site or network filter is active, use DB-level filtering
-        if site or network:
+        # Try DB first (always up-to-date from ingest pipeline)
+        try:
             assets = await services.get_all_assets(
                 db, site_name=site, network_id=network,
             )
-            data = {"assets": assets, "total_assets": len(assets)}
-        else:
+            if assets:
+                data = {"assets": assets, "total_assets": len(assets)}
+            else:
+                data = await _load_data_async(db)
+        except Exception:
             data = await _load_data_async(db)
         # Enrich assets with manual_override flag
         try:

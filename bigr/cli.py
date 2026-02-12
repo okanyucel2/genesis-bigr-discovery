@@ -1896,5 +1896,72 @@ def _print_bigr_matrix(data: dict) -> None:
         console.print(f"  [{style}][{icon}][/{style}] {ip:15s} → {cat_tr:24s} (confidence: {conf:.2f})")
 
 
+# ---------------------------------------------------------------------------
+# Guardian DNS filtering commands
+# ---------------------------------------------------------------------------
+guardian_app = typer.Typer(help="Guardian DNS filtering server")
+app.add_typer(guardian_app, name="guardian")
+
+
+@guardian_app.command("start")
+def guardian_start(
+    port: int = typer.Option(5353, "--port", "-p", help="DNS server port"),
+    host: str = typer.Option("0.0.0.0", "--host", help="DNS server bind address"),
+) -> None:
+    """Start the Guardian DNS filtering server."""
+    import asyncio
+
+    from bigr.guardian.config import GuardianConfig
+    from bigr.guardian.daemon import GuardianDaemon
+
+    config = GuardianConfig(dns_host=host, dns_port=port)
+    daemon = GuardianDaemon(config=config)
+
+    console.print(f"[green]Starting Guardian DNS on {host}:{port}...[/green]")
+    try:
+        asyncio.run(daemon.start())
+        # Keep running until interrupted
+        asyncio.get_event_loop().run_forever()
+    except RuntimeError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Stopping Guardian...[/yellow]")
+        asyncio.run(daemon.stop())
+
+
+@guardian_app.command("stop")
+def guardian_stop() -> None:
+    """Stop the Guardian DNS filtering server."""
+    from bigr.guardian.daemon import GuardianDaemon
+
+    daemon = GuardianDaemon()
+    status = daemon.get_status()
+    if not status["running"]:
+        console.print("[yellow]Guardian is not running.[/yellow]")
+        return
+
+    pid = status["pid"]
+    try:
+        os.kill(pid, signal.SIGTERM)
+        console.print(f"[green]Guardian stopped (PID {pid}).[/green]")
+    except OSError as exc:
+        console.print(f"[red]Failed to stop Guardian:[/red] {exc}")
+
+
+@guardian_app.command("status")
+def guardian_status() -> None:
+    """Check Guardian DNS server status."""
+    from bigr.guardian.daemon import GuardianDaemon
+
+    daemon = GuardianDaemon()
+    status = daemon.get_status()
+
+    if status["running"]:
+        console.print(f"[green]Guardian is running[/green] (PID {status['pid']})")
+    else:
+        console.print(f"[yellow]Guardian is not running[/yellow]: {status['message']}")
+
+
 if __name__ == "__main__":
     app()

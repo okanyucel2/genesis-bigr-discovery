@@ -29,6 +29,16 @@ class Settings(BaseSettings):
     COLLECTIVE_K_ANONYMITY: int = 3  # Min reporters before signal is shared
     COLLECTIVE_SIGNAL_TTL_HOURS: int = 72  # Auto-expiry for collective signals
 
+    # Guardian DNS filtering settings
+    GUARDIAN_DNS_HOST: str = "0.0.0.0"
+    GUARDIAN_DNS_PORT: int = 53
+    GUARDIAN_UPSTREAM_DOH: str = "https://1.1.1.1/dns-query"
+    GUARDIAN_UPSTREAM_FALLBACK: str = "9.9.9.9"
+    GUARDIAN_CACHE_SIZE: int = 10000
+    GUARDIAN_CACHE_TTL: int = 3600
+    GUARDIAN_BLOCKLIST_UPDATE_HOURS: int = 24
+    GUARDIAN_SINKHOLE_IP: str = "0.0.0.0"
+
     model_config = {"env_prefix": "", "case_sensitive": True}
 
 

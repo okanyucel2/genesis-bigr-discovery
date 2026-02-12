@@ -15,6 +15,7 @@ from bigr.core.database import Base, get_database_url
 # Import all models so Base.metadata is populated
 import bigr.core.models_db  # noqa: F401
 import bigr.threat.models  # noqa: F401
+import bigr.guardian.models  # noqa: F401
 # collective_signals is in bigr.core.models_db (CollectiveSignalDB)
 
 config = context.config
@@ -30,6 +31,9 @@ def _get_url() -> str:
     return get_database_url(raw)
 
 
+_VERSION_TABLE = "bigr_alembic_version"
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode (emit SQL to stdout)."""
     url = _get_url()
@@ -38,6 +42,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        version_table=_VERSION_TABLE,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -45,7 +50,11 @@ def run_migrations_offline() -> None:
 
 def do_run_migrations(connection):
     """Helper called inside a sync connection."""
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        version_table=_VERSION_TABLE,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
