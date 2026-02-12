@@ -1,225 +1,337 @@
-# BİGR Discovery - Hybrid Agent Architecture
+# BİGR Shield Frontend — Implementation Plan
+
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+
+**Goal:** Build the frontend views and components for BİGR Shield BAS (security scanning). Backend is fully built — this is frontend-only work.
+
+**Architecture:** 2 views, 5 components, 1 composable, frontend tests. All API methods, types, mock data, Pinia store, and router routes already exist.
+
+**Tech Stack:** Vue 3.5 + TypeScript + Tailwind CSS + Vitest
+
+---
 
 ## Context
 
-BİGR Discovery backend runs on Render (cloud) with Neon PostgreSQL. The frontend is a Vue 3 SPA on Render static. **Problem:** Cloud backend cannot scan local networks (192.168.x.x) — scans timeout because Render has no access to customer LAN. **Solution:** A lightweight local agent that runs on the customer's network, performs discovery + security scans, and pushes results to the cloud API via authenticated HTTPS. The cloud dashboard becomes the multi-site control plane.
+Backend Shield module is complete: 7 scan modules (tls, ports, headers, dns, cve, creds, owasp), orchestrator, scorer, API routes — all with 89 passing tests. Frontend has types (`shield.ts`), Pinia store (`stores/shield.ts`), API methods (`api.ts`), mock data (`mock-data.ts`), and router routes — but **zero views or components**. The router references `ShieldView.vue` and `ShieldFindingsView.vue` which don't exist yet.
 
-```
-┌─ Customer Site A ───────┐       HTTPS        ┌─ Cloud (Render) ──────────┐
-│  bigr agent start       │ ==================> │  FastAPI + Neon PostgreSQL│
-│  - ARP sweep, nmap      │  POST /api/ingest/* │  Vue 3 SPA dashboard      │
-│  - Shield modules       │  POST /api/agents/* │                           │
-│  - Heartbeat every 60s  │                     │  Shows ALL sites          │
-└─────────────────────────┘                     └───────────────────────────┘
-┌─ Customer Site B ───────┐       HTTPS        │
-│  bigr agent start       │ ==================> │
-└─────────────────────────┘                     │
-```
+## Existing Code (DO NOT recreate)
 
-## Key Design Decisions
+| Asset | File | Status |
+|-------|------|--------|
+| Types | `frontend/src/types/shield.ts` | Complete |
+| Store | `frontend/src/stores/shield.ts` | Complete (addScan, updateScan) |
+| API | `frontend/src/lib/api.ts:369-387` | Complete (startShieldScan, getShieldScan, getShieldFindings, getShieldModules) |
+| Mock data | `frontend/src/lib/mock-data.ts:1583-2090` | Complete (mockShieldScan, mockShieldFindings, mockShieldModules) |
+| Router | `frontend/src/router/index.ts:63-76` | Complete (/shield, /shield/scan/:id, /shield-findings) |
+| Sidebar | `frontend/src/components/layout/AppSidebar.vue:80-81` | Complete (Kalkan + Bulgular entries) |
+| SeverityBadge | `frontend/src/components/common/SeverityBadge.vue` | Reuse for finding severity |
 
-1. **Reuse `save_scan_async`** — Ingest endpoints pass results through the existing service layer. No persistence rewrite needed.
-2. **Bearer token auth** — SHA-256 hashed tokens in `agents` table. Simple, no JWT complexity.
-3. **Site tagging via nullable columns** — Add `agent_id` + `site_name` to `scans` and `assets`. Existing data keeps NULL (= "direct/local").
-4. **Agent daemon reuses WatcherDaemon pattern** — PID file management, periodic scan loop from `bigr/watcher.py`.
-5. **httpx for agent HTTP client** — Already a dev dependency, move to main deps.
+## Reuse Patterns
 
----
-
-## Wave 1: Agent Model + Auth + Ingest Endpoints
-
-**Delivers:** Cloud API accepts scan results from authenticated agents.
-
-### Create
-
-| File | Purpose |
-|------|---------|
-| `bigr/agent/__init__.py` | Package init |
-| `bigr/agent/models.py` | Pydantic schemas: `AgentRegisterRequest`, `AgentRegisterResponse`, `AgentHeartbeatRequest`, `IngestDiscoveryRequest`, `IngestShieldRequest` |
-| `bigr/agent/auth.py` | `generate_token()`, `hash_token()`, `verify_agent_token()` FastAPI dependency using `HTTPBearer` |
-| `bigr/agent/routes.py` | Agent API router with 5 endpoints (see below) |
-| `alembic/versions/xxxx_add_agents_table.py` | Migration: agents table + agent_id/site_name columns |
-| `tests/test_agent_auth.py` | Token generation, hashing, verification |
-| `tests/test_agent_routes.py` | All 5 endpoints with httpx TestClient |
-
-### Modify
-
-| File | Change |
-|------|--------|
-| `bigr/core/models_db.py` | Add `AgentDB` model (id, name, site_name, location, token_hash, is_active, registered_at, last_seen, status, version, subnets). Add nullable `agent_id` (FK) + `site_name` to `ScanDB` and `AssetDB` |
-| `bigr/core/services.py` | In `save_scan_async`: pass through `agent_id` and `site_name` from scan_result dict to `ScanDB` and `AssetDB` creation |
-| `bigr/core/settings.py` | Add `AGENT_REGISTRATION_SECRET: str = ""` |
-| `bigr/dashboard/app.py` | `app.include_router(agent_router)` |
-
-### Endpoints
-
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| POST | `/api/agents/register` | Optional secret | Register agent, return token (shown once) |
-| POST | `/api/agents/heartbeat` | Bearer token | Update last_seen + status |
-| GET | `/api/agents` | None | List all agents with status |
-| POST | `/api/ingest/discovery` | Bearer token | Accept discovery scan results → `save_scan_async()` |
-| POST | `/api/ingest/shield` | Bearer token | Accept shield scan results (store findings) |
-
-### Verification
-- `pytest tests/test_agent_*.py` — All pass
-- `alembic upgrade head` — agents table created, new columns added
-- `curl -X POST /api/agents/register -d '{"name":"test","site_name":"HQ"}'` — Returns agent_id + token
-- `curl -H "Authorization: Bearer <token>" -X POST /api/ingest/discovery -d '{...}'` — Returns 200 + scan_id
+- **KalkanShield.vue** pattern → ShieldScoreGauge (circular score display with glow)
+- **SeverityBadge.vue** → Finding severity badges (critical/high/medium/low/info)
+- **useShieldStore** → State management for scans
+- **bigrApi.startShieldScan/getShieldScan** → Already wired with DEMO_MODE support
 
 ---
 
-## Wave 2: Agent CLI Daemon
+## Wave A: Core Views + ScanForm (Tasks 1-3)
 
-**Delivers:** Local agent runnable via `bigr agent start --api-url ... --token ...`
+### Task 1: Create useShield composable
 
-### Create
+**Files:**
+- Create: `frontend/src/composables/useShield.ts`
+- Test: `frontend/src/tests/composables/useShield.test.ts`
 
-| File | Purpose |
-|------|---------|
-| `bigr/agent/daemon.py` | `AgentDaemon` class: init with api_url/token/targets, `_run_single_cycle()` (scan → classify → push), `_send_heartbeat()`, `start()/stop()` with PID file |
-| `bigr/agent/config.py` | `AgentConfig` dataclass + `~/.bigr/agent.yaml` load/save |
-| `tests/test_agent_daemon.py` | Daemon with mocked httpx (scan cycle, heartbeat, PID lifecycle) |
-| `tests/test_agent_cli.py` | CLI commands with mocked HTTP |
+Composable wraps bigrApi + useShieldStore. Manages scan lifecycle:
 
-### Modify
+```typescript
+export function useShield() {
+  const store = useShieldStore()
+  const loading = ref(false)
+  const error = ref<string | null>(null)
+  const polling = ref(false)
 
-| File | Change |
-|------|--------|
-| `bigr/cli.py` | Add `agent` sub-app: `agent start`, `agent stop`, `agent status`, `agent register` |
-| `pyproject.toml` | Move `httpx>=0.27.0` from `[dev]` to main `dependencies` |
+  async function startScan(target: string, depth: ScanDepth = 'quick') { ... }
+  async function pollScan(scanId: string) { ... }  // poll every 2s until completed/failed
+  async function fetchModules() { ... }
 
-### CLI Commands
-
-```bash
-# One-time registration
-bigr agent register --api-url https://bigr-discovery-api.onrender.com \
-  --name "istanbul-scanner" --site "Istanbul Office"
-# → Saves token to ~/.bigr/agent.yaml
-
-# Start daemon (reads config from agent.yaml)
-bigr agent start 192.168.1.0/24 --interval 5m
-
-# Or with explicit params
-bigr agent start 192.168.1.0/24 10.0.0.0/16 \
-  --api-url https://bigr-discovery-api.onrender.com \
-  --token <token> --interval 5m --shield
-
-# Status / stop
-bigr agent status
-bigr agent stop
+  return { loading, error, polling, currentScan: store.currentScan, recentScans: store.recentScans, startScan, pollScan, fetchModules }
+}
 ```
 
-### Agent Daemon Flow
-```
-start() → write PID → _run_loop()
-  │
-  ├─ _run_single_cycle():
-  │   ├─ run_hybrid_scan(target)      # existing scanner
-  │   ├─ classify_assets(result)       # existing classifier
-  │   ├─ _push_discovery_results()     # POST /api/ingest/discovery
-  │   ├─ (optional) shield scan        # existing shield modules
-  │   └─ _push_shield_results()        # POST /api/ingest/shield
-  │
-  ├─ _send_heartbeat()                 # POST /api/agents/heartbeat
-  └─ sleep(interval) → repeat
-```
+**Tests (6):**
+- startScan calls API and adds to store
+- pollScan updates store on completion
+- pollScan stops on failure
+- loading state during startScan
+- error state on API failure
+- DEMO_MODE returns mock data
 
-### Verification
-- `bigr agent register --api-url http://localhost:8090 --name test --site HQ` — Registers, saves yaml
-- `bigr agent start 192.168.1.0/24 --interval 1m` — Scans, pushes, heartbeats visible in cloud
-- `bigr agent status` — Shows PID + last scan time
-- `bigr agent stop` — Clean shutdown
+**Verification:** `npx vitest run src/tests/composables/useShield.test.ts`
 
 ---
 
-## Wave 3: Multi-Site Dashboard
+### Task 2: Create ScanForm component
 
-**Delivers:** Frontend shows site information, site-level filtering, agent status page.
+**Files:**
+- Create: `frontend/src/components/shield/ScanForm.vue`
+- Test: `frontend/src/tests/components/ScanForm.test.ts`
 
-### Backend Changes
+Simple form: text input (target), depth toggle (Hızlı/Standart), submit button. Emits `scan-start` with `{ target, depth }`.
 
-| File | Change |
-|------|--------|
-| `bigr/core/services.py` | Add `get_all_assets(session, site_name=None)` filter, `get_sites_summary(session)`, `get_agents_list(session)` |
-| `bigr/dashboard/app.py` | Add `site` query param to `GET /api/data`, `GET /api/changes`, etc. Add `GET /api/sites` endpoint |
-| `tests/test_site_filtering.py` | Site filter on data endpoints, sites summary |
+```
+┌─────────────────────────────────────────────────┐
+│  Hedef (IP veya Domain)                         │
+│  ┌─────────────────────────────────────────┐    │
+│  │ example.com                              │    │
+│  └─────────────────────────────────────────┘    │
+│                                                  │
+│  Tarama Derinligi:  [Hızlı] [Standart]          │
+│                                                  │
+│  [🛡️ Taramayı Başlat]                           │
+└─────────────────────────────────────────────────┘
+```
 
-### Frontend Changes
+- Input validation: non-empty, basic format check
+- Disabled state while scan is loading
+- Tailwind dark theme (slate-800/900 background, cyan accents)
 
-| File | Change |
-|------|---------|
-| `frontend/src/types/api.ts` | Add `Agent`, `SiteSummary` interfaces |
-| `frontend/src/lib/api.ts` | Add `getAgents()`, `getSites()`, update `getAssets(subnet?, site?)` |
-| `frontend/src/composables/useAgents.ts` | New composable for agent list + status |
-| `frontend/src/views/AgentsView.vue` | New page: agent cards with status indicators, site info, subnets, last seen |
-| `frontend/src/components/dashboard/SiteFilter.vue` | Dropdown: "All Sites" + per-site options |
-| `frontend/src/stores/ui.ts` | Add `selectedSite` to global state |
-| `frontend/src/router/index.ts` | Add `/agents` route |
+**Tests (4):**
+- Renders input and button
+- Emits scan-start on submit with target + depth
+- Button disabled when loading prop is true
+- Empty target shows validation
 
-### Verification
-- Dashboard shows site filter dropdown
-- Selecting a site filters assets/changes/topology
-- `/agents` page shows registered agents with online/offline indicators
-- `GET /api/data?site=Istanbul` returns only that site's data
-
----
-
-## Wave 4: Resilience + Shield Persistence + Hardening
-
-**Delivers:** Offline queue, retry logic, shield DB persistence, agent config management.
-
-### Create
-
-| File | Purpose |
-|------|---------|
-| `bigr/agent/queue.py` | `OfflineQueue`: file-based queue (`~/.bigr/queue/`), `enqueue()` on push failure, `drain()` at cycle start |
-| `alembic/versions/xxxx_add_shield_tables.py` | Migration: `shield_scans` + `shield_findings` tables |
-| `tests/test_offline_queue.py` | Enqueue/drain, partial drain, cleanup |
-| `tests/test_shield_ingest.py` | Shield findings persisted to DB |
-
-### Modify
-
-| File | Change |
-|------|--------|
-| `bigr/core/models_db.py` | Add `ShieldScanDB`, `ShieldFindingDB` models |
-| `bigr/agent/daemon.py` | Wrap push calls with try/except → enqueue on failure, drain at cycle start |
-| `bigr/agent/routes.py` | `POST /api/ingest/shield` → persist to `shield_scans` + `shield_findings` |
-| `.env.example` | Add `AGENT_REGISTRATION_SECRET` |
-| `render.yaml` | Add `AGENT_REGISTRATION_SECRET` env var |
-
-### Verification
-- Kill network → agent queues results to `~/.bigr/queue/`
-- Restore network → next cycle drains queue successfully
-- Shield findings visible in cloud DB after ingest
-- `GET /api/agents` shows stale status for agents offline > 5min
+**Verification:** `npx vitest run src/tests/components/ScanForm.test.ts`
 
 ---
 
-## Critical Files Summary
+### Task 3: Create ShieldView (main page)
 
-| File | Waves | Action |
-|------|-------|--------|
-| `bigr/agent/__init__.py` | 1 | Create |
-| `bigr/agent/models.py` | 1 | Create |
-| `bigr/agent/auth.py` | 1 | Create |
-| `bigr/agent/routes.py` | 1, 4 | Create, modify |
-| `bigr/agent/daemon.py` | 2, 4 | Create, modify |
-| `bigr/agent/config.py` | 2 | Create |
-| `bigr/agent/queue.py` | 4 | Create |
-| `bigr/core/models_db.py` | 1, 4 | Modify |
-| `bigr/core/services.py` | 1, 3 | Modify |
-| `bigr/core/settings.py` | 1 | Modify |
-| `bigr/dashboard/app.py` | 1, 3 | Modify |
-| `bigr/cli.py` | 2 | Modify |
-| `pyproject.toml` | 2 | Modify |
-| `bigr/watcher.py` | — | Reference only (daemon pattern) |
+**Files:**
+- Create: `frontend/src/views/ShieldView.vue`
+- Test: `frontend/src/tests/views/ShieldView.test.ts`
 
-## What Stays Unchanged
+Main Shield page. Two states based on route:
+- `/shield` → Scan form + recent scans list
+- `/shield/scan/:id` → Scan result detail (Task 5-7)
 
-- `bigr/scanner/` — All scanner modules (agent reuses them as-is)
-- `bigr/shield/modules/` — All shield modules (agent reuses them as-is)
-- `bigr/shield/orchestrator.py` — Shield orchestrator (agent calls it locally)
-- `bigr/db.py` — Legacy sync DB layer
-- `bigr/models.py` — Domain dataclasses
-- Frontend existing components (only additions, no modifications to existing views)
+For Wave A, only the scan form + recent scans list. Result detail is placeholder until Wave B.
+
+Layout:
+```
+┌─ Shield ────────────────────────────────────────┐
+│                                                  │
+│  [ScanForm]                                      │
+│                                                  │
+│  ── Son Taramalar ──────────────────────────────│
+│  example.com    B (72)    22s ago    completed   │
+│  192.168.1.1    A (95)    1h ago     completed   │
+│  test.local     —         running... ⏳          │
+└─────────────────────────────────────────────────┘
+```
+
+- Uses `useShield()` composable
+- On `scan-start`: calls `startScan`, navigates to `/shield/scan/{id}`
+- Recent scans from store — click navigates to scan detail
+- Loading spinner while scan is running
+
+**Tests (4):**
+- Renders scan form
+- Shows recent scans list from mock store
+- Navigates to scan detail on click
+- Shows loading state
+
+**Verification:** `npx vitest run src/tests/views/ShieldView.test.ts`
+
+**Wave A Commit:** `feat(shield): add Shield view with scan form and composable`
+
+---
+
+## Wave B: Scan Results (Tasks 4-6)
+
+### Task 4: Create ShieldScoreGauge component
+
+**Files:**
+- Create: `frontend/src/components/shield/ShieldScoreGauge.vue`
+- Test: `frontend/src/tests/components/ShieldScoreGauge.test.ts`
+
+Large circular score display. Pattern from `KalkanShield.vue` (SVG circle with stroke-dashoffset).
+
+Props: `score: number | null`, `grade: ShieldGrade | null`, `status: ScanStatus`
+
+```
+       ╭───────╮
+       │       │
+       │  72   │
+       │  B    │
+       ╰───────╯
+    Shield Score
+```
+
+Color logic:
+- A+/A: emerald-400 (green)
+- B+/B: cyan-400 (blue)
+- C+/C: amber-400 (yellow)
+- D/F: rose-400 (red)
+- Running: pulse animation, slate-400
+
+**Tests (4):**
+- Shows score and grade
+- Green color for A grade
+- Red color for F grade
+- Shows spinner for running status
+
+**Verification:** `npx vitest run src/tests/components/ShieldScoreGauge.test.ts`
+
+---
+
+### Task 5: Create ModuleScoreCards component
+
+**Files:**
+- Create: `frontend/src/components/shield/ModuleScoreCards.vue`
+- Test: `frontend/src/tests/components/ModuleScoreCards.test.ts`
+
+Grid of module score cards. Each card shows module name, score bar, findings count.
+
+Props: `moduleScores: Record<string, ModuleScore>`
+
+```
+┌─ TLS ──────┐  ┌─ Ports ────┐  ┌─ Headers ──┐
+│  85/100     │  │  70/100    │  │  50/100    │
+│  ████████░░ │  │  ███████░░ │  │  █████░░░░ │
+│  1 bulgu    │  │  4 bulgu   │  │  4 bulgu   │
+└─────────────┘  └─────────────┘  └────────────┘
+```
+
+Module label map (Turkish):
+```typescript
+const moduleLabels: Record<string, string> = {
+  tls: 'TLS/SSL', ports: 'Portlar', headers: 'HTTP Başlıkları',
+  dns: 'DNS Güvenliği', cve: 'CVE Zafiyet', creds: 'Kimlik Bilgileri', owasp: 'OWASP'
+}
+```
+
+Score bar color: same grade-based color logic as ShieldScoreGauge.
+
+**Tests (3):**
+- Renders cards for each module
+- Shows correct score and bar width
+- Shows finding count
+
+**Verification:** `npx vitest run src/tests/components/ModuleScoreCards.test.ts`
+
+---
+
+### Task 6: Create FindingsList component + wire scan result page
+
+**Files:**
+- Create: `frontend/src/components/shield/FindingsList.vue`
+- Test: `frontend/src/tests/components/FindingsList.test.ts`
+- Modify: `frontend/src/views/ShieldView.vue` — add scan result detail section
+
+FindingsList shows findings grouped by severity. Each finding has expandable remediation.
+
+Props: `findings: ShieldFinding[]`
+
+```
+┌─ 2 Kritik  4 Yüksek  5 Orta  2 Düşük ──────────┐
+│                                                    │
+│  🔴 CRITICAL  CVE-2024-6387 (RegreSSHion)         │
+│     OpenSSH 8.9p1 — Remote Code Execution          │
+│     ▸ Nasıl düzeltilir?                            │
+│                                                    │
+│  🟠 HIGH  TLS 1.0 Protocol Enabled                │
+│     :443 — Deprecated protocol in use               │
+│     ▸ Nasıl düzeltilir?                            │
+│                                                    │
+│  🟠 HIGH  MySQL (3306) Exposed                     │
+│     :3306 — Database port publicly accessible       │
+│     ▾ Nasıl düzeltilir?                            │
+│     ┌──────────────────────────────────────┐       │
+│     │ Block port 3306 at the firewall.     │       │
+│     │ Use SSH tunneling for remote access. │       │
+│     └──────────────────────────────────────┘       │
+└────────────────────────────────────────────────────┘
+```
+
+- Uses `SeverityBadge.vue` for badges
+- Accordion for remediation text
+- Filter by severity (tabs or chips)
+- Sort by severity (critical first)
+
+**Wire ShieldView scan result:**
+When route is `/shield/scan/:id`, ShieldView shows:
+- ShieldScoreGauge (top)
+- ModuleScoreCards (middle)
+- FindingsList (bottom)
+- Back button to `/shield`
+- Poll for updates if scan is still running
+
+**Tests (5):**
+- Renders findings list with severity badges
+- Shows severity summary counts
+- Expands remediation on click
+- Filters by severity
+- Empty state when no findings
+
+**Verification:** `npx vitest run src/tests/components/FindingsList.test.ts`
+
+**Wave B Commit:** `feat(shield): add scan results — score gauge, module cards, findings list`
+
+---
+
+## Wave C: Findings View + Polish (Tasks 7-8)
+
+### Task 7: Create ShieldFindingsView
+
+**Files:**
+- Create: `frontend/src/views/ShieldFindingsView.vue`
+- Test: `frontend/src/tests/views/ShieldFindingsView.test.ts`
+
+Standalone findings page at `/shield-findings`. Shows all findings across all scans, filterable by severity and module.
+
+Uses same FindingsList component but with aggregate data from store + optional API call for agent-wide findings (`getAgentShieldFindings` already in api.ts).
+
+**Tests (3):**
+- Renders findings from store
+- Filters by module
+- Shows empty state
+
+**Verification:** `npx vitest run src/tests/views/ShieldFindingsView.test.ts`
+
+---
+
+### Task 8: Polish + vue-tsc + full vitest
+
+**Files:**
+- Modify: Various — fix any type errors, missing imports
+- No new files
+
+**Steps:**
+1. Run `npx vue-tsc --noEmit` — fix all type errors
+2. Run `npx vitest run` — all tests pass (243 existing + ~29 new)
+3. Run `VITE_DEMO_MODE=true` dev server — verify:
+   - `/shield` renders scan form + recent scans
+   - Submit scan → navigates to results with score gauge, module cards, findings
+   - `/shield-findings` shows aggregated findings
+   - Mobile responsive
+4. Verify sidebar navigation works
+
+**Wave C Commit:** `feat(shield): add findings view + polish`
+
+---
+
+## Verification
+
+1. `npx vitest run` — all tests pass
+2. `npx vue-tsc --noEmit` — zero errors
+3. DEMO_MODE dev server:
+   - `/shield` → scan form visible, submit works
+   - Score gauge shows 72/B with cyan glow
+   - Module score cards render TLS, Ports, Headers, DNS, CVE, Creds, OWASP
+   - Findings list shows 13 mock findings with severity badges
+   - Remediation accordion expands/collapses
+   - `/shield-findings` shows aggregate view
+   - Sidebar "Kalkan" and "Bulgular" links work

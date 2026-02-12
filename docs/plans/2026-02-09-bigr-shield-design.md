@@ -1005,7 +1005,7 @@ brew install nmap
 go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
 
 # Normal BİGR Discovery başlatma
-bigr serve --port 8090
+bigr serve --port 9978
 # Shield otomatik olarak /api/shield/* altında aktif
 ```
 
